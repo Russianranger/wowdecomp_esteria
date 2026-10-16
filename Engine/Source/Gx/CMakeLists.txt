@@ -1,7 +1,7 @@
 file(GLOB_RECURSE PRIVATE_SOURCES CONFIGURE_DEPENDS "*.cpp")
 
 if (NOT WIN32)
-    list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/CGxDevice(D3d|D3d9Ex|OpenGL)/")
+    list(FILTER PRIVATE_SOURCES EXCLUDE REGEX "/CGxDevice(D3d|D3d9Ex|D3d11|OpenGL)/")
 endif ()
 
 add_library(Gx STATIC
@@ -16,6 +16,9 @@ target_include_directories(Gx
 target_link_libraries(Gx
     PRIVATE
         d3d9.lib
+        d3d11.lib
+        dxgi.lib
+        d3dcompiler.lib
 )
 
 if (WIN32)

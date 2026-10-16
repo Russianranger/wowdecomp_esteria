@@ -21,7 +21,8 @@ enum CMDOPT {
     CMD_FULL_SCREEN = 13,
     CMD_22050HZ = 14,
     CMD_NO_WARNINGS = 15,
-    CMDOPTS = 16,
+    CMD_D3D11 = 16,
+    CMDOPTS = 17,
 };
 
 enum PROPERTY {
