@@ -8,6 +8,12 @@
 class CDataStore;
 class NetClient;
 
+// A message handler an extension registers with ExtensionMgr::RegisterMessageHandler. Same shape
+// as the client's own MESSAGE_HANDLER: param is the registration's user pointer, msgId the
+// opcode, time the receive timestamp, msg the stream with the cursor at the payload. The return
+// value is passed back to NetClient::ProcessMessage's caller like a stock handler's.
+typedef int32_t (*ExtensionMessageHandler)(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg);
+
 // The world-server connection (WoW/Source/Net/NetClient/NetClient.cpp): its state changes and
 // the two points every message passes through. The message hooks never rewrite a message, and
 // the core restores the stream's read cursor after each hook so the engine's own handler sees

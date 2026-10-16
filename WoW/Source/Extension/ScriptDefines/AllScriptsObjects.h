@@ -13,6 +13,8 @@
 #include "WoW/Source/Extension/ScriptDefines/RenderScript.h"
 #include "WoW/Source/Extension/ScriptDefines/TerrainScript.h"
 #include "WoW/Source/Extension/ScriptDefines/TextureScript.h"
+#include "WoW/Source/Extension/ScriptDefines/UIScript.h"
+#include "WoW/Source/Extension/ScriptDefines/UnitScript.h"
 #include "WoW/Source/Extension/ScriptDefines/WorldScript.h"
 
 #endif

@@ -5,12 +5,21 @@
 #include "WoW/Source/Extension/ScriptObject.h"
 
 struct lua_State;
+typedef int (*lua_CFunction)(lua_State* L);
 
 // Which FrameScript state is being set up. The glue (login, realm list, character screens) and the
 // game UI run in different Lua states with different function tables and event arrays.
 enum FrameScriptContext {
     FRAMESCRIPT_CONTEXT_GLUE = 0,
     FRAMESCRIPT_CONTEXT_GAME = 1,
+};
+
+// Which states a registration (ExtensionMgr::RegisterLuaFunction, RegisterFrameScriptEvent)
+// applies to, as a mask.
+enum FrameScriptContexts {
+    FRAMESCRIPT_CONTEXTS_GLUE = 1 << FRAMESCRIPT_CONTEXT_GLUE,
+    FRAMESCRIPT_CONTEXTS_GAME = 1 << FRAMESCRIPT_CONTEXT_GAME,
+    FRAMESCRIPT_CONTEXTS_ALL = FRAMESCRIPT_CONTEXTS_GLUE | FRAMESCRIPT_CONTEXTS_GAME,
 };
 
 // The FrameScript (Lua) state. The client destroys and recreates its Lua state several times:
@@ -25,6 +34,13 @@ enum FrameScriptContext {
 // A script never calls FrameScript_CreateEvents itself (that would discard the engine's events);
 // it declares its event names through ExtensionMgr::DeclareFrameScriptEvent inside this hook, and
 // the core creates the engine's names and the declared names together in the one call.
+//
+// Most extensions need no hook at all: ExtensionMgr::RegisterLuaFunction and
+// RegisterFrameScriptEvent record a function or an event once (from the entry point or
+// OnStartup) and the core re-registers them into every state it sets up, before this hook runs;
+// ExtensionMgr::GetFrameScriptEventIndex gives the event's index in the current state when it is
+// time to signal it. The hook is for registrations that need the lua_State (tables, closures,
+// upvalues) or the context.
 class LuaScript : public ScriptObject {
     protected:
     explicit LuaScript(const char* name);

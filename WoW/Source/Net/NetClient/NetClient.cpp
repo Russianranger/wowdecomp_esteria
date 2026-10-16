@@ -291,6 +291,14 @@ int32_t NetClient::ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_
         return this->m_handlers[msgId](this->m_handlerParams[msgId], static_cast<NETMESSAGE>(msgId), timeReceived, msg);
     }
 
+    // Not in the original: an opcode without a stock handler goes to the handler an extension
+    // registered for it, if any; the stock table above always wins.
+    int32_t result;
+
+    if (sExtensionMgr->DispatchRegisteredMessage(static_cast<NETMESSAGE>(msgId), timeReceived, msg, result)) {
+        return result;
+    }
+
     msg->Reset();
 
     return 0;

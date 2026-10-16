@@ -1021,6 +1021,10 @@ static void InitializeClient() {
     SI2::Init(0);
     ObjectEffectSystem_Initialize();
     FrameXML_RegisterDefault();
+
+    // Not in the original: extension element types join the factory table after the engine's.
+    sExtensionMgr->OnFrameXmlInitialized();
+
     GlueScriptEventsInitialize();
     ScriptEventsInitialize();
     SpecialUnitEffectsInitialize();

@@ -73,8 +73,14 @@ void ExtensionMgr::Unload() {
     ScriptRegistry<RenderScript>::Clear();
     ScriptRegistry<TerrainScript>::Clear();
     ScriptRegistry<TextureScript>::Clear();
+    ScriptRegistry<UIScript>::Clear();
+    ScriptRegistry<UnitScript>::Clear();
     ScriptRegistry<WorldScript>::Clear();
     m_scriptCount = 0;
+
+    ClearMessageHandlers();
+    ClearLuaRegistrations();
+    ClearXmlElements();
 
     Log("Extensions: unloaded");
 

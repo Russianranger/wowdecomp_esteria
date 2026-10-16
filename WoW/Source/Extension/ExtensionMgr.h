@@ -5,25 +5,30 @@
 #include <vector>
 #include "WoW/Source/Extension/ScriptDefines/AllScriptsObjects.h"
 
+class AuraData;
 class C3Vector;
 class CDataStore;
 class CGObject_C;
+class CGUnit_C;
 class CM2Model;
 class CM2Shared;
 class CMapArea;
 class CMapObj;
 class CMapObjGroup;
+class CSimpleFrame;
 class CTexture;
 class NetClient;
 class SFileImpl;
 class WowClientDB_Base;
+class XMLNode;
 struct lua_State;
 
 // The central script manager: loads the compiled-in extensions, holds one ScriptRegistry<T> per
 // script type and exposes one OnXxx(...) dispatcher per hook. The client calls a dispatcher at the
 // matching seam; the dispatcher walks the registry of the hook's script type and calls the virtual
-// on every script. Extensions never call a dispatcher, only the services (Log,
-// DeclareFrameScriptEvent).
+// on every script. Extensions never call a dispatcher, only the services: Log and the
+// registration APIs (message handlers and sends, Lua functions and events, XML element types),
+// which record what an extension adds and feed it to the client at the right seam.
 class ExtensionMgr {
     friend class ScriptObject;
 
@@ -72,11 +77,29 @@ class ExtensionMgr {
     void OnFrameEnd();
 
     public: /* NetScript */
+    // Registration API. A handler receives the server messages of one opcode that the stock
+    // client has no handler for (the stock table always wins): it is the way to give the client
+    // a new SMSG. opcode is the 16-bit wire opcode; it must not be one the stock client handles,
+    // and the server has to send it, so an extension and its server module agree on a range the
+    // stock protocol does not use (opcodes >= NUM_MSG_TYPES, 0x51F, are free of any stock
+    // meaning). One handler per opcode; registering again replaces it.
+    void RegisterMessageHandler(uint32_t opcode, ExtensionMessageHandler handler, void* param);
+    void UnregisterMessageHandler(uint32_t opcode);
+
+    // Builds a client message (32-bit opcode, then the payload bytes, the layout every stock
+    // sender uses) and hands it to the current realm connection's Send. Returns false when there
+    // is no connection to send on. The server has to know the opcode; a stock server drops or
+    // refuses what it does not expect.
+    bool SendClientMessage(uint32_t opcode, const void* payload, uint32_t bytes);
+    bool SendClientMessage(uint32_t opcode, CDataStore& payload);
+
     void OnConnected(NetClient* client);
     void OnDisconnected(NetClient* client);
     void OnMessageReceived(NETMESSAGE msgId, uint32_t timeReceived, CDataStore* msg);
     // False when a script refused the message: the caller drops it instead of dispatching.
     bool CanMessageReceive(NETMESSAGE msgId, uint32_t timeReceived, CDataStore* msg);
+    // True when a registered handler took the message; result is then the handler's return.
+    bool DispatchRegisteredMessage(NETMESSAGE msgId, uint32_t timeReceived, CDataStore* msg, int32_t& result);
     void OnMessageSent(CDataStore* msg);
 
     public: /* ModelScript */
@@ -89,6 +112,26 @@ class ExtensionMgr {
     void OnModelLoaded(CM2Model* model);
     void OnModelAnimated(CM2Model* model);
     void OnModelDestroy(CM2Model* model);
+
+    public: /* UnitScript */
+    void OnUnitMoveUpdate(CGUnit_C* unit, uint32_t time);
+    void OnUnitDisplayInfoUpdated(CGUnit_C* unit);
+    void OnUnitDeath(CGUnit_C* unit);
+    void OnUnitAuraAdded(CGUnit_C* unit, uint32_t index, AuraData* aura, int32_t spellId);
+    void OnUnitAuraRemoved(CGUnit_C* unit, uint32_t index, AuraData* aura, int32_t spellId);
+
+    public: /* UIScript */
+    // Registration API: adds an XML element type (and CreateFrame type) backed by factory. Takes
+    // effect when FrameXML's table exists (right after the engine's own types, or at once when
+    // registered later); a name the engine already uses is refused and logged. unique makes the
+    // type usable once, like <WorldFrame>.
+    void RegisterXmlElement(const char* name, ExtensionFrameFactory factory, bool unique = false);
+
+    // Client call after FrameXML_RegisterDefault: registers the recorded element types.
+    void OnFrameXmlInitialized();
+
+    void OnFrameCreated(CSimpleFrame* frame, XMLNode* node);
+    void OnUnknownFrameType(const char* name, XMLNode* node);
 
     public: /* ObjectScript */
     void OnObjectCreated(CGObject_C* object);
@@ -118,11 +161,25 @@ class ExtensionMgr {
     void OnClientDBShutdown();
 
     public: /* LuaScript */
+    // Registration API. A function registered here is a global in every FrameScript state of the
+    // contexts in the mask (FrameScriptContexts), registered through FrameScript_RegisterFunction
+    // each time such a state is created and at once if one exists; it runs as engine code,
+    // untainted, like every stock Script_* function. An event registered here is created in those
+    // states together with the engine's events; GetFrameScriptEventIndex gives its index in the
+    // current state for FrameScript_SignalEvent (UINT32_MAX when the current state does not have
+    // it or no state exists). Both are recorded for the life of the client; register from the
+    // extension's entry point or OnStartup.
+    void RegisterLuaFunction(const char* name, lua_CFunction function, uint32_t contexts = FRAMESCRIPT_CONTEXTS_ALL);
+    void RegisterFrameScriptEvent(const char* name, uint32_t contexts = FRAMESCRIPT_CONTEXTS_ALL);
+    uint32_t GetFrameScriptEventIndex(const char* name);
+    FrameScriptContext GetFrameScriptContext();
+
     // Replaces the client's FrameScript_CreateEvents(names, count) call at each FrameScript rebuild
-    // site. Fires LuaScript::OnFrameScriptInitialized for every script (where they declare their
-    // events), then creates the engine's names followed by the declared names in one
-    // FrameScript_CreateEvents call, so the engine's indices are unchanged and the declared
-    // events get the indices DeclareFrameScriptEvent returned.
+    // site. Registers the recorded functions and events for the context, fires
+    // LuaScript::OnFrameScriptInitialized for every script (where they may declare more), then
+    // creates the engine's names followed by the declared names in one FrameScript_CreateEvents
+    // call, so the engine's indices are unchanged and the declared events get the indices
+    // DeclareFrameScriptEvent returned.
     void OnFrameScriptInitialized(FrameScriptContext context, const char** names, uint32_t count);
     void OnFrameScriptDestroy(lua_State* L);
 
@@ -133,6 +190,10 @@ class ExtensionMgr {
     uint32_t DeclareFrameScriptEvent(const char* name);
 
     private:
+    void ClearMessageHandlers();
+    void ClearLuaRegistrations();
+    void ClearXmlElements();
+
     uint32_t m_scriptCount;
 };
 
