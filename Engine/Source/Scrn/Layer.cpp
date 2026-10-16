@@ -156,6 +156,7 @@ static int32_t CaptureScreen() {
 // OFFSET: 0x004A8720
 static int32_t OnPaint(const void* data, void* param) {
     if (GxHasContext() && GxIsWindowVisible()) {
+        // Not in the original: nothing of this frame is drawn yet.
         sExtensionMgr->OnFrameBegin(s_elapsedSec);
 
         HSRGN rgn;
@@ -214,6 +215,7 @@ static int32_t OnPaint(const void* data, void* param) {
         GxXformSetViewport(minX, maxX, minY, maxY, minZ, maxZ);
         GxuFontUpdate();
 
+        // Not in the original: every layer has painted, the scene is not presented yet.
         sExtensionMgr->OnFrameEnd();
 
         if (!s_noPresent) {
