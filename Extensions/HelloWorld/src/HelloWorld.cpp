@@ -1,36 +1,22 @@
-#include "WoW/Source/Extension/ExtensionMgr.h"
+// HelloWorld: the smallest possible extension. It registers one script of every type and logs the
+// hooks it receives, so the discovery -> registration -> dispatch chain of each context can be
+// checked end to end in Logs\Extensions.log. It is the template for a real extension; it does
+// nothing else on purpose. Per-frame hooks log their first call and a count afterwards, never
+// every frame.
 
-namespace {
+void AddHelloWorldClientScripts();
+void AddHelloWorldWorldScripts();
+void AddHelloWorldRenderScripts();
+void AddHelloWorldNetScripts();
+void AddHelloWorldLuaScripts();
 
-class HelloWorldScript : public ClientScript
-{
-    public:
-    HelloWorldScript() : ClientScript("HelloWorldScript") {}
-
-    void OnStartup() override
-    {
-        ExtensionMgr::Log("HelloWorld: OnStartup");
-    }
-
-    void OnShutdown() override
-    {
-        ExtensionMgr::Log("HelloWorld: OnShutdown");
-    }
-
-    void OnEnterWorld(uint32_t mapId) override
-    {
-        ExtensionMgr::Log("HelloWorld: OnEnterWorld (map %u)", mapId);
-    }
-
-    void OnLeaveWorld() override
-    {
-        ExtensionMgr::Log("HelloWorld: OnLeaveWorld");
-    }
-};
-
-}
-
-void AddHelloWorldExtension()
-{
-    ExtensionMgr::Add(new HelloWorldScript());
+// The entry point the generated loader calls: Add<DirectoryName>Extension(). Instantiate every
+// script of the extension from here; a script registers itself in its constructor and the registry
+// owns it from then on.
+void AddHelloWorldExtension() {
+    AddHelloWorldClientScripts();
+    AddHelloWorldWorldScripts();
+    AddHelloWorldRenderScripts();
+    AddHelloWorldNetScripts();
+    AddHelloWorldLuaScripts();
 }

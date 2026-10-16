@@ -8,6 +8,7 @@
 #include "Engine/Source/Event/Types.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
 #include "WoW/Source/WowServices/HMAC.h"
 
@@ -276,6 +277,9 @@ int32_t NetClient::ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_
     uint16_t msgId;
     msg->Get(msgId);
     this->ValidateMessageId(msgId);
+
+    // Not in the original: every incoming message passes here with the cursor at its payload.
+    sExtensionMgr->OnMessageReceived(static_cast<NETMESSAGE>(msgId), timeReceived, msg);
 
     if (msgId < NUM_MSG_TYPES && this->m_handlers[msgId]) {
         return this->m_handlers[msgId](this->m_handlerParams[msgId], static_cast<NETMESSAGE>(msgId), timeReceived, msg);
@@ -593,6 +597,9 @@ void NetClient::Send(CDataStore* msg) {
         held->m_msg.Finalize();
         return;
     }
+
+    // Not in the original: every message handed to the connection passes here, held ones included.
+    sExtensionMgr->OnMessageSent(msg);
 
     this->m_serverConnection->SendPacket(msg, 0);
     WowConnection* connection = this->m_serverConnection;

@@ -18,6 +18,7 @@
 #include "Engine/Source/SoundEngine/SoundEngine.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x009EDCB8
 static const RECTF s_defaultRect = { 0.0f, 0.0f, 1.0f, 1.0f };
@@ -155,6 +156,8 @@ static int32_t CaptureScreen() {
 // OFFSET: 0x004A8720
 static int32_t OnPaint(const void* data, void* param) {
     if (GxHasContext() && GxIsWindowVisible()) {
+        sExtensionMgr->OnFrameBegin(s_elapsedSec);
+
         HSRGN rgn;
         SRgnCreate(&rgn, 0);
 
@@ -210,6 +213,8 @@ static int32_t OnPaint(const void* data, void* param) {
 
         GxXformSetViewport(minX, maxX, minY, maxY, minZ, maxZ);
         GxuFontUpdate();
+
+        sExtensionMgr->OnFrameEnd();
 
         if (!s_noPresent) {
             if (s_screenshotCallback) {

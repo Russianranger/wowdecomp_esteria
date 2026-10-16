@@ -106,6 +106,7 @@ add_subdirectory(WoW/Source/WorldClient)
 add_subdirectory(WoW/Source/WowServices)
 add_subdirectory(WoW/Source/WowSvcs)
 add_subdirectory(WoW/Source)
+# Compiled-in extensions (Extensions/<Name>/src/), discovered by their own CMakeLists.
 add_subdirectory(Extensions)
 if (WIN32)
     add_subdirectory(Tools/WowClient)

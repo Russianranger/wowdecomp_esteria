@@ -508,6 +508,9 @@ void ZoneDebugDestroy() {
 // VERIFY: a6d33d4d auto
 // OFFSET: 0x00402910
 static void WowClientDestroy() {
+    // Not in the original: mirror of OnClientInitialized, the update handler goes away here.
+    sExtensionMgr->OnClientDestroy();
+
     ValidateNameDestroy();
     DeclinedWordsDestroy();
     SpellVisualsShutdown();
@@ -1065,6 +1068,10 @@ static void InitializeClient() {
     CGlueMgr::m_pendingTimerAlert = s_timeTestError;
     SpellVisualsInitialize();
     EventRegister(EVENT_ID_POLL, PollNet);
+
+    // Not in the original: every client system exists and the first frame has not run; the
+    // extension update handler is registered here, after the client's own.
+    sExtensionMgr->OnClientInitialized();
 }
 
 // VERIFY: 56a0f6b5 auto
@@ -1347,7 +1354,8 @@ void ClientInitializeGame(uint32_t mapId, C3Vector position) {
     BattlenetUI_EnterRealm();
     s_gameInitialized = 1;
 
-    ExtensionMgr::OnEnterWorld(mapId);
+    // Not in the original: the world is loaded and the game systems are up.
+    sExtensionMgr->OnEnterWorld(mapId);
 }
 
 // VERIFY: a768ccd6 manual
@@ -1553,7 +1561,8 @@ void ClientDestroyGame(int32_t charSelect, int32_t resumeGlue, int32_t worldLogi
         return;
     }
 
-    ExtensionMgr::OnLeaveWorld();
+    // Not in the original: extensions see the world go while everything game-side is still valid.
+    sExtensionMgr->OnLeaveWorld();
 
     s_botCheckEnabled = 0;
     EventUnregister(EVENT_ID_IDLE, ClientIdle);
@@ -1771,7 +1780,9 @@ bool InitializeGlobal() {
     g_rndSeed.SetSeed(OsGetAsyncTimeMs());
     g_clientEventContext = EventCreateContextEx(1, InitializeEngineCallback, DestroyEngineCallback, 0, 0);
 
-    ExtensionMgr::Initialize();
+    // Not in the original: compiled-in extensions come up once the engine services exist.
+    sExtensionMgr->Initialize();
+    sExtensionMgr->OnStartup();
 
     return true;
 }
@@ -1779,8 +1790,9 @@ bool InitializeGlobal() {
 // VERIFY: 87ba0ad5 manual
 // OFFSET: 0x00406B70
 void BeginCloseGame() {
-
-    ExtensionMgr::Shutdown();
+    // Not in the original: extensions go down first, while the CVars and the event system are alive.
+    sExtensionMgr->OnShutdown();
+    sExtensionMgr->Unload();
 
     SMemSetDebugFlags(0, 8);
     OsIMEDestroy();

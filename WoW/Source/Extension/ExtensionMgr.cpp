@@ -7,8 +7,18 @@
 static HSLOG s_log;
 static bool s_initialized;
 
-void ExtensionMgr::Log(const char* format, ...)
-{
+ExtensionMgr::ExtensionMgr() : m_scriptCount(0) {
+}
+
+ExtensionMgr::~ExtensionMgr() {
+}
+
+ExtensionMgr* ExtensionMgr::instance() {
+    static ExtensionMgr instance;
+    return &instance;
+}
+
+void ExtensionMgr::Log(const char* format, ...) {
     char buffer[1024];
     va_list args;
     va_start(args, format);
@@ -20,89 +30,51 @@ void ExtensionMgr::Log(const char* format, ...)
         SLogFlush(s_log);
     }
 
+    // Dropped until the console screen is initialised (InitializeEngineCallback); see the header.
     ConsolePrintf("%s", buffer);
 }
 
-void ExtensionMgr::Add(ClientScript* script)
-{
-    if (!script)
-    {
-        return;
-    }
-
-    ExtensionRegistry<ClientScript>::Add(script);
-    Log("Extensions: registered ClientScript %s", script->GetName());
-}
-
-uint32_t ExtensionMgr::GetScriptCount()
-{
-    return static_cast<uint32_t>(ExtensionRegistry<ClientScript>::Scripts().size());
-}
-
-void ExtensionMgr::Initialize()
-{
-    if (s_initialized)
-    {
+void ExtensionMgr::Initialize() {
+    if (s_initialized) {
         return;
     }
 
     s_initialized = true;
 
-    if (!SLogCreate("Logs\\Extensions.log", SLOG_FLAG_OPENFILE, &s_log))
-    {
+    // SLogCreate creates the Logs directory; the path is relative to the client directory set by
+    // SetPaths(), so this is bin/Win/Logs/Extensions.log for a tree build.
+    if (!SLogCreate("Logs\\Extensions.log", SLOG_FLAG_OPENFILE, &s_log)) {
         s_log = nullptr;
     }
 
     Log("Extensions: %u compiled in", g_extensionCount);
 
-    for (const EXTENSIONENTRY* entry = g_extensionEntries; entry->m_name; entry++)
-    {
+    for (const EXTENSIONENTRY* entry = g_extensionEntries; entry->m_name; entry++) {
         Log("Extensions: loading %s", entry->m_name);
         entry->m_add();
     }
 
     Log("Extensions: %u script(s) registered", GetScriptCount());
-
-    for (ClientScript* script : ExtensionRegistry<ClientScript>::Scripts())
-    {
-        script->OnStartup();
-    }
 }
 
-void ExtensionMgr::Shutdown()
-{
-    if (!s_initialized)
-    {
+void ExtensionMgr::Unload() {
+    if (!s_initialized) {
         return;
     }
 
-    for (ClientScript* script : ExtensionRegistry<ClientScript>::Scripts())
-    {
-        script->OnShutdown();
-    }
+    ScriptRegistry<ClientScript>::Clear();
+    ScriptRegistry<WorldScript>::Clear();
+    ScriptRegistry<RenderScript>::Clear();
+    ScriptRegistry<NetScript>::Clear();
+    ScriptRegistry<LuaScript>::Clear();
+    m_scriptCount = 0;
 
-    Log("Extensions: shutdown");
-    ExtensionRegistry<ClientScript>::Clear();
+    Log("Extensions: unloaded");
 
-    if (s_log)
-    {
+    if (s_log) {
         SLogClose(s_log);
         s_log = nullptr;
     }
 
     s_initialized = false;
-}
-
-void ExtensionMgr::OnEnterWorld(uint32_t mapId)
-{
-    for (ClientScript* script : ExtensionRegistry<ClientScript>::Scripts()) {
-        script->OnEnterWorld(mapId);
-    }
-}
-
-void ExtensionMgr::OnLeaveWorld()
-{
-    for (ClientScript* script : ExtensionRegistry<ClientScript>::Scripts()) {
-        script->OnLeaveWorld();
-    }
 }

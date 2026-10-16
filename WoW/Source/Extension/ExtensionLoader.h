@@ -3,8 +3,12 @@
 
 #include <cstdint>
 
-struct EXTENSIONENTRY
-{
+// The table of compiled-in extensions. It is defined by Extensions/ExtensionsLoader.cpp, which
+// Extensions/CMakeLists.txt generates from Extensions/ExtensionsLoader.cpp.in at configure time:
+// one entry per Extensions/<Name>/src/ directory, in sorted directory order, naming the extension's
+// entry point Add<Name>Extension(). The table ends with a { nullptr, nullptr } sentinel so it is
+// never empty.
+struct EXTENSIONENTRY {
     const char* m_name;
     void (*m_add)();
 };
