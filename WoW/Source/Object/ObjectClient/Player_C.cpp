@@ -51,6 +51,7 @@
 #include "WoW/Source/Object/Types.h"
 #include "WoW/Source/ObjectMgrClient/CClientObjCreate.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/ObjectMgrClient/QuestUpdateBatch.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/Ui/ActionBarFrame.h"
 #include "WoW/Source/Ui/BarberShop.h"
@@ -1863,10 +1864,18 @@ void __stdcall CGPlayer_C::PushQuestToParty(int32_t questId) {
 
 // VERIFY: 2068fcba manual
 // OFFSET: 0x006D4F80
-void __stdcall CGPlayer_C::QuestLogRemoveQuest(uint8_t slot) {
+void __stdcall CGPlayer_C::QuestLogRemoveQuest(uint32_t slot) {
+    if (slot >= WOWDECOMP_QUEST_LOG_SLOTS) {
+        return;
+    }
+
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_QUEST_LOG_REMOVE_QUEST));
-    msg.Put(slot);
+#if WOWDECOMP_QUEST_LOG_SLOTS > 255
+    msg.Put(static_cast<uint16_t>(slot));
+#else
+    msg.Put(static_cast<uint8_t>(slot));
+#endif
     msg.Finalize();
     ClientServices::Send2(&msg);
 }
@@ -3798,8 +3807,8 @@ int32_t Packet_Group_17(void* param, NETMESSAGE msgId, uint32_t time, CDataStore
             return 1;
         }
 
-        for (int32_t i = 0; i < 25; i++) {
-            PlayerQuestLogEntry* entry = i >= 0 && i <= 25 ? &player->m_player->m_playerQuestLog[i] : nullptr;
+        for (int32_t i = 0; i < WOWDECOMP_QUEST_LOG_SLOTS; i++) {
+            PlayerQuestLogEntry* entry = &player->m_player->m_playerQuestLog[i];
 
             if (entry && entry->m_questId == questId) {
                 if (entry->m_state & 0x2) {
@@ -6887,7 +6896,7 @@ int32_t CGPlayer_C::CanUseItem(const ItemStats_C* stats, int32_t& error) {
 
     CGUnitData* unit = this->m_unit;
 
-    if (static_cast<int32_t>(stats->m_requiredLevel) > static_cast<int32_t>(unit->m_unitFieldLevel) || !((1 << (unit->m_unitFieldBytes0[1] - 1)) & stats->m_allowableClass) || !((1 << (unit->m_unitFieldBytes0[0] - 1)) & stats->m_allowableRace)) {
+    if (static_cast<int32_t>(stats->m_requiredLevel) > static_cast<int32_t>(unit->m_unitFieldLevel) || !stats->m_allowableClass.TestClass(unit->m_unitFieldBytes0[1]) || !((1 << (unit->m_unitFieldBytes0[0] - 1)) & stats->m_allowableRace)) {
         error = ERR_CANT_USE_ITEM;
         return 0;
     }
@@ -7119,13 +7128,22 @@ int32_t OnUpdateQuest(WOWGUID guid, uint32_t offset, uint32_t count, const void*
         return 1;
     }
 
-    if (player->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
-        CGPlayer_C::QueryQuestGiverStatusMultiple();
-    }
+#if WOWDECOMP_QUEST_LOG_SLOTS > 25
+    if (QuestUpdateBatch::NeedsRefresh()) {
+#endif
+        if (player->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
+            CGPlayer_C::QueryQuestGiverStatusMultiple();
+        }
 
-    CGQuestLog::Update(1);
+        CGQuestLog::Update(1);
+#if WOWDECOMP_QUEST_LOG_SLOTS > 25
+    }
+#endif
     uint32_t slot = (offset - 0x28) / sizeof(PlayerQuestLogEntry);
-    PlayerQuestLogEntry* entry = slot > 25 ? nullptr : &player->m_player->m_playerQuestLog[slot];
+    if (slot >= WOWDECOMP_QUEST_LOG_SLOTS) {
+        return 1;
+    }
+    PlayerQuestLogEntry* entry = &player->m_player->m_playerQuestLog[slot];
     const PlayerQuestLogEntry* old = static_cast<const PlayerQuestLogEntry*>(value);
     uint32_t questId = entry->m_questId;
     WOWGUID none = { 0 };
@@ -7176,46 +7194,46 @@ void CGPlayer_C::SetActiveMirrorHandlers() {
 
     ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x10, 8, CritterUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
 
-    for (uint32_t i = 0x2C0; i < 0x378; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x2C0); i < ExtendedLimits::PlayerOffset(0x378); i += 8) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 8, InventoryUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    for (uint32_t i = 0x3F8; i <= 0x4D0; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x3F8); i <= ExtendedLimits::PlayerOffset(0x4D0); i += 8) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 8, InventoryUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    for (uint32_t i = 0x4D8; i <= 0x508; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x4D8); i <= ExtendedLimits::PlayerOffset(0x508); i += 8) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 8, InventoryUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    for (uint32_t i = 0x570; i <= 0x668; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x570); i <= ExtendedLimits::PlayerOffset(0x668); i += 8) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 8, InventoryUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    for (uint32_t i = 0x670; i <= 0x768; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x670); i <= ExtendedLimits::PlayerOffset(0x768); i += 8) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 8, InventoryUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    for (uint32_t i = 0x28; i < 0x21C; i += 20) {
+    for (uint32_t i = 0x28; i < ExtendedLimits::PlayerOffset(0x21C); i += 20) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 20, OnUpdateQuest, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    for (uint32_t i = 0x11B0; i < 0x1214; i += 4) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x11B0); i < ExtendedLimits::PlayerOffset(0x1214); i += 4) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 4, ReportDailyQuestsRemaining, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xFF8, 4, OnUpdateMoney, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xFF8), 4, OnUpdateMoney, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x18, 8, CharmChangeHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x1D3, 1, OnUpdateShapeshiftForm, nullptr, static_cast<HANDLER_PRIORITY>(0), 1);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x770, 8, FarsightChangeHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 1);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x770), 8, FarsightChangeHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 1);
 
-    for (uint32_t i = 0x778; i < 0x790; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x778); i < ExtendedLimits::PlayerOffset(0x790); i += 8) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 8, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_KNOWN_TITLES_UPDATE)), static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x790, 8, SignalKnownCurrencyTypesUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 1);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x790), 8, SignalKnownCurrencyTypesUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 1);
 
-    for (uint32_t i = 0x7A6; i < 0xDA6; i += 12) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x7A6); i < ExtendedLimits::PlayerOffset(0xDA6); i += 12) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i - 2, 2, SkillRankChangeHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 2, SkillMaxRankChangeHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i + 4, 2, SkillMaxRankChangeHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
@@ -7223,43 +7241,43 @@ void CGPlayer_C::SetActiveMirrorHandlers() {
     }
 
     ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1B, 1, OnUpdateRestState, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xFF4, 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_UPDATE_EXHAUSTION)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x798, 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_XP_UPDATE)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x79C, 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_XP_UPDATE)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xFFC, 0x1C, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1018, 0x1C, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1034, 0x1C, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1050, 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10D4, 2, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10E0, 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10D8, 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xFF4), 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_UPDATE_EXHAUSTION)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x798), 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_XP_UPDATE)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x79C), 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_XP_UPDATE)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xFFC), 0x1C, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1018), 0x1C, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1034), 0x1C, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1050), 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10D4), 2, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10E0), 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10D8), 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)), static_cast<HANDLER_PRIORITY>(0), 0);
     ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1C, 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_RANK_CHANGED)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10E7, 1, OnUpdatePlayerAuraVision, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10E4, 2, OnUpdatePlayerOverrideSpellsID, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10E8, 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_UPDATE_FACTION)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1150, 0x54, OnArenaTeamsChanged, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x11A4, 4, reinterpret_cast<MIRRORHANDLERFUNC>(OnHonorCurrencyChanged), nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x11A8, 4, reinterpret_cast<MIRRORHANDLERFUNC>(OnArenaCurrencyChanged), nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10EC, 0x64, SignalCombatRatingUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xDEC, 4, SignalCombatRatingUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xDB0, 0x34, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10E7), 1, OnUpdatePlayerAuraVision, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10E4), 2, OnUpdatePlayerOverrideSpellsID, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10E8), 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_UPDATE_FACTION)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1150), 0x54, OnArenaTeamsChanged, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x11A4), 4, reinterpret_cast<MIRRORHANDLERFUNC>(OnHonorCurrencyChanged), nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x11A8), 4, reinterpret_cast<MIRRORHANDLERFUNC>(OnArenaCurrencyChanged), nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10EC), 0x64, SignalCombatRatingUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xDEC), 4, SignalCombatRatingUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xDB0), 0x34, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
     ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x88, 0x38, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
 
-    for (uint32_t i = 0x1214; i < 0x1224; i += 4) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x1214); i < ExtendedLimits::PlayerOffset(0x1224); i += 4) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 4, OnUpdatePlayerRuneRegen, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xDAC, 4, OnUpdatePlayerTrackingMask, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1060, 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x105C, 4, SignalCombatRatingUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1224, 0xC, OnUpdatePlayerNoReagentCost, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xDAC), 4, OnUpdatePlayerTrackingMask, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1060), 4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)), static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x105C), 4, SignalCombatRatingUpdate, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1224), 0xC, OnUpdatePlayerNoReagentCost, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
 
-    for (uint32_t i = 0x1248; i < 0x1260; i += 4) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x1248); i < ExtendedLimits::PlayerOffset(0x1260); i += 4) {
         ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, 4, reinterpret_cast<MIRRORHANDLERFUNC>(OnUpdatePlayerGlyph), nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1260, 4, reinterpret_cast<MIRRORHANDLERFUNC>(OnUpdatePlayerGlyphSlotsEnabled), nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1264, 4, reinterpret_cast<MIRRORHANDLERFUNC>(SignalPetSpellPowerUpdate), nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1260), 4, reinterpret_cast<MIRRORHANDLERFUNC>(OnUpdatePlayerGlyphSlotsEnabled), nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1264), 4, reinterpret_cast<MIRRORHANDLERFUNC>(SignalPetSpellPowerUpdate), nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
 }
 
 // VERIFY: 7c2e2f8b manual
@@ -7271,46 +7289,46 @@ void CGPlayer_C::UnsetActiveMirrorHandlers() {
 
     ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x10, CritterUpdate, nullptr);
 
-    for (uint32_t i = 0x2C0; i < 0x378; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x2C0); i < ExtendedLimits::PlayerOffset(0x378); i += 8) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, InventoryUpdate, nullptr);
     }
 
-    for (uint32_t i = 0x3F8; i <= 0x4D0; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x3F8); i <= ExtendedLimits::PlayerOffset(0x4D0); i += 8) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, InventoryUpdate, nullptr);
     }
 
-    for (uint32_t i = 0x4D8; i <= 0x508; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x4D8); i <= ExtendedLimits::PlayerOffset(0x508); i += 8) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, InventoryUpdate, nullptr);
     }
 
-    for (uint32_t i = 0x570; i <= 0x668; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x570); i <= ExtendedLimits::PlayerOffset(0x668); i += 8) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, InventoryUpdate, nullptr);
     }
 
-    for (uint32_t i = 0x670; i <= 0x768; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x670); i <= ExtendedLimits::PlayerOffset(0x768); i += 8) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, InventoryUpdate, nullptr);
     }
 
-    for (uint32_t i = 0x28; i < 0x21C; i += 20) {
+    for (uint32_t i = 0x28; i < ExtendedLimits::PlayerOffset(0x21C); i += 20) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, OnUpdateQuest, nullptr);
     }
 
-    for (uint32_t i = 0x11B0; i < 0x1214; i += 4) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x11B0); i < ExtendedLimits::PlayerOffset(0x1214); i += 4) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, ReportDailyQuestsRemaining, nullptr);
     }
 
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xFF8, OnUpdateMoney, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xFF8), OnUpdateMoney, nullptr);
     ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x18, CharmChangeHandler, nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x770, FarsightChangeHandler, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x770), FarsightChangeHandler, nullptr);
 
-    for (uint32_t i = 0x778; i < 0x790; i += 8) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x778); i < ExtendedLimits::PlayerOffset(0x790); i += 8) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_KNOWN_TITLES_UPDATE)));
     }
 
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x790, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_KNOWN_CURRENCY_TYPES_UPDATE)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x790), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_KNOWN_CURRENCY_TYPES_UPDATE)));
     ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x1D3, OnUpdateShapeshiftForm, nullptr);
 
-    for (uint32_t i = 0x7A6; i < 0xDA6; i += 12) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x7A6); i < ExtendedLimits::PlayerOffset(0xDA6); i += 12) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i - 2, SkillRankChangeHandler, nullptr);
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, SkillMaxRankChangeHandler, nullptr);
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i + 4, SkillMaxRankChangeHandler, nullptr);
@@ -7318,44 +7336,45 @@ void CGPlayer_C::UnsetActiveMirrorHandlers() {
     }
 
     ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1B, OnUpdateRestState, nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xFF4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_UPDATE_EXHAUSTION)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x798, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_XP_UPDATE)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x79C, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_XP_UPDATE)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xFFC, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1018, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1034, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1050, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10D4, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10E0, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10D8, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xFF4), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_UPDATE_EXHAUSTION)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x798), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_XP_UPDATE)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x79C), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_XP_UPDATE)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xFFC), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1018), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1034), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1050), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10D4), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10E0), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10D8), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_KILLS_CHANGED)));
     ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1C, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_PVP_RANK_CHANGED)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10E7, OnUpdatePlayerAuraVision, nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10E4, OnUpdatePlayerOverrideSpellsID, nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10E8, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_UPDATE_FACTION)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1150, OnArenaTeamsChanged, nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x11A4, reinterpret_cast<MIRRORHANDLERFUNC>(OnHonorCurrencyChanged), nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x11A8, reinterpret_cast<MIRRORHANDLERFUNC>(OnArenaCurrencyChanged), nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x10EC, SignalCombatRatingUpdate, nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xDEC, SignalCombatRatingUpdate, nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xDB0, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x88, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10E7), OnUpdatePlayerAuraVision, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10E4), OnUpdatePlayerOverrideSpellsID, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10E8), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_UPDATE_FACTION)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1150), OnArenaTeamsChanged, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x11A4), reinterpret_cast<MIRRORHANDLERFUNC>(OnHonorCurrencyChanged), nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x11A8), reinterpret_cast<MIRRORHANDLERFUNC>(OnArenaCurrencyChanged), nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x10EC), SignalCombatRatingUpdate, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xDEC), SignalCombatRatingUpdate, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xDB0), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_UNIT, 0x88, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
 
-    for (uint32_t i = 0x1214; i < 0x1224; i += 4) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x1214); i < ExtendedLimits::PlayerOffset(0x1224); i += 4) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, OnUpdatePlayerRuneRegen, nullptr);
     }
 
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0xDAC, OnUpdatePlayerTrackingMask, nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1060, OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x105C, SignalCombatRatingUpdate, nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1224, OnUpdatePlayerNoReagentCost, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xDAC), OnUpdatePlayerTrackingMask, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1060), OnUpdatePlayerScriptEvent, reinterpret_cast<void*>(static_cast<uintptr_t>(SCRIPT_EVENT_PLAYER_DAMAGE_DONE_MODS)));
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x105C), SignalCombatRatingUpdate, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1224), OnUpdatePlayerNoReagentCost, nullptr);
 
-    for (uint32_t i = 0x1248; i < 0x1260; i += 4) {
+    for (uint32_t i = ExtendedLimits::PlayerOffset(0x1248); i < ExtendedLimits::PlayerOffset(0x1260); i += 4) {
         ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, i, reinterpret_cast<MIRRORHANDLERFUNC>(OnUpdatePlayerGlyph), nullptr);
     }
 
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1260, reinterpret_cast<MIRRORHANDLERFUNC>(OnUpdatePlayerGlyphSlotsEnabled), nullptr);
-    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, 0x1264, reinterpret_cast<MIRRORHANDLERFUNC>(SignalPetSpellPowerUpdate), nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1260), reinterpret_cast<MIRRORHANDLERFUNC>(OnUpdatePlayerGlyphSlotsEnabled), nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(this->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1264), reinterpret_cast<MIRRORHANDLERFUNC>(SignalPetSpellPowerUpdate), nullptr);
 }
+
 
 struct QuestCompleteRewards {
     /* 0000 */ int32_t m_xp;
@@ -7440,8 +7459,12 @@ int32_t __stdcall CGPlayer_C::OnQuestGiverQuestList(CDataStore* msg) {
     msg->Get(emote.m_delay);
     msg->Get(reinterpret_cast<uint32_t&>(emote.m_emote));
 
-    uint8_t count;
+    uint8_t count = 0;
     msg->Get(count);
+
+    if (msg->m_read > msg->m_size || count > sizeof(s_questListIds) / sizeof(s_questListIds[0])) {
+        return 0;
+    }
 
     s_questListNpc = npc;
     memset(s_questListIds, 0, sizeof(s_questListIds));
@@ -12507,7 +12530,7 @@ void CGPlayer_C::CheckForQuestItemLoot(uint32_t itemId, uint32_t count, uint32_t
         return;
     }
 
-    for (uint32_t i = 0; i < 25; i++) {
+    for (uint32_t i = 0; i < WOWDECOMP_QUEST_LOG_SLOTS; i++) {
         PlayerQuestLogEntry* entry = &this->m_player->m_playerQuestLog[i];
 
         if (static_cast<int32_t>(entry->m_questId) <= 0 || CGQuestLog::IsQuestExpiredByID(entry->m_questId)) {
@@ -14219,7 +14242,7 @@ int32_t OnUpdatePlayerRuneRegen(WOWGUID guid, uint32_t offset, uint32_t count, c
     }
 
     float rate = *static_cast<const float*>(value);
-    uint32_t type = (offset - 0x1214) >> 2;
+    uint32_t type = (offset - ExtendedLimits::PlayerOffset(0x1214)) >> 2;
     uint32_t predicted = CGRuneInfo::m_predictedRunes;
     float current = player->m_player->m_playerRuneRegen1[type];
 

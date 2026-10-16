@@ -7118,12 +7118,13 @@ void CGGameUI::SetRaidDifficulty(uint32_t difficulty, uint32_t unk, uint32_t inG
 // OFFSET: 0x0057EA60
 void CGGameUI::LoadMinimapTrackingState(const char* state) {
     CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-    uint32_t classMask = player ? 1 << player->m_unit->m_unitFieldBytes0[1] : 0;
+    uint32_t classID = player ? player->m_unit->m_unitFieldBytes0[1] : 0;
+    bool validClass = classID >= 1 && classID <= WOWDECOMP_MAX_CLASSES;
 
     for (uint32_t i = 0; i < 15; i++) {
         const TrackingTypeInfo& info = CGMinimapFrame::s_trackingTypes[i];
 
-        if (!SStrCmp(state, info.m_name, STORM_MAX_STR) && (!info.m_classMask || (info.m_classMask & classMask))) {
+        if (!SStrCmp(state, info.m_name, STORM_MAX_STR) && (!info.m_classMask || (validClass && info.m_classMask.TestBit(classID)))) {
             CGMinimapFrame::LoadTrackingInfo(&info);
             return;
         }

@@ -366,7 +366,7 @@ static bool FactionHasReputationForPlayer(const FactionRec* faction) {
 
     for (uint32_t i = 0; i < 4; i++) {
         int32_t raceMask = faction->m_reputationRaceMask[i];
-        int32_t classMask = faction->m_reputationClassMask[i];
+        const ClassMask& classMask = faction->m_reputationClassMask[i];
 
         if (raceMask) {
             if (!((1 << (race - 1)) & raceMask)) {
@@ -380,7 +380,7 @@ static bool FactionHasReputationForPlayer(const FactionRec* faction) {
             continue;
         }
 
-        if ((1 << (classId - 1)) & classMask) {
+        if (classMask.TestClass(classId)) {
             return faction->m_reputationFlags[i] < 0 && faction->m_reputationIndex >= 0;
         }
     }
@@ -731,17 +731,17 @@ void CGReputationInfo::EnterWorld() {
 
         for (uint32_t k = 0; k < 4; k++) {
             int32_t raceMask = faction->m_reputationRaceMask[k];
-            int32_t classMask = faction->m_reputationClassMask[k];
+            const ClassMask& classMask = faction->m_reputationClassMask[k];
 
             if (raceMask) {
                 if (!((1 << (race - 1)) & raceMask)) {
                     continue;
                 }
 
-                if (classMask && !((1 << (classId - 1)) & classMask)) {
+                if (classMask && !classMask.TestClass(classId)) {
                     continue;
                 }
-            } else if (!classMask || !((1 << (classId - 1)) & classMask)) {
+            } else if (!classMask || !classMask.TestClass(classId)) {
                 continue;
             }
 

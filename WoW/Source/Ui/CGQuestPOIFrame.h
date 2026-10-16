@@ -2,6 +2,7 @@
 #define WOW_SOURCE_UI_CGQUESTPOIFRAME_H
 
 #include <cstddef>
+#include "WoW/Source/Object/ExtendedLimits.h"
 #include <cstdint>
 #include "Engine/Source/Base/CDataAllocator.h"
 #include "Engine/Source/Frame/CSimpleFrame.h"
@@ -68,7 +69,8 @@ class CGQuestPOIFrame : public CSimpleFrame {
     /* 02B8 */ int32_t m_mouseOverQuestId;
     /* 02BC */ uint32_t m_mouseOverCount;
     /* 02C0 */ int32_t m_mouseOverObjectives[4];
-    /* 02D0 */ QuestPOIRenderGroup m_groups [4];
+    static constexpr uint32_t QUEST_POI_GROUPS = WOWDECOMP_QUEST_LOG_SLOTS > 25 ? WOWDECOMP_QUEST_LOG_SLOTS : 4;
+    /* 02D0 */ QuestPOIRenderGroup m_groups[QUEST_POI_GROUPS];
 
     ~CGQuestPOIFrame() override;
     int32_t GetScriptMetaTable() override;

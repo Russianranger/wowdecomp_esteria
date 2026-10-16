@@ -84,7 +84,7 @@ static int32_t s_chunkCacheIndex;
 // VERIFY: 3e6cfe40 auto
 // OFFSET: 0x00547120
 void CGWorldMap::EnterWorld() {
-    ClntObjMgrSetObjMirrorHandler(ClntObjMgrGetActivePlayer(), ID_PLAYER, 0xDF4, 0x200, PlayerExploredZonesUpdateHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(ClntObjMgrGetActivePlayer(), ID_PLAYER, ExtendedLimits::PlayerOffset(0xDF4), 0x200, PlayerExploredZonesUpdateHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
 }
 
 // VERIFY: ceb82748 auto
@@ -1436,5 +1436,5 @@ bool WorldMapTransformPosition(int32_t mapID, float x, float y, int32_t* outMapI
 // VERIFY: 1e793a0b auto
 // OFFSET: 0x00547150
 void CGWorldMap::LeaveWorld() {
-    ClntObjMgrUnsetObjMirrorHandler(ClntObjMgrGetActivePlayer(), ID_PLAYER, 0xDF4, PlayerExploredZonesUpdateHandler, nullptr);
+    ClntObjMgrUnsetObjMirrorHandler(ClntObjMgrGetActivePlayer(), ID_PLAYER, ExtendedLimits::PlayerOffset(0xDF4), PlayerExploredZonesUpdateHandler, nullptr);
 }

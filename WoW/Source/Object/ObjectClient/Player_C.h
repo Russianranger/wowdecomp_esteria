@@ -175,7 +175,7 @@ class CGPlayer_C : public CGUnit_C, public CGPlayer {
     void GetRangedAttackSkillRank(int32_t& rank, int32_t& bonus);
     static void __stdcall ReportPVPAFK(WOWGUID guid);
     static void __stdcall QueryTaxiNodes(const WOWGUID& guid);
-    static void __stdcall QuestLogRemoveQuest(uint8_t slot);
+    static void __stdcall QuestLogRemoveQuest(uint32_t slot);
     static void __stdcall ReadItem(uint8_t bag, uint8_t slot);
     static void __stdcall RemoveTempEnchantment(int32_t slot);
     static void __stdcall RequestPetitionSignatures(WOWGUID petition);
@@ -209,7 +209,7 @@ class CGPlayer_C : public CGUnit_C, public CGPlayer {
     static bool UnitIsTrivial(const CGUnit_C* unit);
     static void __stdcall UnSilencePlayer(WOWGUID guid, bool silence);
 
-    /* 1010 */ TSList<void> m_playerMirrorLists [176];
+    /* 1010 */ TSList<void> m_playerMirrorLists [ExtendedLimits::PlayerMirrorDwords];
     /* 1850 */ TSList<void>* m_playerLocalMirrorLists;
     /* 1854 */ int32_t unk_1854;
     /* 1858 */ uint32_t m_combatModeFlags;

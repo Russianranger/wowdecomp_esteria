@@ -1,4 +1,5 @@
 #include "LFGInfo.h"
+#include "WoW/Common/ClassMask.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
@@ -25,7 +26,8 @@
 #include "Engine/Source/FrameXML/LoadXML.h"
 
 // STATIC: 0x00A394B0
-static const uint8_t s_classRoles[11] = { 0x0B, 0x0F, 0x09, 0x09, 0x0D, 0x0B, 0x0D, 0x09, 0x09, 0x00, 0x0F };
+// Indexed by class ID; unconfigured classes advertise no roles.
+static const uint8_t s_classRoles[WOWDECOMP_MAX_CLASSES + 1] = { 0x00, 0x0B, 0x0F, 0x09, 0x09, 0x0D, 0x0B, 0x0D, 0x09, 0x09, 0x00, 0x0F };
 
 // STATIC: 0x00ACDD6C
 static int32_t s_joinAttempts;
@@ -36,7 +38,7 @@ static float s_lastJoinTime;
 // VERIFY: 7da483d6 auto
 // OFFSET: 0x00552940
 uint8_t CGLookingForGroup::GetClassRoles(uint32_t classID) {
-    return s_classRoles[classID - 1];
+    return classID >= 1 && classID <= WOWDECOMP_MAX_CLASSES ? s_classRoles[classID] : 0;
 }
 
 // VERIFY: 29999d79 manual
@@ -122,7 +124,7 @@ int32_t PushDungeonEncounterInfo(lua_State* L, int32_t mapId, int32_t difficulty
 // OFFSET: 0x00553B50
 uint32_t FilterRolesByClass(uint8_t roles) {
     ChrClassesRec* rec = g_chrClassesDB.GetRecord(ClientServices::GetCharacterClass());
-    return roles & s_classRoles[rec->m_id - 1];
+    return roles & CGLookingForGroup::GetClassRoles(rec ? rec->m_id : 0);
 }
 
 // VERIFY: 49ccd8f7 manual

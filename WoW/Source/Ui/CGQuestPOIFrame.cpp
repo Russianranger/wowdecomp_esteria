@@ -220,7 +220,7 @@ void CGQuestPOIFrame::UpdateMouseOverPOI(float x, float y) {
     point.x = (this->m_rect.maxX - this->m_rect.minX) * x + this->m_rect.minX;
     point.y = (this->m_rect.maxY - this->m_rect.minY) * (1.0f - y) + this->m_rect.minY;
 
-    for (uint32_t i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < QUEST_POI_GROUPS; i++) {
         QuestPOIRenderGroup* group = &this->m_groups[i];
 
         if (!group->m_info || !group->m_info->unk_0028) {
@@ -569,7 +569,7 @@ void CGQuestPOIFrame::RemoveQuest(int32_t questId) {
     uint32_t index = 0;
 
     while (!this->m_groups[index].m_info || this->m_groups[index].m_info->m_questId != questId) {
-        if (++index >= 4) {
+        if (++index >= QUEST_POI_GROUPS) {
             return;
         }
     }
@@ -593,7 +593,7 @@ void CGQuestPOIFrame::RemoveQuest(int32_t questId) {
 // VERIFY: 5d482c46 manual
 // OFFSET: 0x005900F0
 bool CGQuestPOIFrame::BuildRenderData(uint32_t index) {
-    if (index > 3) {
+    if (index >= QUEST_POI_GROUPS) {
         return true;
     }
 
@@ -632,7 +632,7 @@ void CGQuestPOIFrame::AddQuest(QuestPOIInfo* info) {
 
     int32_t slot = -1;
 
-    for (uint32_t i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < QUEST_POI_GROUPS; i++) {
         if (this->m_groups[i].m_info) {
             if (this->m_groups[i].m_info->m_questId == info->m_questId) {
                 return;
@@ -703,7 +703,7 @@ void CGQuestPOIFrame::Render() {
     GxRsSet(GxRs_Texture0, fillTexture);
     GxRsSet(GxRs_MatDiffuse, CImVector(0xFF, 0xFF, 0xFF, this->m_fillAlpha));
 
-    for (uint32_t i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < QUEST_POI_GROUPS; i++) {
         QuestPOIRenderGroup* group = &this->m_groups[i];
 
         if (!group->m_info) {
@@ -738,7 +738,7 @@ void CGQuestPOIFrame::Render() {
     g_theGxDevicePtr->RsSet(GxRs_Texture0, borderTexture);
     GxRsSet(GxRs_MatDiffuse, CImVector(0xFF, 0xFF, 0xFF, this->m_borderAlpha));
 
-    for (uint32_t i = 0; i < 4; i++) {
+    for (uint32_t i = 0; i < QUEST_POI_GROUPS; i++) {
         QuestPOIRenderGroup* group = &this->m_groups[i];
 
         if (!group->m_info) {

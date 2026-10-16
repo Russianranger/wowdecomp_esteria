@@ -58,7 +58,7 @@ int32_t CCharacterSelection::s_characterCount;
 float CCharacterSelection::s_charFacing;
 
 // STATIC: 0x00B6B208
-uint32_t CCharacterSelection::s_raceRestrictions[10];
+ClassMask CCharacterSelection::s_raceRestrictions[10];
 
 // STATIC: 0x00B6B238
 TSGrowableArray<CharacterSelectionDisplay> CCharacterSelection::s_characterList;

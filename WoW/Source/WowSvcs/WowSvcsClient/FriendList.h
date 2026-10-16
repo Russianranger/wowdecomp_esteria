@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Common/ClassMask.h"
 #include "WoW/Source/Object/WGUID.h"
 #include "WoW/Source/Net/Types.h"
 
@@ -74,7 +75,7 @@ class FriendList {
     /* DBF8 */ char m_whoName[48];
     /* DC28 */ char m_whoGuild[96];
     /* DC88 */ int32_t m_whoRaceMask;
-    /* DC8C */ int32_t m_whoClassMask;
+    /* DC8C */ ClassMask m_whoClassMask;
     /* DC90 */ int32_t m_whoStringCount;
     /* DC94 */ char m_whoStrings[10][128];
     /* E194 */ uint8_t unk_E194[4];

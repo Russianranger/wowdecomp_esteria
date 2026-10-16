@@ -3,6 +3,7 @@
 #define ESTERIA_VULPERA_APPEARANCE_H
 
 #include <array>
+#include "WoW/Common/ClassMask.h"
 #include <cstdint>
 
 namespace VulperaAppearance
@@ -119,7 +120,7 @@ namespace VulperaAppearance
     {
         std::uint16_t option;
         std::uint16_t value;
-        std::uint32_t mask;
+        ClassMask mask;
     };
 
     inline constexpr std::array<ClassRequirement, 72> MaleClasses = {{
@@ -282,13 +283,13 @@ namespace VulperaAppearance
 
     constexpr bool ChoiceAllowed(unsigned gender, unsigned classId, unsigned option, unsigned value)
     {
-        if (gender > 1 || classId < 1 || classId > 32)
+        if (gender > 1 || classId < 1 || classId > WOWDECOMP_MAX_CLASSES)
             return false;
         auto allowed = [&](auto const& rows)
         {
             for (ClassRequirement const& row : rows)
                 if (row.option == option && row.value == value)
-                    return (row.mask & (1u << (classId - 1))) != 0;
+                    return row.mask.TestClass(classId);
             return false;
         };
         return gender ? allowed(FemaleClasses) : allowed(MaleClasses);

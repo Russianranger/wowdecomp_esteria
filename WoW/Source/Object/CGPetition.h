@@ -3,13 +3,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Common/ClassMask.h"
 #include "WoW/Source/Object/WGUID.h"
 
 class CDataStore;
 
 class CGPetition {
     public:
-    static const uint32_t s_cacheVersion = 1;
+    static const uint32_t s_cacheVersion = WOWDECOMP_MAX_CLASSES > 32 ? 2 : 1;
 
     /* 0000 */ int32_t m_id;
     /* 0004 */ uint8_t unk_0004 [4];
@@ -21,7 +22,7 @@ class CGPetition {
     /* 1118 */ uint32_t m_deadline;
     /* 111C */ uint32_t m_issueDate;
     /* 1120 */ uint32_t m_allowedGuildId;
-    /* 1124 */ uint32_t m_allowedClasses;
+    /* 1124 */ ClassMask m_allowedClasses;
     /* 1128 */ uint32_t m_allowedRaces;
     /* 112C */ uint16_t m_allowedGenders;
     /* 112E */ uint8_t unk_112E [2];

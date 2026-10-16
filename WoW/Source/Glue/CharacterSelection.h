@@ -2,6 +2,7 @@
 #define WOW_SOURCE_GLUE_CHARACTERSELECTION_H
 
 #include <cstdint>
+#include "WoW/Common/ClassMask.h"
 #include "WoW/Source/Object/WGUID.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Glue/CharacterSelectionDisplay.h"
@@ -18,7 +19,7 @@ class CCharacterSelection {
     static int32_t s_selectionIndex;
     static int32_t s_characterCount;
     static float s_charFacing;
-    static uint32_t s_raceRestrictions[10];
+    static ClassMask s_raceRestrictions[10];
 
     static void ClearCharacterList();
     static void EnumerateCharactersCallback(CHARACTER_INFO& info, void* param);

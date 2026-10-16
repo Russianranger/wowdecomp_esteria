@@ -1,3 +1,4 @@
+#include "WoW/Common/ClassMask.h"
 #include "CharacterCreation.h"
 #include <cstring>
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
@@ -163,6 +164,9 @@ void CCharacterCreation::OnHide() {
 // VERIFY: f3353031 auto
 // OFFSET: 0x004DFFE0
 bool IsRaceClassValid(int32_t raceID, int32_t classID) {
+    if (classID < 1 || classID > WOWDECOMP_MAX_CLASSES) {
+        return false;
+    }
     for (int32_t i = 0; i < g_charBaseInfoDB.m_numRecords; i++) {
         CharBaseInfoRec* rec = i >= 0 && i < g_charBaseInfoDB.m_numRecords ? &g_charBaseInfoDB.m_records[i] : nullptr;
 
@@ -216,8 +220,11 @@ void CCharacterCreation::SetCharacterFacing(float facing) {
 // VERIFY: 308d1147 auto
 // OFFSET: 0x004E01B0
 bool CCharacterCreation::IsClassAvailable(int32_t classID) {
+    if (classID < 1 || classID > WOWDECOMP_MAX_CLASSES) {
+        return false;
+    }
     for (uint32_t i = 0; i < CCharacterCreation::m_classes.Count(); i++) {
-        if (CCharacterCreation::m_classes.m_data[i]->m_id == classID) {
+        if (CCharacterCreation::m_classes.m_data[i] && CCharacterCreation::m_classes.m_data[i]->m_id == classID) {
             return true;
         }
     }
@@ -395,23 +402,22 @@ int32_t CCharacterCreation::GetExistingClassIndex() {
 // VERIFY: 6c4329fd manual
 // OFFSET: 0x004E0F50
 int32_t CCharacterCreation::GetRandomClassID() {
-    int32_t classes[10];
-    int32_t count = 0;
+    TSGrowableArray<int32_t> classes;
     uint8_t expansion = ClientServices::Connection()->m_accountExpansion;
 
     for (uint32_t i = 0; i < CCharacterCreation::m_classes.Count(); i++) {
         ChrClassesRec* rec = CCharacterCreation::m_classes.m_data[i];
 
-        if (expansion >= rec->m_requiredExpansion) {
-            classes[count++] = rec->m_id;
+        if (rec && rec->m_id >= 1 && rec->m_id <= WOWDECOMP_MAX_CLASSES && expansion >= rec->m_requiredExpansion) {
+            classes.New(rec->m_id);
         }
     }
 
-    if (count <= 0) {
-        return classes[0];
+    if (!classes.Count()) {
+        return 0;
     }
 
-    return classes[static_cast<uint32_t>((static_cast<uint64_t>(count) * CRandom::uint32_(g_rndSeed)) >> 32)];
+    return classes[static_cast<uint32_t>((static_cast<uint64_t>(classes.Count()) * CRandom::uint32_(g_rndSeed)) >> 32)];
 }
 
 // VERIFY: b15e5451 auto
@@ -723,7 +729,9 @@ void CCharacterCreation::CalcClasses(int32_t raceID) {
     for (int32_t i = 0; static_cast<uint32_t>(i) < static_cast<uint32_t>(g_charBaseInfoDB.m_numRecords); i++) {
         CharBaseInfoRec* rec = i >= 0 && i < g_charBaseInfoDB.m_numRecords ? &g_charBaseInfoDB.m_records[i] : nullptr;
 
-        if (rec && static_cast<uint8_t>(rec->m_raceID) == raceID) {
+        if (rec && static_cast<uint8_t>(rec->m_raceID) == raceID &&
+            static_cast<uint8_t>(rec->m_classID) >= 1 && static_cast<uint8_t>(rec->m_classID) <= WOWDECOMP_MAX_CLASSES &&
+            g_chrClassesDB.GetRecord(static_cast<uint8_t>(rec->m_classID))) {
             count++;
         }
     }
@@ -735,7 +743,9 @@ void CCharacterCreation::CalcClasses(int32_t raceID) {
     for (int32_t i = 0; i < g_charBaseInfoDB.m_numRecords; i++) {
         CharBaseInfoRec* rec = i >= 0 && i < g_charBaseInfoDB.m_numRecords ? &g_charBaseInfoDB.m_records[i] : nullptr;
 
-        if (rec && static_cast<uint8_t>(rec->m_raceID) == raceID) {
+        if (rec && static_cast<uint8_t>(rec->m_raceID) == raceID &&
+            static_cast<uint8_t>(rec->m_classID) >= 1 && static_cast<uint8_t>(rec->m_classID) <= WOWDECOMP_MAX_CLASSES &&
+            g_chrClassesDB.GetRecord(static_cast<uint8_t>(rec->m_classID))) {
             CCharacterCreation::m_classes.m_data[index++] = g_chrClassesDB.GetRecord(static_cast<uint8_t>(rec->m_classID));
         }
     }

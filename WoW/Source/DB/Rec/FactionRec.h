@@ -3,19 +3,20 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Common/ClassMask.h"
 
 class SFileImpl;
 
 class FactionRec {
     public:
-    static const int32_t s_numColumns = 57;
-    static const int32_t s_rowSize = 228;
+    static const int32_t s_numColumns = 57 + 4 * CLASS_MASK_EXTRA_COLUMNS;
+    static const int32_t s_rowSize = 228 + 16 * CLASS_MASK_EXTRA_COLUMNS;
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
     /* 0004 */ int32_t m_reputationIndex;
     /* 0008 */ int32_t m_reputationRaceMask [4];
-    /* 0018 */ int32_t m_reputationClassMask [4];
+    /* 0018 */ ClassMask m_reputationClassMask [4];
     /* 0028 */ int32_t m_reputationBase [4];
     /* 0038 */ int32_t m_reputationFlags [4];
     /* 0048 */ int32_t m_parentFactionID;

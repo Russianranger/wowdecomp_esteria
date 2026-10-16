@@ -12,6 +12,7 @@
 #include "WoW/Source/Game/GameClient/PlayerName.h"
 #include "WoW/Source/Game/ViolenceLevels.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
+#include "WoW/Source/Object/ExtendedLimits.h"
 #include "WoW/Source/UIUtil/Camera.h"
 #include "WoW/Source/Ui/CGAutoCompleteName.h"
 #include "WoW/Source/Ui/Calendar.h"
@@ -498,6 +499,14 @@ void CGGameUI::RegisterGameCVars() {
     CVar::Register("watchFrameState", "Stores Objectives frame locked and collapsed states", 0x10, "0", nullptr, CATEGORY_GAME, false, nullptr, false);
     CVar::Register("showQuestObjectivesOnMap", "Shows quest POIs on the main map.", 0x20, "1", nullptr, CATEGORY_GAME, false, nullptr, false);
     CVar::Register("trackedQuests", "Internal cvar for saving tracked quests in order", 0x120, "", nullptr, CATEGORY_GAME, false, nullptr, false);
+#if WOWDECOMP_QUEST_LOG_SLOTS > 25
+    // Keep each saved line below ConsoleVar's original 260-byte archive buffer.
+    for (uint32_t chunk = 1; chunk < (WOWDECOMP_QUEST_LOG_SLOTS + 19) / 20; ++chunk) {
+        char name[40];
+        SStrPrintf(name, sizeof(name), "trackedQuestsExtra%u", chunk);
+        CVar::Register(name, "Extended tracked quest order", 0x120, "", nullptr, CATEGORY_GAME, false, nullptr, false);
+    }
+#endif
     CVar::Register("trackedAchievements", "Internal cvar for saving tracked achievements in order", 0x120, "", nullptr, CATEGORY_GAME, false, nullptr, false);
     CVar::Register("flaggedTutorials", "Internal cvar for saving compleated tutorials in order", 0x110, "", nullptr, CATEGORY_GAME, false, nullptr, false);
     CVar::Register("advancedWorldMap", "Enables advanced World Map features", 0x20, "0", nullptr, CATEGORY_GAME, false, nullptr, false);

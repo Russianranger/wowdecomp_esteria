@@ -1,5 +1,7 @@
 #include "NamePlateFrame.h"
 #include <new>
+#include <array>
+#include "WoW/Common/ClassMask.h"
 #include <typeinfo>
 #include "Engine/Source/Frame/CSimpleRender.h"
 #include "Engine/Source/Frame/CSimpleStatusBar.h"
@@ -40,20 +42,30 @@ static CImVector s_hostileColor = CImVector(0x00, 0x00, 0xFF, 0xFF);
 static CImVector s_levelTextColor = CImVector(0xFF, 0xFF, 0xFF, 0xFF);
 
 // STATIC: 0x00B2DA20
-static CImVector s_classColors[12] = {
-    CImVector(0x00, 0x00, 0x00, 0xFF),
-    CImVector(0x6D, 0x9B, 0xC6, 0xFF),
-    CImVector(0xBA, 0x8C, 0xF4, 0xFF),
-    CImVector(0x72, 0xD3, 0xAA, 0xFF),
-    CImVector(0x68, 0xF4, 0xFF, 0xFF),
-    CImVector(0xFF, 0xFF, 0xFF, 0xFF),
-    CImVector(0x3A, 0x1E, 0xC4, 0xFF),
-    CImVector(0xDD, 0x70, 0x00, 0xFF),
-    CImVector(0xEF, 0xCC, 0x68, 0xFF),
-    CImVector(0xC9, 0x82, 0x93, 0xFF),
-    CImVector(0x00, 0x00, 0x00, 0xFF),
-    CImVector(0x0A, 0x7C, 0xFF, 0xFF),
-};
+static const std::array<CImVector, WOWDECOMP_MAX_CLASSES + 1> s_classColors = [] {
+    std::array<CImVector, WOWDECOMP_MAX_CLASSES + 1> colors;
+    for (CImVector& color : colors) {
+        color = CImVector(0xFF, 0xFF, 0xFF, 0xFF);
+    }
+    const CImVector stockColors[] = {
+        CImVector(0x00, 0x00, 0x00, 0xFF),
+        CImVector(0x6D, 0x9B, 0xC6, 0xFF),
+        CImVector(0xBA, 0x8C, 0xF4, 0xFF),
+        CImVector(0x72, 0xD3, 0xAA, 0xFF),
+        CImVector(0x68, 0xF4, 0xFF, 0xFF),
+        CImVector(0xFF, 0xFF, 0xFF, 0xFF),
+        CImVector(0x3A, 0x1E, 0xC4, 0xFF),
+        CImVector(0xDD, 0x70, 0x00, 0xFF),
+        CImVector(0xEF, 0xCC, 0x68, 0xFF),
+        CImVector(0xC9, 0x82, 0x93, 0xFF),
+        CImVector(0x00, 0x00, 0x00, 0xFF),
+        CImVector(0x0A, 0x7C, 0xFF, 0xFF),
+    };
+    for (uint32_t i = 0; i < sizeof(stockColors) / sizeof(stockColors[0]); i++) {
+        colors[i] = stockColors[i];
+    }
+    return colors;
+}();
 
 // STATIC: 0x00B2DA70
 static float s_namePlateHeight = 0.025f;
@@ -359,7 +371,10 @@ void CGNamePlateFrame::UpdateColorDisplay(CGUnit_C* unit) {
     CGUnit_C* player = static_cast<CGUnit_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
 
     if (g_ShowClassColorInNameplateCVar->m_intValue && (unit->m_obj->m_type & TYPEMASK_PLAYER) && unit->UnitReaction(player) <= 1) {
-        this->m_healthBarColor = s_classColors[unit->m_unit->m_unitFieldBytes0[1]];
+        uint32_t classID = unit->m_unit->m_unitFieldBytes0[1];
+        this->m_healthBarColor = classID >= 1 && classID <= WOWDECOMP_MAX_CLASSES
+            ? s_classColors[classID]
+            : s_levelTextColor;
     } else if (unit->UnitReaction(player) <= 1) {
         this->m_healthBarColor = s_hostileColor;
     } else if (unit->m_obj->m_type & TYPEMASK_PLAYER) {

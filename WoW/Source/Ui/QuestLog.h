@@ -2,6 +2,7 @@
 #define WOW_SOURCE_UI_QUESTLOG_H
 
 #include <cstddef>
+#include "WoW/Source/Object/ExtendedLimits.h"
 #include <cstdint>
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Object/WGUID.h"
@@ -86,7 +87,7 @@ class CGQuestLog {
     static int32_t FindOrFreePOISlot(int32_t questId);
     static int32_t GetQuestLeaderBoardByID(int32_t questId, QuestLogLeaderBoardParams* params);
     static int32_t GetQuestLeaderBoardForObject(int32_t questId, int32_t objectId, QuestLogLeaderBoardParams* params);
-    static int32_t m_sortTypes[25];
+    static int32_t m_sortTypes[WOWDECOMP_QUEST_LOG_SLOTS];
     static uint32_t m_numSortTypes;
     static int32_t m_questResetTime;
     static uint8_t m_trackedQuestsLoaded;
@@ -104,14 +105,16 @@ class CGQuestLog {
     static int32_t AddQuestWatch(int32_t questId, int32_t duration);
     static bool SortQuestWatches();
     static void CollapseHeader(uint32_t index, int32_t collapse);
+    static bool IsHeaderCollapsed(uint32_t sortIndex);
+    static void SetHeaderCollapsed(uint32_t sortIndex, bool collapsed);
     static int32_t GetQuestIndex(int32_t questId);
     static int32_t GetQuestPOIIndex(int32_t questId);
     static QuestPOIInfo* GetQuestPOIInfo(int32_t questId);
     static int32_t IsQuestFailed(uint32_t index);
     static bool HasNoObjectives(uint32_t index);
     static int32_t IsQuestExpiredByID(int32_t questId);
-    static QuestLogEntry m_quests[50];
-    static QuestPOIInfo m_questPOIs[25];
+    static QuestLogEntry m_quests[(2 * WOWDECOMP_QUEST_LOG_SLOTS)];
+    static QuestPOIInfo m_questPOIs[WOWDECOMP_QUEST_LOG_SLOTS];
     static int32_t m_abandonQuest;
     static uint32_t m_numQuestWatches;
     static int32_t m_timeOffset;
@@ -121,7 +124,7 @@ class CGQuestLog {
     static void SetServerTime(int32_t serverTime, int32_t resetTime);
     static int32_t SetQuestExpired(uint32_t index);
     static void UpdateQuestPOIFromUserServer();
-    static QuestWatch m_questWatches[25];
+    static QuestWatch m_questWatches[WOWDECOMP_QUEST_LOG_SLOTS];
     static uint32_t m_numShownQuests;
     static void Update(int32_t a1);
     static void EnterWorld();

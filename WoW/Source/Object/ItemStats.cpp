@@ -1,4 +1,5 @@
 #include "ItemStats.h"
+#include "ClassMaskIO.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include <cstring>
@@ -56,7 +57,7 @@ void ItemStats_C::Unpack(CDataStore* msg) {
     msg->Get(reinterpret_cast<uint32_t&>(this->m_buyPrice));
     msg->Get(this->m_sellPrice);
     msg->Get(this->m_inventoryType);
-    msg->Get(this->m_allowableClass);
+    ReadClassMask(msg, this->m_allowableClass);
     msg->Get(this->m_allowableRace);
     msg->Get(this->m_itemLevel);
     msg->Get(this->m_requiredLevel);
@@ -174,7 +175,7 @@ void ItemStats_C::Pack(CDataStore* msg) {
     msg->Put(static_cast<uint32_t>(this->m_buyPrice));
     msg->Put(this->m_sellPrice);
     msg->Put(this->m_inventoryType);
-    msg->Put(this->m_allowableClass);
+    WriteClassMask(msg, this->m_allowableClass);
     msg->Put(this->m_allowableRace);
     msg->Put(this->m_itemLevel);
     msg->Put(this->m_requiredLevel);

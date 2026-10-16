@@ -3,22 +3,23 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Common/ClassMask.h"
 
 class SFileImpl;
 
 class SkillLineAbilityRec {
     public:
-    static const int32_t s_numColumns = 14;
-    static const int32_t s_rowSize = 56;
+    static const int32_t s_numColumns = 14 + 2 * CLASS_MASK_EXTRA_COLUMNS;
+    static const int32_t s_rowSize = 56 + 8 * CLASS_MASK_EXTRA_COLUMNS;
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
     /* 0004 */ int32_t m_skillLine;
     /* 0008 */ int32_t m_spell;
     /* 000C */ int32_t m_raceMask;
-    /* 0010 */ int32_t m_classMask;
+    /* 0010 */ ClassMask m_classMask;
     /* 0014 */ int32_t m_excludeRace;
-    /* 0018 */ int32_t m_excludeClass;
+    /* 0018 */ ClassMask m_excludeClass;
     /* 001C */ int32_t m_minSkillLineRank;
     /* 0020 */ int32_t m_supercededBySpell;
     /* 0024 */ int32_t m_acquireMethod;

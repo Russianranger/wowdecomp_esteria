@@ -1,4 +1,5 @@
 #include "CGPetition.h"
+#include "ClassMaskIO.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Storm/H/storm.h"
 
@@ -70,7 +71,7 @@ void CGPetition::Pack(CDataStore* msg) {
     msg->Put(this->m_deadline);
     msg->Put(this->m_issueDate);
     msg->Put(this->m_allowedGuildId);
-    msg->Put(this->m_allowedClasses);
+    WriteClassMask(msg, this->m_allowedClasses);
     msg->Put(this->m_allowedRaces);
     msg->Put(this->m_allowedGenders);
     msg->Put(this->m_allowedMinLevel);
@@ -97,7 +98,7 @@ void CGPetition::Unpack(CDataStore* msg) {
     msg->Get(this->m_deadline);
     msg->Get(this->m_issueDate);
     msg->Get(this->m_allowedGuildId);
-    msg->Get(this->m_allowedClasses);
+    ReadClassMask(msg, this->m_allowedClasses);
     msg->Get(this->m_allowedRaces);
     msg->Get(this->m_allowedGenders);
     msg->Get(this->m_allowedMinLevel);

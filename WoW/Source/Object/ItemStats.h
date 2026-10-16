@@ -3,12 +3,13 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Common/ClassMask.h"
 
 class CDataStore;
 
 class ItemStats_C {
     public:
-    static const uint32_t s_cacheVersion = 5;
+    static const uint32_t s_cacheVersion = WOWDECOMP_MAX_CLASSES > 32 ? 6 : 5;
 
     /* 0004 */ uint32_t m_class;
     /* 0008 */ uint32_t m_subClass;
@@ -19,7 +20,7 @@ class ItemStats_C {
     /* 0020 */ int32_t m_buyPrice;
     /* 0024 */ uint32_t m_sellPrice;
     /* 0028 */ uint32_t m_inventoryType;
-    /* 002C */ uint32_t m_allowableClass;
+    /* 002C */ ClassMask m_allowableClass;
     /* 0030 */ uint32_t m_allowableRace;
     /* 0034 */ uint32_t m_itemLevel;
     /* 0038 */ uint32_t m_requiredLevel;

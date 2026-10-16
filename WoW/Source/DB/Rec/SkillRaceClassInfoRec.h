@@ -3,19 +3,20 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Common/ClassMask.h"
 
 class SFileImpl;
 
 class SkillRaceClassInfoRec {
     public:
-    static const int32_t s_numColumns = 8;
-    static const int32_t s_rowSize = 32;
+    static const int32_t s_numColumns = 8 + CLASS_MASK_EXTRA_COLUMNS;
+    static const int32_t s_rowSize = 32 + 4 * CLASS_MASK_EXTRA_COLUMNS;
     static const bool s_generatedID = false;
 
     /* 0000 */ int32_t m_id;
     /* 0004 */ int32_t m_skillID;
     /* 0008 */ int32_t m_raceMask;
-    /* 000C */ int32_t m_classMask;
+    /* 000C */ ClassMask m_classMask;
     /* 0010 */ int32_t m_flags;
     /* 0014 */ int32_t m_minLevel;
     /* 0018 */ int32_t m_skillTierID;

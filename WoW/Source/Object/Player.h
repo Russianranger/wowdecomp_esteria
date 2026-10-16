@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Source/Object/ExtendedLimits.h"
 #include "WoW/Source/Object/ObjectClient/VisibleItem_C.h"
 #include "WoW/Source/Object/WGUID.h"
 
@@ -30,7 +31,7 @@ class CGPlayer {
     uint32_t GetBuybackPrice(uint32_t slot);
     bool HasPvpMedal(uint32_t medal);
     bool HasAuraVision(uint8_t vision);
-    static const uint32_t s_mirrorFields[173];
+    static const uint32_t s_mirrorFields[ExtendedLimits::PlayerSharedSavedFields];
     static const uint32_t s_localMirrorFields[870];
 
     static uint32_t DescriptorToMirrorOffset(uint32_t offset, uint32_t size, int32_t local, uint32_t base);
@@ -46,6 +47,11 @@ class CGPlayer {
     bool IsDrunk();
 };
 
+// Update fields are a packed stream of dwords, including on x64. An odd number
+// of extra quest entries must not insert padding before the local GUID arrays.
+#if WOWDECOMP_QUEST_LOG_SLOTS != 25
+#pragma pack(push, 4)
+#endif
 class CGPlayerData {
     public:
     /* 0000 */ WOWGUID m_playerDuelArbiter;
@@ -57,7 +63,7 @@ class CGPlayerData {
     /* 001C */ uint8_t m_playerBytes3 [4];
     /* 0020 */ uint32_t m_playerDuelTeam;
     /* 0024 */ uint32_t m_playerGuildTimestamp;
-    /* 0028 */ PlayerQuestLogEntry m_playerQuestLog [25];
+    /* 0028 */ PlayerQuestLogEntry m_playerQuestLog [WOWDECOMP_QUEST_LOG_SLOTS];
     /* 021C */ VisibleItem_C m_playerVisibleItems [19];
     /* 02B4 */ uint32_t m_playerChosenTitle;
     /* 02B8 */ int32_t m_playerFakeInebriation;
@@ -129,5 +135,9 @@ class CGPlayerLocalData : public CGPlayerData {
     /* 1260 */ uint32_t m_playerGlyphsEnabled;
     /* 1264 */ uint32_t m_playerPetSpellPower;
 };
+
+#if WOWDECOMP_QUEST_LOG_SLOTS != 25
+#pragma pack(pop)
+#endif
 
 #endif

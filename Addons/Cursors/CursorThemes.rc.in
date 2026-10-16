@@ -1,6 +1,12 @@
 #include <windows.h>
 
-// IDs 202..204 match the native theme indices in UIUtil/Cursor.cpp.
+// Resource IDs match the theme definitions in UIUtil/Cursor.cpp.
 202 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/NightElf.blp"
 203 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Orc.blp"
 204 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Undead.blp"
+205 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Hearthstone.blp"
+210 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Starcraft01.blp"
+211 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Starcraft02.blp"
+212 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Starcraft03.blp"
+213 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Starcraft04.blp"
+214 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Starcraft05.blp"

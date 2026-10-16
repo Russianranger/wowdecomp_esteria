@@ -3,13 +3,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Source/Object/ExtendedLimits.h"
 #include "WoW/Source/Object/WGUID.h"
 
 class CGContainerData;
 
 class CGContainer {
     public:
-    static const uint32_t s_mirrorFields[72];
+    static const uint32_t s_mirrorFields[2 * WOWDECOMP_CONTAINER_SLOTS];
 
     static uint32_t DescriptorToMirrorOffset(uint32_t offset, uint32_t size, int32_t local, uint32_t base);
     static uint32_t GetSavedIndexFromDataIndex(uint32_t index, uint32_t count, int32_t local);
@@ -23,7 +24,7 @@ class CGContainerData {
     public:
     /* 0000 */ uint32_t m_containerFieldNumSlots;
     /* 0004 */ uint8_t m_containerAlignPad [4];
-    /* 0008 */ WOWGUID m_containerFieldSlot1 [36];
+    /* 0008 */ WOWGUID m_containerFieldSlot1 [WOWDECOMP_CONTAINER_SLOTS];
 };
 
 #endif

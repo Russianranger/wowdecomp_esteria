@@ -2019,9 +2019,9 @@ int32_t CGTooltip::SetUnit(const WOWGUID& guid, int32_t showHealth, const WOWGUI
         if (faction && faction->m_reputationIndex >= 0) {
             for (uint32_t i = 0; i < 4; i++) {
                 uint32_t raceMask = faction->m_reputationRaceMask[i];
-                uint32_t classMask = faction->m_reputationClassMask[i];
+                ClassMask classMask = faction->m_reputationClassMask[i];
 
-                if ((!raceMask || ((1 << (activePlayer->m_unit->m_unitFieldBytes0[0] - 1)) & raceMask)) && (raceMask || classMask) && (!classMask || ((1 << (activePlayer->m_unit->m_unitFieldBytes0[1] - 1)) & classMask))) {
+                if ((!raceMask || ((1 << (activePlayer->m_unit->m_unitFieldBytes0[0] - 1)) & raceMask)) && (raceMask || classMask) && (!classMask || classMask.TestClass(activePlayer->m_unit->m_unitFieldBytes0[1]))) {
                     if (!(faction->m_reputationFlags[i] & 0x4)) {
                         this->AddLine(faction->m_name, nullptr, textColor, textColor, 0);
                     }
@@ -5278,7 +5278,7 @@ static void AddItemRaceClassLines(CGTooltip* tooltip, const ItemStats_C* stats, 
     int32_t allowed = 1;
     text[0] = '\0';
 
-    if (((stats->m_allowableRace - 1) & stats->m_allowableRace) || ((stats->m_allowableClass - 1) & stats->m_allowableClass)) {
+    if (((stats->m_allowableRace - 1) & stats->m_allowableRace) || stats->m_allowableClass.HasMultipleBits()) {
         int32_t allRaces = 1;
         int32_t allClasses = 1;
 
@@ -5294,7 +5294,7 @@ static void AddItemRaceClassLines(CGTooltip* tooltip, const ItemStats_C* stats, 
         for (int32_t i = 0; i < g_chrClassesDB.m_numRecords; i++) {
             ChrClassesRec* playerClass = g_chrClassesDB.GetRecordByIndex(i);
 
-            if (playerClass && !((1 << (playerClass->m_id - 1)) & stats->m_allowableClass)) {
+            if (playerClass && !stats->m_allowableClass.TestClass(playerClass->m_id)) {
                 allClasses = 0;
                 break;
             }
@@ -5338,7 +5338,7 @@ static void AddItemRaceClassLines(CGTooltip* tooltip, const ItemStats_C* stats, 
             for (int32_t i = 0; i < g_chrClassesDB.m_numRecords; i++) {
                 ChrClassesRec* playerClass = g_chrClassesDB.GetRecordByIndex(i);
 
-                if (playerClass && playerClass->m_name && ((1 << (playerClass->m_id - 1)) & stats->m_allowableClass)) {
+                if (playerClass && playerClass->m_name && stats->m_allowableClass.TestClass(playerClass->m_id)) {
                     if (!first) {
                         SStrPack(list, ", ", sizeof(list));
                     }
@@ -5380,7 +5380,7 @@ static void AddItemRaceClassLines(CGTooltip* tooltip, const ItemStats_C* stats, 
     for (int32_t i = 0; i < g_chrClassesDB.m_numRecords; i++) {
         ChrClassesRec* playerClass = g_chrClassesDB.GetRecordByIndex(i);
 
-        if (playerClass && playerClass->m_name && ((1 << (playerClass->m_id - 1)) & stats->m_allowableClass)) {
+        if (playerClass && playerClass->m_name && stats->m_allowableClass.TestClass(playerClass->m_id)) {
             SStrPack(text, playerClass->m_name, sizeof(text));
 
             if (player->m_unit->m_unitFieldBytes0[1] != playerClass->m_id) {

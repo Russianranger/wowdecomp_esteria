@@ -1,9 +1,12 @@
 #include "Cursor.h"
+#include "CursorAnimation.h"
 #include <cstring>
 #include <windows.h>
 #include "Engine/Source/BLPFile/blp.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/ConsoleBase/Types.h"
+#include "Engine/Source/Event/Event.h"
+#include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/BLPFile/Types.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Services/Texture.h"
@@ -102,19 +105,55 @@ static uint32_t s_cursorMode;
 static uint32_t s_cursorImages[54][1024];
 
 // Native extension: themes replace only Point, preserving contextual and held-item cursors.
-static const char* s_cursorThemes[] = { "Human", "NightElf", "Orc", "Undead" };
-static uint32_t s_cursorThemeImages[4][1024];
-static bool s_cursorThemeAvailable[4];
+struct CursorTheme {
+    const char* name;
+    uint32_t firstResource;
+    uint32_t frames;
+    uint32_t hotspotX;
+    uint32_t hotspotY;
+};
+
+static constexpr CursorTheme s_cursorThemes[] = {
+    { "Human", 0, 1, 0, 0 },
+    { "NightElf", 202, 1, 0, 0 },
+    { "Orc", 203, 1, 0, 0 },
+    { "Undead", 204, 1, 0, 0 },
+    // Hearthstone's supplied .cur hotspot (4, 2), scaled from 64x64 to 32x32.
+    { "Hearthstone", 205, 1, 2, 1 },
+    { "Starcraft", 210, 5, 0, 0 },
+};
+static constexpr uint32_t kCursorThemeCount = sizeof(s_cursorThemes) / sizeof(s_cursorThemes[0]);
+static uint32_t s_cursorThemeImages[kCursorThemeCount][5][1024];
+static bool s_cursorThemeAvailable[kCursorThemeCount];
 static bool s_cursorReady;
+static uint32_t s_cursorTheme;
+static uint32_t s_cursorThemeFrame;
+static uint32_t s_cursorThemeStartMs;
+
+static uint32_t CursorThemeFrame() {
+    return s_cursorThemes[s_cursorTheme].frames > 1
+        ? CursorAnimationFrame(OsGetAsyncTimeMs() - s_cursorThemeStartMs) : 0;
+}
+
+static int32_t CursorAnimate(const void*, void*) {
+    if (s_cursorReady && s_cursorMode == 1 && !s_cursorItemType
+        && s_cursorThemeFrame != CursorThemeFrame()) {
+        UpdateCursor();
+    }
+    return 1;
+}
 
 static bool CursorThemeChanged(CVar*, const char*, const char* value, void*) {
-    for (uint32_t i = 0; i < 4; ++i) {
-        if (!SStrCmpI(value, s_cursorThemes[i], STORM_MAX_STR)) {
+    for (uint32_t i = 0; i < kCursorThemeCount; ++i) {
+        if (!SStrCmpI(value, s_cursorThemes[i].name, STORM_MAX_STR)) {
             if (s_cursorReady) {
                 if (!s_cursorThemeAvailable[i]) {
                     return false;
                 }
-                memcpy(s_cursorImages[1], s_cursorThemeImages[i], sizeof(s_cursorImages[1]));
+                s_cursorTheme = i;
+                s_cursorThemeFrame = 0;
+                s_cursorThemeStartMs = OsGetAsyncTimeMs();
+                memcpy(s_cursorImages[1], s_cursorThemeImages[i][0], sizeof(s_cursorImages[1]));
                 UpdateCursor();
             }
             return true;
@@ -124,7 +163,7 @@ static bool CursorThemeChanged(CVar*, const char*, const char* value, void*) {
 }
 
 void CursorRegisterCVars() {
-    CVar::Register("cursorTheme", "Normal cursor appearance: Human, NightElf, Orc, Undead", 0,
+    CVar::Register("cursorTheme", "Normal cursor appearance: Human, NightElf, Orc, Undead, Hearthstone, Starcraft", 0,
         "Human", CursorThemeChanged, CATEGORY_GAME, false, nullptr, false);
 }
 
@@ -188,6 +227,11 @@ int32_t CopyCursorImage(uint32_t* image, MipBits* mipImages, uint32_t width, uin
 // VERIFY: ffd92c97 manual
 // OFFSET: 0x006162C0
 void UpdateCursor() {
+    const bool themedPoint = s_cursorReady && s_cursorMode == 1 && !s_cursorItemType;
+    if (themedPoint) {
+        s_cursorThemeFrame = CursorThemeFrame();
+        memcpy(s_cursorImages[1], s_cursorThemeImages[s_cursorTheme][s_cursorThemeFrame], sizeof(s_cursorImages[1]));
+    }
     uint32_t* pixels = g_theGxDevicePtr->CursorLock();
 
     if (s_cursorItemType) {
@@ -208,13 +252,47 @@ void UpdateCursor() {
         memcpy(pixels, s_cursorImages[s_cursorMode], 4096);
     }
 
-    g_theGxDevicePtr->CursorUnlock(0, 0);
+    g_theGxDevicePtr->CursorUnlock(themedPoint ? s_cursorThemes[s_cursorTheme].hotspotX : 0,
+        themedPoint ? s_cursorThemes[s_cursorTheme].hotspotY : 0);
+}
+
+static bool CursorLoadThemeImage(uint32_t resourceId, uint32_t* pixels) {
+    // Release clients disable loose-file reads; the art is part of the executable.
+    HRSRC resource = FindResourceW(nullptr, MAKEINTRESOURCEW(resourceId), MAKEINTRESOURCEW(10));
+    if (!resource) {
+        return false;
+    }
+    void* data = LockResource(LoadResource(nullptr, resource));
+    const uint32_t size = SizeofResource(nullptr, resource);
+    if (!data || size < sizeof(BLPHeader)) {
+        return false;
+    }
+    const BLPHeader* header = static_cast<const BLPHeader*>(data);
+    const uint32_t offset = header->m_mipOffsets[0];
+    const uint32_t mipSize = header->m_colorEncoding == 1 ? 2048 : 4096;
+    if (header->m_width != 32 || header->m_height != 32
+        || (header->m_colorEncoding != 1 && header->m_colorEncoding != 3)
+        || header->m_preferredFormat != PIXEL_ARGB8888 || header->m_alphaSize != 8 || header->m_hasMips
+        || offset < sizeof(BLPHeader) || offset > size
+        || header->m_mipSizes[0] != mipSize || size - offset < mipSize) {
+        return false;
+    }
+    CBLPFile image;
+    uint32_t stride = 0;
+    return image.Source(data) && image.Lock2("NativeCursorTheme", PIXEL_ARGB8888, 0,
+        reinterpret_cast<uint8_t*>(pixels), stride);
 }
 
 // VERIFY: 448b2353 auto
 // OFFSET: 0x006163B0
 void CursorInitialize() {
+    if (s_cursorReady) {
+        EventUnregister(EVENT_ID_POLL, CursorAnimate);
+    }
     s_cursorReady = false;
+    s_cursorTheme = 0;
+    s_cursorThemeFrame = 0;
+    s_cursorThemeStartMs = OsGetAsyncTimeMs();
     s_cursorMode = 1;
     s_cursorResetMode = 1;
     s_cursorItemType = 0;
@@ -247,31 +325,13 @@ void CursorInitialize() {
     }
 
     // Human is the original client pointer, including any installed cursor art.
-    memcpy(s_cursorThemeImages[0], s_cursorImages[1], sizeof(s_cursorImages[1]));
+    memcpy(s_cursorThemeImages[0][0], s_cursorImages[1], sizeof(s_cursorImages[1]));
     s_cursorThemeAvailable[0] = true;
-    for (uint32_t i = 1; i < 4; ++i) {
-        // SFile disables loose-file access at startup. Load the shipped BLPs
-        // from executable resources instead of requiring an unsigned MPQ patch.
-        s_cursorThemeAvailable[i] = false;
-        HRSRC resource = FindResourceW(nullptr, MAKEINTRESOURCEW(201 + i), MAKEINTRESOURCEW(10));
-        if (resource) {
-            void* data = LockResource(LoadResource(nullptr, resource));
-            const uint32_t size = SizeofResource(nullptr, resource);
-            if (data && size >= sizeof(BLPHeader)) {
-                const BLPHeader* header = static_cast<const BLPHeader*>(data);
-                // These are single-mip, paletted BLP2s with a separate alpha plane.
-                const uint32_t offset = header->m_mipOffsets[0];
-                if (header->m_width == 32 && header->m_height == 32 && header->m_colorEncoding == 1
-                    && header->m_alphaSize == 8 && !header->m_hasMips
-                    && offset >= sizeof(BLPHeader) && offset <= size
-                    && header->m_mipSizes[0] == 2048 && size - offset >= 2048) {
-                    CBLPFile image;
-                    uint32_t stride = 0;
-                    if (image.Source(data)) {
-                        s_cursorThemeAvailable[i] = image.Lock2(s_cursorThemes[i], PIXEL_ARGB8888, 0,
-                            reinterpret_cast<uint8_t*>(s_cursorThemeImages[i]), stride) != 0;
-                    }
-                }
+    for (uint32_t i = 1; i < kCursorThemeCount; ++i) {
+        s_cursorThemeAvailable[i] = true;
+        for (uint32_t frame = 0; frame < s_cursorThemes[i].frames; ++frame) {
+            if (!CursorLoadThemeImage(s_cursorThemes[i].firstResource + frame, s_cursorThemeImages[i][frame])) {
+                s_cursorThemeAvailable[i] = false;
             }
         }
     }
@@ -283,6 +343,7 @@ void CursorInitialize() {
     }
     s_cursorFile[0] = '\0';
     UpdateCursor();
+    EventRegister(EVENT_ID_POLL, CursorAnimate);
 }
 
 // VERIFY: 80dc5ddb auto
@@ -472,6 +533,9 @@ void CursorGrabSpell(const char* texture) {
 // VERIFY: 10223bc1 auto
 // OFFSET: 0x00616220
 void CursorDestroy() {
+    if (s_cursorReady) {
+        EventUnregister(EVENT_ID_POLL, CursorAnimate);
+    }
     s_cursorReady = false;
     if (!s_cursorItemMips) {
         return;

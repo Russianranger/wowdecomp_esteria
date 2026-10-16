@@ -388,8 +388,8 @@ void ScriptEventsRegisterUnit(CGUnit_C* unit) {
     }
 
     if (unit->m_obj->m_type & TYPEMASK_PLAYER) {
-        ClntObjMgrSetObjMirrorHandler(unit->m_obj->m_guid, ID_PLAYER, 0x21C, 0x98, PlayerInventoryChangedHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-        ClntObjMgrSetObjMirrorHandler(unit->m_obj->m_guid, ID_PLAYER, 0x28, 0x1F4, PlayerQuestLogChangedHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+        ClntObjMgrSetObjMirrorHandler(unit->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x21C), 0x98, PlayerInventoryChangedHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+        ClntObjMgrSetObjMirrorHandler(unit->m_obj->m_guid, ID_PLAYER, 0x28, sizeof(PlayerQuestLogEntry) * WOWDECOMP_QUEST_LOG_SLOTS, PlayerQuestLogChangedHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
     }
 }
 
@@ -403,7 +403,7 @@ void ScriptEventsUnregisterUnit(CGUnit_C* unit) {
     }
 
     if (unit->m_obj->m_type & TYPEMASK_PLAYER) {
-        ClntObjMgrUnsetObjMirrorHandler(unit->m_obj->m_guid, ID_PLAYER, 0x21C, PlayerInventoryChangedHandler, nullptr);
+        ClntObjMgrUnsetObjMirrorHandler(unit->m_obj->m_guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x21C), PlayerInventoryChangedHandler, nullptr);
         ClntObjMgrUnsetObjMirrorHandler(unit->m_obj->m_guid, ID_PLAYER, 0x28, PlayerQuestLogChangedHandler, nullptr);
     }
 }

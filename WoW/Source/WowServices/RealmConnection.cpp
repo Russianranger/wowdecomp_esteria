@@ -7,6 +7,7 @@
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/UIUtil/AddOns.h"
 #include "WoW/Source/WowServices/WDataStore.h"
+#include "WoW/Source/Object/ClassMaskIO.h"
 
 // STATIC: 0x00AB953C
 TSList<RealmConnection::REALMCONNECTIONNODE> RealmConnection::s_allRealmConnections;
@@ -43,6 +44,17 @@ int32_t RealmConnection::HandleCharEnum(uint32_t msgId, uint32_t time, CDataStor
 
     this->m_characterList.Clear();
     this->m_characterList.SetCount(count);
+
+    // A missing optional trailer must not retain restrictions from an older list.
+    ClassMask* restrictions[] = {
+        &this->m_restrictHuman, &this->m_restrictDwarf, &this->m_restrictGnome,
+        &this->m_restrictNightElf, &this->m_restrictDraenei, &this->m_restrictOrc,
+        &this->m_restrictTroll, &this->m_restrictTauren, &this->m_restrictUndead,
+        &this->m_restrictBloodElf
+    };
+    for (ClassMask* restriction : restrictions) {
+        *restriction = 0;
+    }
 
     for (uint8_t i = 0; i < count; i++) {
         CHARACTER_INFO* info = &this->m_characterList.m_data[i];
@@ -88,24 +100,21 @@ int32_t RealmConnection::HandleCharEnum(uint32_t msgId, uint32_t time, CDataStor
         if (!invalid) {
             success = 1;
         }
-    } else if (!invalid && msg->m_size - msg->m_read != 10) {
-        // Esteria: the server appends extension data after the character list; ignore it
-        success = 1;
-    } else if (!invalid) {
-        msg->Get(this->m_restrictHuman);
-        msg->Get(this->m_restrictDwarf);
-        msg->Get(this->m_restrictGnome);
-        msg->Get(this->m_restrictNightElf);
-        msg->Get(this->m_restrictDraenei);
-        msg->Get(this->m_restrictOrc);
-        msg->Get(this->m_restrictTroll);
-        msg->Get(this->m_restrictTauren);
-        msg->Get(this->m_restrictUndead);
-        msg->Get(this->m_restrictBloodElf);
+    } else if (!invalid && msg->m_read <= msg->m_size &&
+               msg->m_size - msg->m_read == sizeof(restrictions) / sizeof(restrictions[0]) * sizeof(ClassMask)) {
+        // Restriction masks use bit classID in both the stock and extended format.
+        for (ClassMask* restriction : restrictions) {
+            ReadClassMask(msg, *restriction);
+        }
 
         if (msg->IsRead()) {
             success = 1;
         }
+#if WOWDECOMP_MAX_CLASSES <= 32
+    } else if (!invalid && msg->m_read <= msg->m_size && msg->m_size - msg->m_read != 10) {
+        // Preserve stock handling of unrecognized legacy Esteria extension tails.
+        success = 1;
+#endif
     }
 
     if (!success) {

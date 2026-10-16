@@ -8,6 +8,7 @@
 #include <new>
 #include <cstdlib>
 #include "Engine/Source/Base/CDataStore.h"
+#include "WoW/Source/Object/ClassMaskIO.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/Game/GameClient/ComSatClient.h"
@@ -600,7 +601,7 @@ void FriendList::SendWho(const char* filter) {
     int32_t minLevel = 0;
     int32_t maxLevel = 100;
     int32_t raceMask = -1;
-    int32_t classMask = -1;
+    ClassMask classMask = UINT32_MAX;
     uint32_t zoneCount = 0;
     int32_t zones[10];
     char name[48];
@@ -677,8 +678,8 @@ void FriendList::SendWho(const char* filter) {
                             for (int32_t i = 0; i < g_chrRacesDB.m_numRecords; i++) {
                                 ChrRacesRec* race = g_chrRacesDB.GetRecordByIndex(i);
 
-                                if (SStrStrUTF8I(race->m_name, raceText)) {
-                                    raceMask |= 1 << race->m_id;
+                                if (race && race->m_id >= 1 && race->m_id < 32 && SStrStrUTF8I(race->m_name, raceText)) {
+                                    raceMask |= 1u << race->m_id;
                                 }
                             }
                         } else {
@@ -687,15 +688,17 @@ void FriendList::SendWho(const char* filter) {
                             if (!SStrCmpUTF8I(word, tag, SStrLenUTF8(tag))) {
                                 const char* classText = &word[SStrLen(tag)];
 
-                                if (classMask == -1) {
+                                if (classMask == ClassMask(UINT32_MAX)) {
                                     classMask = 0;
                                 }
 
                                 for (int32_t i = 0; i < g_chrClassesDB.m_numRecords; i++) {
                                     ChrClassesRec* chrClass = g_chrClassesDB.GetRecordByIndex(i);
 
-                                    if (SStrStrUTF8I(chrClass->m_name, classText)) {
-                                        classMask |= 1 << chrClass->m_id;
+                                    if (chrClass && chrClass->m_id >= 1 && chrClass->m_id <= WOWDECOMP_MAX_CLASSES &&
+                                        SStrStrUTF8I(chrClass->m_name, classText)) {
+                                        // WHO uses bit classID, unlike DBC membership masks.
+                                        classMask.SetBit(chrClass->m_id);
                                     }
                                 }
                             } else {
@@ -768,7 +771,7 @@ void FriendList::SendWho(const char* filter) {
     strcpy(this->m_whoGuild, guild);
     msg.Put(static_cast<uint32_t>(raceMask));
     this->m_whoRaceMask = raceMask;
-    msg.Put(static_cast<uint32_t>(classMask));
+    WriteClassMask(&msg, classMask);
     this->m_whoClassMask = classMask;
     msg.Put(zoneCount);
 
@@ -884,7 +887,10 @@ int32_t FriendList::DoLocalWho() {
         uint8_t race = player->m_unit->m_unitFieldBytes0[0];
         uint8_t classId = player->m_unit->m_unitFieldBytes0[1];
 
-        if (!((1 << race) & this->m_whoRaceMask) || !((1 << classId) & this->m_whoClassMask)) {
+        if ((this->m_whoRaceMask != -1 &&
+             (race >= 32 || !((1u << race) & static_cast<uint32_t>(this->m_whoRaceMask)))) ||
+            classId < 1 || classId > WOWDECOMP_MAX_CLASSES ||
+            (this->m_whoClassMask != ClassMask(UINT32_MAX) && !this->m_whoClassMask.TestBit(classId))) {
             continue;
         }
 

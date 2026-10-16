@@ -52,56 +52,60 @@ static int32_t Script_IsRaceClassRestricted(lua_State* L) {
 
     int32_t raceID = static_cast<int32_t>(lua_tonumber(L, 1));
     int32_t classID = static_cast<int32_t>(lua_tonumber(L, 2));
+    if (classID < 1 || classID > WOWDECOMP_MAX_CLASSES) {
+        luaL_error(L, "Script_IsRaceClassRestricted: unsupported class ID(%d)", classID);
+        return 0;
+    }
     bool restricted;
 
     switch (raceID) {
         case 1: {
-            restricted = (CCharacterSelection::s_raceRestrictions[0] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[0].TestBit(classID);
             break;
         }
 
         case 2: {
-            restricted = (CCharacterSelection::s_raceRestrictions[5] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[5].TestBit(classID);
             break;
         }
 
         case 3: {
-            restricted = (CCharacterSelection::s_raceRestrictions[1] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[1].TestBit(classID);
             break;
         }
 
         case 4: {
-            restricted = (CCharacterSelection::s_raceRestrictions[3] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[3].TestBit(classID);
             break;
         }
 
         case 5: {
-            restricted = (CCharacterSelection::s_raceRestrictions[8] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[8].TestBit(classID);
             break;
         }
 
         case 6: {
-            restricted = (CCharacterSelection::s_raceRestrictions[7] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[7].TestBit(classID);
             break;
         }
 
         case 7: {
-            restricted = (CCharacterSelection::s_raceRestrictions[2] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[2].TestBit(classID);
             break;
         }
 
         case 8: {
-            restricted = (CCharacterSelection::s_raceRestrictions[6] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[6].TestBit(classID);
             break;
         }
 
         case 10: {
-            restricted = (CCharacterSelection::s_raceRestrictions[9] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[9].TestBit(classID);
             break;
         }
 
         case 11: {
-            restricted = (CCharacterSelection::s_raceRestrictions[4] & (1 << classID)) != 0;
+            restricted = CCharacterSelection::s_raceRestrictions[4].TestBit(classID);
             break;
         }
 
@@ -532,6 +536,10 @@ static int32_t Script_SetSelectedClass(lua_State* L) {
 
     int32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     ChrClassesRec* classRec = index >= 0 && index < g_chrClassesDB.m_numRecords ? &g_chrClassesDB.m_records[index] : nullptr;
+    if (!classRec) {
+        return 0;
+    }
+
     CCharacterCreation::SetSelectedClass(classRec->m_id);
     return 0;
 }
@@ -614,8 +622,18 @@ static int32_t Script_GetAvailableRaceIDs(lua_State* L) {
     return 27;
 }
 
+#if WOWDECOMP_MAX_CLASSES > 32
+static int32_t Script_GetClassCapacity(lua_State* L) {
+    lua_pushnumber(L, WOWDECOMP_MAX_CLASSES);
+    return 1;
+}
+#endif
+
 // STATIC: 0x00AC4228
 static FrameScript_Method s_scriptFunctions[] = {
+#if WOWDECOMP_MAX_CLASSES > 32
+    { "GetClassCapacity", &Script_GetClassCapacity },
+#endif
     { "GetAvailableRaceIDs", &Script_GetAvailableRaceIDs },
     { "SetCharCustomizeFrame", &Script_SetCharCustomizeFrame },
     { "SetCharCustomizeBackground", &Script_SetCharCustomizeBackground },

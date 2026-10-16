@@ -1,8 +1,173 @@
 # Implementation Plan: Uncapping the Quest Log, Classes, and Bag Sizes
 
-Status: draft
+Status: client foundation implemented; server/UI integration and live acceptance pending
 Target: WoW 3.3.5a client (build 12340) as reconstructed in this repo, x64 primary / Win32 for layout checks
 Companion to: `README.md` (build instructions, `WOWDECOMP_DISABLE_SIGNATURE_CHECKS`)
+
+---
+
+
+## Selected scope (2026-10-16)
+
+The current implementation targets **1,000 active quests** through widened update
+masks (M2), optional **class IDs 1..254**, and an optional **254-slot container ceiling**. It does not create bag
+items, textures, icons, models, DBC rows, or other content. Existing bags retain
+their server-defined sizes. Backpack, bank, keyring, and daily-quest limits stay
+unchanged. Dedicated quest-sync packets (M3) are deferred.
+
+Default builds retain 25 quest slots, 36 container slots, 32-bit class masks, and 42 update masks. An opted-in
+build can be configured as follows (use your installed Visual Studio generator):
+
+```powershell
+cmake -S . -B build/limits-254 -G "Visual Studio 18 2026" -A x64 `
+  -DWOWDECOMP_EXTENDED_LIMITS=ON `
+  -DWOWDECOMP_QUEST_LOG_SLOTS=1000 `
+  -DWOWDECOMP_CONTAINER_SLOTS=254 `
+  -DWOWDECOMP_MAX_CLASSES=254 `
+  -DWOWCLIENT_OUTPUT_OVERRIDE=WowClient64-limits254
+cmake --build build/limits-254 --config Release --target WowClient --parallel
+```
+
+These capacities require a matching custom server; an unmodified server does
+not use the same player field offsets, even if it sends only 25 quests. Use a
+separate build directory from stock. No server implementation or runtime feature
+negotiation is included in this repository yet.
+
+### Implemented client foundation
+
+- `cmake/ExtendedLimits.cmake` validates the supported ranges (quests 25..1000,
+  containers 36..254), requires explicit layout opt-in, and derives the mask cap.
+  An explicitly cached mask cap below the requirement is rejected; clear it with
+  `-U WOWDECOMP_MAX_UPDATE_MASKS` when changing an existing configuration.
+- `Tools/gen_descriptors.py` generates player descriptors and player/container
+  mirror maps from the preserved stock initializers during extended configuration.
+  Stock builds compile their original tables and do not need Python. Extended
+  configuration needs Python 3.10 or later on PATH.
+- Generated `build/<configuration>/generated/limits/limits.json` exports exact
+  field offsets and counts for server integration. At 1000/254: active player
+  **6201 dwords**, remote player **5199**, container **574**, required masks **194**.
+  Every player field at or after the original visible-item block shifts by
+  **4875 dwords / 19500 bytes**, including fields in remote player updates.
+- Extended player update-field classes are packed to four bytes, avoiding x64
+  padding when an odd number of quest entries is added. Storage, descriptors,
+  handlers, and mirror-map counts have compile-time layout checks.
+- Quest slots, sorted quest/header rows, watches, POIs, and render groups scale
+  with the configured capacity. Index checks use an exclusive upper bound.
+  Collapse state beyond the original 25 groups is retained for the session.
+- Extended quest updates coalesce full-log refresh/status queries within each
+  object update. POI membership and overlap handling avoid unnecessary large-log
+  scans. Watch order persists in bounded CVar chunks so it fits existing archive
+  buffers; legacy watch data still loads.
+- Abandon uses the existing `CMSG_QUEST_LOG_REMOVE_QUEST` opcode. When quest
+  capacity exceeds 255, **every abandon request carries a little-endian uint16
+  zero-based slot**, including slots below 256. Smaller configurations retain
+  the original uint8 payload. The opcode number is unchanged; its payload is not
+  stock-compatible in the 1000-slot configuration.
+- Update masks reject out-of-range field bits and truncated mask/value payloads.
+  Container slot counts are clamped to the configured capacity. Oversized NPC
+  quest/gossip menu packets are rejected before overflowing the 32-entry arrays.
+- Class selection/color/role bounds support the configured class-ID ceiling.
+  No class content is added; unknown class roles remain unassigned until class
+  data is supplied. Extra minimap class markers reuse existing generic dots.
+
+### Class ceiling: 254 (opt-in)
+
+`WOWDECOMP_MAX_CLASSES=254` requires `WOWDECOMP_EXTENDED_LIMITS=ON`. It can be used
+independently of the quest and bag settings. This expands the supported ID range;
+it does not add playable classes, class records, spells, talents, roles, or art.
+ID 0 remains invalid and 255 is outside the selected supported range. Existing
+class-ID fields remain one byte; player update-field layouts do not grow because
+of this setting.
+
+`WoW/Common/ClassMask.h` replaces player-class membership masks with eight
+little-endian uint32 words (256 bits) in extended builds. Stock builds retain one
+word. All-ones legacy constants expand to all words; ordinary legacy constants
+populate word 0 and leave higher words zero. Mask membership never shifts by an
+out-of-range class ID, so IDs 32, 33, 64, 128, and 254 do not alias lower classes.
+
+| Format | Extended class mask | Bit convention |
+|---|---|---|
+| Item query/cache `allowableClass` | 32 bytes in place of 4 | class ID minus 1 |
+| Talent, skill, faction DBC membership | 8 consecutive columns per mask | class ID minus 1 |
+| `CMSG_WHO` class filter | 32 bytes after the unchanged race mask | class ID |
+| Optional character-enumeration restrictions | 10 masks, 320 bytes total | class ID |
+| Petition query/cache `allowedClasses` | 32 bytes in place of 4 | Existing raw mask bits preserved |
+| Minimap tracking masks | 256-bit internal masks | class ID |
+| Vulpera appearance requirements | 256-bit internal masks | class ID minus 1 |
+
+Item cache version is 6 (stock 5); petition cache version is 2 (stock 1). Old
+records are rejected by the existing size/version checks. The changed mask
+payloads use their existing opcodes and therefore require matching server packet
+writers/readers; opcode numbers are not changed. The optional character restriction
+trailer retains race order: Human, Dwarf, Gnome, Night Elf, Draenei, Orc, Troll,
+Tauren, Undead, Blood Elf. Its absence clears stale restrictions.
+
+The four changed WDBC formats are:
+
+| DBC | Stock columns / row bytes | Extended columns / row bytes |
+|---|---|---|
+| `TalentTab` | 24 / 96 | 31 / 124 |
+| `SkillLineAbility` | 14 / 56 | 28 / 112 |
+| `SkillRaceClassInfo` | 8 / 32 | 15 / 60 |
+| `Faction` | 57 / 228 | 85 / 340 |
+
+`Tools/extend_class_masks.py` converts one existing table to a separate output
+file without adding rows or altering its string block. For example:
+
+```powershell
+python Tools/extend_class_masks.py path/to/original/TalentTab.dbc path/to/patch/TalentTab.dbc
+```
+
+Convert all four tables and supply them through your patch MPQ for extended
+class builds. The converter refuses stock-format mismatches, already extended
+inputs, and existing output files. Each old mask expands in place; `0xFFFFFFFF`
+expands to eight all-ones words, and other values retain their original low word
+with zero high words. `SkillLineAbility` expands both inclusion and exclusion
+masks. `Faction` expands each of its four alternative race/class reputation
+conditions separately; those four masks are not four segments of one mask.
+
+When adding classes later, add rows to `ChrClasses`, `CharBaseInfo`, outfits,
+skills, talents, and class-indexed `gt*` tables as appropriate. `ChrClasses` keeps
+its original 60-column format. Missing game-table rows now return zero instead
+of being dereferenced; correct class stats still require real table data. The
+96-bit spell-family masks are unrelated to the number of player classes and
+remain unchanged. Glue Lua exposes `GetClassCapacity()` in extended class builds
+so a future class-selection UI can discover its compiled ceiling.
+
+### Remaining integration and acceptance
+
+- Server: matching active/remote player and container descriptors; sparse masks
+  through 194 blocks; at least uint16 quest-slot persistence; uint16 abandon
+  parsing; quest-log-full enforcement at 1000; POI request handling for up to
+  1000 IDs. Require compatible clients before sending the expanded layout.
+- UI MPQ: update any `MAX_QUESTLOG_QUESTS` assumptions and validate scrolling,
+  watch display, and POIs at 1000. Extended builds expose
+  `GetQuestLogCapacity()` and `GetContainerSlotCapacity()` for UI code to discover
+  the compiled ceilings. Bag UI work is needed only when larger bag content is
+  actually introduced; existing art can be reused.
+- Live tests: accept, abandon, update objectives, watch, and relog with quests at
+  slots 24, 25, 254, 255, 256, and 999; verify subsequent player fields (inventory,
+  money, skills, talents, glyphs) and remote-player equipment; validate a future
+  large bag's last slot. No server/live game acceptance has been performed yet.
+- Classes: supply the extended DBCs and matching item/WHO/character-restriction/
+  petition packets. Add class content only when desired. Test creation, relog,
+  item restrictions, skills, talents, reputation, WHO and tracking at IDs 31, 32,
+  33, 64, 128, and 254. No high-ID class has been tested live.
+- NPC quest-giver menus retain their separate 32-entry limit. Increasing the
+  active log does not raise the NPC offer limit. Daily completion remains 25.
+
+### Local verification
+
+`python Tools/test_extended_limits.py` checks exact stock table reproduction,
+descriptor coverage, capacity boundaries, and exported server contracts.
+`Tools/check_extended_layout.cpp` is a standalone compile check for stock and
+extended field layouts on x86/x64. `Tools/test_update_mask.cpp` checks parser
+boundaries and 20,000 seeded random masks against an independent reference.
+`Tools/test_class_masks.cpp` checks stock and extended masks, boundary IDs,
+non-aliasing, DBC shapes and cache versions. `python Tools/test_extend_class_masks.py`
+checks conversion using synthetic tables; no installed game data is modified.
+The original roadmap below is retained for architectural context; its M3 and
+bag-content work are outside the selected scope.
 
 ---
 
@@ -10,9 +175,9 @@ Companion to: `README.md` (build instructions, `WOWDECOMP_DISABLE_SIGNATURE_CHEC
 
 | # | Goal | Target | Client-only? |
 |---|------|--------|--------------|
-| 1 | Active quests | thousands | No — requires server + new transport (see §4) |
-| 2 | Classes | > 10, up to 32 (then protocol wall) | Mostly yes (data + small fixes) |
-| 3 | Bag size | up to 255 slots without protocol change; ~630 with field work | Client changes + matching server |
+| 1 | Active quests | 1000 | No — requires matching server layouts + wider abandon slots (M2) |
+| 2 | Class ceiling | IDs through 254 (opt-in) | No — wider client/server/DBC masks |
+| 3 | Bag ceiling | 254 slots; no bag content or art | Client changes + matching server |
 
 Verdict summary (from the survey): **classes are easy** (data + three out-of-bounds fixes),
 **bag size is a systematic medium** (a set of self-consistent resize edits, no protocol change
@@ -41,7 +206,8 @@ below 256 slots), and **the quest log is a project** (player-object wire budget 
 option(WOWDECOMP_EXTENDED_LIMITS "Enable layout-changing extended limits" OFF)
 set(WOWDECOMP_CONTAINER_SLOTS 36  CACHE STRING "WOWGUID slots per container item (36 = 12340)")
 set(WOWDECOMP_QUEST_LOG_SLOTS 25  CACHE STRING "PLAYER_QUEST_LOG slots (25 = 12340)")
-set(WOWDECOMP_MAX_UPDATE_MASKS 42 CACHE STRING "max update-mask dwords (42 = stock client cap)")
+# WOWDECOMP_MAX_UPDATE_MASKS is derived: 42 stock, 194 at 1000 quests.
+# A larger explicit value through 255 is accepted for extended builds.
 ```
 
 `WOWDECOMP_EXTENDED_LIMITS=ON` turns on the layout-dependent code paths; with the defaults the
@@ -108,7 +274,9 @@ This is the single highest-leverage piece of the whole plan; budget it first (2-
 
 ## 2. Workstream C — Classes (do this first)
 
-**Target: class IDs 12..32 (up to 20 new classes).** 3.3.5a uses ids 1–9 and 11 (10 is free);
+**Selected target: class IDs through 254, without adding class content.** The
+original 32-bit audit below describes the stock format; the implemented opt-in
+mask expansion is detailed above. 3.3.5a uses ids 1–9 and 11 (10 is free);
 Druid = 11 (`NamePlateFrame.cpp:43-53` colors, `Tooltip.cpp` feral-AP checks). Class is stored as
 a full byte in `UNIT_FIELD_BYTES_0[1]` (`Unit.h:62`); nothing packs it into 4 bits. Most paths
 iterate `ChrClasses.dbc`/`CharBaseInfo.dbc` dynamically, and the fork already extends races this
@@ -158,10 +326,11 @@ All masks are 32-bit; class N uses bit N‑1 in most, bit N in two places. Pract
 | Realm race/class restrictions | `CharacterSelection_Scripts.cpp:59-104`, `RealmConnection.h:61-70` (u32 masks) | class ID | 31 |
 | Appearance system | `WoW/Common/ComponentCore/VulperaAppearance.h:283-295` | class−1, explicit `classId > 32` guard | 32 |
 
-Recommendation: **target 32 classes max** (ids up to 32), with the who-list/tracking filters
-silently excluding class 32 until those two masks are widened. Going past 32 means widening the
-item `allowableClass` wire field, `CMSG_WHO`, `TalentTab.dbc`/skill DBC columns, and the realm
-restriction packet — a separate, protocol-level project; out of scope here.
+The stock format remains limited by these masks. The selected opt-in implementation
+widens the item/WHO/realm/petition payloads, relevant DBC columns, tracking and
+appearance masks to 256 bits, supporting IDs through **254**. It requires the
+matching server and DBC formats described above; changing a table bound alone
+does not enable high-ID classes.
 
 ### C-4 UI
 
@@ -286,7 +455,7 @@ as legacy.
 
 ### Milestones (each independently useful; each needs the matching server)
 
-#### M1 — 28-slots rehearsal (no protocol change, stock server works if it sends ≤28)
+#### M1 — 28-slots rehearsal (existing mask format; matching server field layout required)
 
 Exactly the 3 extra slots the mask budget allows (1326 + 3×5 = 1341 ≤ 1344).
 
@@ -316,14 +485,15 @@ Wire format already supports it: `blockCount` is a single byte, so up to 255 mas
 | Player block counts | `GetNumDwordBlocks` `:479`, `s_objDwordCount[ID_PLAYER]` `:58`, non-active 324 |
 | Global handler table | `s_typeMirrorHandlers[...][1326]` `:43` → max managed section length |
 | Descriptor regeneration | generator I-1 (all of M1's table, sized N) + `PLAYER_DESCRIPTORS` extern size |
-| Funds | player field budget check: `1326 + 5(N−25) ≤ 255×32` → **N ≤ 1392**; also daily quests + POI/watch arrays |
+| Funds | player field budget check: `1326 + 5(N−25) ≤ 255×32` → **N ≤ 1391**; also daily quests + POI/watch arrays |
 | Server | must emit sparse masks with > 42 blocks for the player object only when needed; DB quest slots widen from uint8 (e.g., 300 stored quests/slot table) |
 
-Sparse masks matter: only the highest changed block extends the mask, so a 300-slot log costs
-~47 mask dwords while only a few fields change. Still, at 1000+ slots the block count per update
+Sparse masks matter: the highest changed field determines the mask length. A 300-slot
+configuration needs up to 85 mask dwords for the complete player object, even when only a few
+values change. A 1000-slot configuration needs up to 194. Still, at 1000+ slots the block count per update
 and the per-update allocation grow; test with the update rate in mind.
 
-#### M3 — thousands: dedicated quest-log transport (the real answer)
+#### M3 — thousands: dedicated quest-log transport (deferred; outside selected scope)
 
 Design sketch (client is already questId-centric — `CGQuestLog::GetQuestIndex`,
 `GetQuestLogSlot`, `IsOnQuest` key on questId, so the "slot" is mostly a server/UI artifact):
@@ -363,7 +533,7 @@ deriving array positions from 25-slot assumptions.
 
 **Server requirements (out of tree):**
 
-- M1: nothing (stock servers send 25).
+- M1: matching shifted player-field layout is required, even if the server sends only 25 quests.
 - M2: player-object mask emission > 42 blocks (usually capped server-side), quest slot storage as
   uint16 (e.g., `characters.quest_slots` layout), remove-quest opcode accepts wider slots.
 - M3: new opcode handlers, slot→questId mapping, chunked sync on login, remove by questId; the
@@ -372,7 +542,7 @@ deriving array positions from 25-slot assumptions.
 
 ### Quest log tests / definition of done
 
-- M1: accept 28 quests from a stock/modded server; all existing quest UI functions at slots 25-28;
+- M1: accept 28 quests from a server with the matching field layout; all existing quest UI functions at slots 25-28;
   abandon from slot 27; watch/POI on new slots.
 - M2: 300-1000 quests across relog (sync correctness), abandon/accept while at the cap, mask
   boundary dwords (slot 25, 32, 128, 256…), daily count > 25, quest giver with 40 quests.
@@ -380,7 +550,7 @@ deriving array positions from 25-slot assumptions.
   budget; all of the above.
 
 **Effort: M1 2-3 days · M2 ~1-2 weeks client + server · M3 3-6 weeks client + server + UI.**
-**Risk: high — this is the only workstream with new protocol surface.**
+**Risk: high — M2 changes player field layouts and abandon payload width; M3 adds new opcodes.**
 
 ---
 
@@ -399,7 +569,7 @@ deriving array positions from 25-slot assumptions.
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Descriptor/index-map hand edits drift | corrupted field offsets, subtle UI bugs | generator I-1; asserts comparing `TotalFields()` against expanded table sizes at startup |
-| Mask widening desyncs (M2) | dropped updates, ghost state | server-side sparse masks + fuzz test mask patterns against client parser |
+| Mask widening desyncs (M2) | dropped updates, ghost state | server-side sparse masks + boundary/randomized mask validation tests |
 | Quest log UI at thousands | unplayable frame rate | virtualized Lua list; cap visible rows |
 | Container handler spam | frame hitches with many big bags | coalesce per-slot handlers (B-3) |
 | Win32 fidelity checks fail on extended build | CI noise | build matrix: stock config always; extended config skips `verify.py` comparisons for touched functions |

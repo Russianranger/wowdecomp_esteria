@@ -69,8 +69,17 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 | CMake option | Default | Effect |
 |---|---|---|
 | `WOWDECOMP_DISABLE_SIGNATURE_CHECKS` | `OFF` | Skip the MPQ file and `.toc.sig` signature checks, so modified game data and interface files load |
+| `WOWDECOMP_EXTENDED_LIMITS` | `OFF` | Opt into custom player/container layouts; requires a matching server |
+| `WOWDECOMP_QUEST_LOG_SLOTS` | `25` | Active quest ceiling, up to 1000 with extended limits |
+| `WOWDECOMP_CONTAINER_SLOTS` | `36` | Container ceiling, up to 254 with extended limits; adds no bag content or art |
+| `WOWDECOMP_MAX_CLASSES` | `32` | Maximum class ID, up to 254 with extended limits; widens class masks and requires matching server/DBC formats |
+| `WOWDECOMP_MAX_UPDATE_MASKS` | derived (`42` stock) | Accepted mask blocks; 1000 quests require 194 |
 | `WOWCLIENT_CRASH_LOG` | `ON` | Build `WowClient` with the crash logger |
 | `WOWCLIENT_OUTPUT_OVERRIDE` | empty | Name the `WowClient` executable something other than `WowClient64` / `WowClient32` |
+
+See [extended limits](docs/uncaps.md) for the 1000-quest/254-class configuration, generated
+server field contract, and pending server/UI acceptance work. Extended descriptor
+generation requires Python 3.10 or newer; stock builds do not require Python.
 
 ## Running
 
@@ -79,7 +88,8 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 3. Start `bin/Win/WowClient64.exe` (or `Wow64.exe`).
 
 The built-in cursor selector is under **Escape → Interface → Mouse → Cursor appearance**.
-Human (Default), Night Elf, Orc, and Undead apply immediately and save between sessions.
+Human (Default), Night Elf, Orc, Undead, Hearthstone, and animated Starcraft apply
+immediately and save between sessions.
 See [native cursor textures](Addons/Cursors/README.md) for conversion and behavior details.
 
 ## Layout

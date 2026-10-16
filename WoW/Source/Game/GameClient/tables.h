@@ -37,7 +37,8 @@ ClientGameTable<T>::ClientGameTable(const char* name, WowClientDB<T>* db) : Clie
 // OFFSET: [0x007F69B0, 0x007F69E0]
 template <class T>
 float ClientGameTable<T>::EvaluateTable(uint32_t column, uint32_t row) {
-    return this->m_db->GetRecord(column + row * this->m_gameTable->m_numRows)->m_data;
+    const T* record = this->m_db->GetRecord(column + row * this->m_gameTable->m_numRows);
+    return record ? record->m_data : 0.0f;
 }
 
 #endif

@@ -110,8 +110,8 @@ void CGCharacterInfo::RegisterMirrorHandlers(WOWGUID guid) {
         return;
     }
 
-    ClntObjMgrSetObjMirrorHandler(guid, ID_PLAYER, 0xDA0, 8, PlayerCharacterPointsUpdateHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
-    ClntObjMgrSetObjMirrorHandler(guid, ID_PLAYER, 0x1068, 4, PlayerEquipmentChangedHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xDA0), 8, PlayerCharacterPointsUpdateHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
+    ClntObjMgrSetObjMirrorHandler(guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1068), 4, PlayerEquipmentChangedHandler, nullptr, static_cast<HANDLER_PRIORITY>(0), 0);
 }
 
 // VERIFY: 18a6a029 manual
@@ -604,7 +604,7 @@ bool CGCharacterInfo::CanEquipItemInSlot(const ItemStats_C* stats, uint32_t slot
 
     int32_t allowed = 1;
 
-    if (!((stats->m_allowableRace - 1) & stats->m_allowableRace) && !((stats->m_allowableClass - 1) & stats->m_allowableClass)) {
+    if (!((stats->m_allowableRace - 1) & stats->m_allowableRace) && !stats->m_allowableClass.HasMultipleBits()) {
         for (int32_t i = 0; i < g_chrRacesDB.m_numRecords; i++) {
             ChrRacesRec* race = g_chrRacesDB.GetRecordByIndex(i);
 
@@ -616,7 +616,7 @@ bool CGCharacterInfo::CanEquipItemInSlot(const ItemStats_C* stats, uint32_t slot
         for (int32_t i = 0; i < g_chrClassesDB.m_numRecords; i++) {
             ChrClassesRec* chrClass = g_chrClassesDB.GetRecordByIndex(i);
 
-            if (chrClass && ((1 << (chrClass->m_id - 1)) & stats->m_allowableClass) && player->m_unit->m_unitFieldBytes0[1] != chrClass->m_id) {
+            if (chrClass && stats->m_allowableClass.TestClass(chrClass->m_id) && player->m_unit->m_unitFieldBytes0[1] != chrClass->m_id) {
                 return false;
             }
         }
@@ -639,7 +639,7 @@ bool CGCharacterInfo::CanEquipItemInSlot(const ItemStats_C* stats, uint32_t slot
     for (int32_t i = 0; i < g_chrClassesDB.m_numRecords; i++) {
         ChrClassesRec* chrClass = g_chrClassesDB.GetRecordByIndex(i);
 
-        if (chrClass && !((1 << (chrClass->m_id - 1)) & stats->m_allowableClass)) {
+        if (chrClass && !stats->m_allowableClass.TestClass(chrClass->m_id)) {
             allClasses = 0;
             break;
         }
@@ -667,7 +667,7 @@ bool CGCharacterInfo::CanEquipItemInSlot(const ItemStats_C* stats, uint32_t slot
         for (int32_t i = 0; i < g_chrClassesDB.m_numRecords; i++) {
             ChrClassesRec* chrClass = g_chrClassesDB.GetRecordByIndex(i);
 
-            if (chrClass && ((1 << (chrClass->m_id - 1)) & stats->m_allowableClass) && player->m_unit->m_unitFieldBytes0[1] == chrClass->m_id) {
+            if (chrClass && stats->m_allowableClass.TestClass(chrClass->m_id) && player->m_unit->m_unitFieldBytes0[1] == chrClass->m_id) {
                 allowed = 1;
             }
         }
@@ -842,8 +842,8 @@ void CGCharacterInfo::LeaveWorld() {
     WOWGUID guid = ClntObjMgrGetActivePlayer();
 
     if (guid) {
-        ClntObjMgrUnsetObjMirrorHandler(guid, ID_PLAYER, 0xDA0, PlayerCharacterPointsUpdateHandler, nullptr);
-        ClntObjMgrUnsetObjMirrorHandler(guid, ID_PLAYER, 0x1068, PlayerEquipmentChangedHandler, nullptr);
+        ClntObjMgrUnsetObjMirrorHandler(guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0xDA0), PlayerCharacterPointsUpdateHandler, nullptr);
+        ClntObjMgrUnsetObjMirrorHandler(guid, ID_PLAYER, ExtendedLimits::PlayerOffset(0x1068), PlayerEquipmentChangedHandler, nullptr);
     }
 
     CGCharacterInfo::m_invAlertStatus.Clear();

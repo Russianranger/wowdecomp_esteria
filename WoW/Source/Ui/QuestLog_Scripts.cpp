@@ -126,7 +126,7 @@ static int32_t Script_GetQuestWatchIndex(lua_State* L) {
     }
 
     for (uint32_t i = 0; i < CGQuestLog::m_numQuestWatches; i++) {
-        if ((i < 25 ? CGQuestLog::m_questWatches[i].m_questId : 0) == questId) {
+        if ((i < WOWDECOMP_QUEST_LOG_SLOTS ? CGQuestLog::m_questWatches[i].m_questId : 0) == questId) {
             lua_pushnumber(L, i + 1);
             return 1;
         }
@@ -151,7 +151,7 @@ static int32_t Script_IsQuestWatched(lua_State* L) {
 
         if (questId && CGQuestLog::m_numQuestWatches) {
             for (uint32_t i = 0; i < CGQuestLog::m_numQuestWatches; i++) {
-                if ((i < 25 ? CGQuestLog::m_questWatches[i].m_questId : 0) == questId) {
+                if ((i < WOWDECOMP_QUEST_LOG_SLOTS ? CGQuestLog::m_questWatches[i].m_questId : 0) == questId) {
                     watched = 1;
                 }
             }
@@ -178,7 +178,7 @@ static int32_t Script_GetQuestIndexForWatch(lua_State* L) {
     uint32_t watch = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
     int32_t questId;
 
-    if (watch < 25 && (questId = CGQuestLog::m_questWatches[watch].m_questId) && CGQuestLog::m_numQuest) {
+    if (watch < WOWDECOMP_QUEST_LOG_SLOTS && (questId = CGQuestLog::m_questWatches[watch].m_questId) && CGQuestLog::m_numQuest) {
         for (uint32_t i = 0; i < static_cast<uint32_t>(CGQuestLog::m_numQuest); i++) {
             int32_t id = static_cast<int32_t>(i) < 0 || static_cast<int32_t>(i) >= CGQuestLog::m_numQuest || CGQuestLog::m_quests[i].m_isHeader ? 0 : CGQuestLog::m_quests[i].m_questId;
 
@@ -266,7 +266,7 @@ static int32_t Script_GetQuestTimers(lua_State* L) {
 
         int32_t slot = CGQuestLog::m_quests[i].m_logSlot;
 
-        if (slot < 0 || slot > 25) {
+        if (slot < 0 || slot >= WOWDECOMP_QUEST_LOG_SLOTS) {
             continue;
         }
 
@@ -922,7 +922,7 @@ static int32_t Script_GetQuestIndexForTimer(lua_State* L) {
 
             int32_t slot = CGQuestLog::m_quests[i].m_logSlot;
 
-            if (slot < 0 || slot > 25) {
+            if (slot < 0 || slot >= WOWDECOMP_QUEST_LOG_SLOTS) {
                 continue;
             }
 
@@ -1072,7 +1072,7 @@ static int32_t Script_QuestPOIGetQuestIDByIndex(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
 
-    if (index > 24) {
+    if (index >= WOWDECOMP_QUEST_LOG_SLOTS) {
         return 0;
     }
 
@@ -1108,7 +1108,7 @@ static int32_t Script_GetQuestLogTimeLeft(lua_State* L) {
         int32_t index = CGQuestLog::GetSelectedLogEntry();
         uint32_t slot = index < 0 ? 0 : CGQuestLog::m_quests[index].m_logSlot;
 
-        if (slot <= 25) {
+        if (slot < WOWDECOMP_QUEST_LOG_SLOTS) {
             PlayerQuestLogEntry* entry = &player->m_player->m_playerQuestLog[slot];
             int32_t timeOffset = CGQuestLog::m_timeOffset;
 
@@ -1138,7 +1138,7 @@ static int32_t Script_IsCurrentQuestFailed(lua_State* L) {
         int32_t index = CGQuestLog::GetSelectedLogEntry();
         uint32_t slot = index < 0 ? 0 : CGQuestLog::m_quests[index].m_logSlot;
 
-        if (slot <= 25) {
+        if (slot < WOWDECOMP_QUEST_LOG_SLOTS) {
             PlayerQuestLogEntry* entry = &player->m_player->m_playerQuestLog[slot];
 
             if (entry && ((entry->m_state & 2) || CGQuestLog::IsSelectedQuestExpired())) {
@@ -1165,7 +1165,7 @@ static int32_t Script_IsUnitOnQuest(lua_State* L) {
     WOWGUID guid;
 
     if (index >= 0 && index < CGQuestLog::m_numQuest && !CGQuestLog::m_quests[index].m_isHeader && (questId = CGQuestLog::m_quests[index].m_questId) && (guid = GetGuidByKeyword(lua_tolstring(L, 2, nullptr)), CGPartyInfo::IsMember(guid)) && (member = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(guid, TYPEMASK_PLAYER, __FILE__, __LINE__))) && !(member->m_modelFlags & 0x10000)) {
-        for (uint32_t slot = 0; slot < 25; slot++) {
+        for (uint32_t slot = 0; slot < WOWDECOMP_QUEST_LOG_SLOTS; slot++) {
             PlayerQuestLogEntry* entry = member->GetQuestLogEntry(slot);
 
             if (entry && static_cast<int32_t>(entry->m_questId) == questId) {
@@ -1453,7 +1453,7 @@ static int32_t Script_GetQuestLogTitle(lua_State* L) {
         lua_pushnumber(L, 1.0);
         uint32_t sortId = GetQuestSortId(index);
 
-        if (sortId >= 25 || ((1 << sortId) & s_cvQuestLogCollapseFilter->m_intValue)) {
+        if (!CGQuestLog::IsHeaderCollapsed(sortId)) {
             lua_pushnil(L);
         } else {
             lua_pushnumber(L, 1.0);
@@ -1470,7 +1470,7 @@ static int32_t Script_GetQuestLogTitle(lua_State* L) {
         if (index >= 0 && index < CGQuestLog::m_numQuest && !CGQuestLog::m_quests[index].m_isHeader) {
             uint32_t slot = CGQuestLog::m_quests[index].m_logSlot;
 
-            if (slot <= 25) {
+            if (slot < WOWDECOMP_QUEST_LOG_SLOTS) {
                 PlayerQuestLogEntry* entry = &player->m_player->m_playerQuestLog[slot];
 
                 if (entry && (entry->m_state & 2)) {
@@ -1702,8 +1702,18 @@ static int32_t Script_QuestPOIUpdateTexture(lua_State* L) {
     return 0;
 }
 
+#if WOWDECOMP_QUEST_LOG_SLOTS > 25
+static int32_t Script_GetQuestLogCapacity(lua_State* L) {
+    lua_pushnumber(L, WOWDECOMP_QUEST_LOG_SLOTS);
+    return 1;
+}
+#endif
+
 // STATIC: 0x00AD1020
 static FrameScript_Method s_ScriptFunctions[] = {
+#if WOWDECOMP_QUEST_LOG_SLOTS > 25
+    { "GetQuestLogCapacity", &Script_GetQuestLogCapacity },
+#endif
     { "GetNumQuestLogEntries", &Script_GetNumQuestLogEntries },
     { "GetQuestLogTitle", &Script_GetQuestLogTitle },
     { "SelectQuestLogEntry", &Script_SelectQuestLogEntry },

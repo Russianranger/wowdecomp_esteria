@@ -1173,8 +1173,18 @@ static int32_t Script_GetContainerItemGems(lua_State* L) {
     return 3;
 }
 
+#if WOWDECOMP_CONTAINER_SLOTS > 36
+static int32_t Script_GetContainerSlotCapacity(lua_State* L) {
+    lua_pushnumber(L, WOWDECOMP_CONTAINER_SLOTS);
+    return 1;
+}
+#endif
+
 // STATIC: 0x00AD0D50
 static FrameScript_Method s_ScriptFunctions[] = {
+#if WOWDECOMP_CONTAINER_SLOTS > 36
+    { "GetContainerSlotCapacity", &Script_GetContainerSlotCapacity },
+#endif
     { "ContainerIDToInventoryID", &Script_ContainerIDToInventoryID },
     { "GetContainerNumSlots", &Script_GetContainerNumSlots },
     { "GetContainerItemInfo", &Script_GetContainerItemInfo },

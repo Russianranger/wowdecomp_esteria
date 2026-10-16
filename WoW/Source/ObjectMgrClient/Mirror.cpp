@@ -57,7 +57,7 @@ CGFieldDescriptor ITEM_DESCRIPTORS[38] = {
 CGFieldDescriptor CONTAINER_DESCRIPTORS[3] = {
     { "CONTAINER_FIELD_NUM_SLOTS", 0, 1, 1, 0x1 },
     { "CONTAINER_ALIGN_PAD", 1, 1, 5, 0x0 },
-    { "CONTAINER_FIELD_SLOT_1", 2, 72, 4, 0x1 },
+    { "CONTAINER_FIELD_SLOT_1", 2, 2 * WOWDECOMP_CONTAINER_SLOTS, 4, 0x1 },
 };
 
 // STATIC: 0xAC5FE0
@@ -154,7 +154,8 @@ CGFieldDescriptor UNIT_DESCRIPTORS[89] = {
 };
 
 // STATIC: 0xAC66D8
-CGFieldDescriptor PLAYER_DESCRIPTORS[215] = {
+CGFieldDescriptor PLAYER_DESCRIPTORS[ExtendedLimits::PlayerDescriptorCount] = {
+#if WOWDECOMP_QUEST_LOG_SLOTS == 25
     { "PLAYER_DUEL_ARBITER", 0, 2, 4, 0x1 },
     { "PLAYER_FLAGS", 2, 1, 1, 0x1 },
     { "PLAYER_GUILDID", 3, 1, 1, 0x1 },
@@ -370,6 +371,9 @@ CGFieldDescriptor PLAYER_DESCRIPTORS[215] = {
     { "PLAYER_FIELD_GLYPHS_1", 1170, 6, 1, 0x2 },
     { "PLAYER_GLYPHS_ENABLED", 1176, 1, 1, 0x2 },
     { "PLAYER_PET_SPELL_POWER", 1177, 1, 1, 0x2 },
+#else
+#include "PlayerDescriptors.inc"
+#endif
 };
 
 // STATIC: 0xAC77A8

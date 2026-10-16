@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include "WoW/Common/ClassMask.h"
 #include "Engine/Source/Tempest/C3Vector.h"
 #include "Engine/Source/Storm/H/stpl.h"
 #include "WoW/Source/Net/NetClient/NetClient.h"
@@ -58,16 +59,16 @@ class RealmConnection : public NetClient {
     static void PollNet(const void* data, void* param);
 
     /* 2EE0 */ RealmResponse* m_realmResponse;
-    /* 2EE4 */ uint32_t m_restrictHuman;
-    /* 2EE8 */ uint32_t m_restrictDwarf;
-    /* 2EEC */ uint32_t m_restrictGnome;
-    /* 2EF0 */ uint32_t m_restrictNightElf;
-    /* 2EF4 */ uint32_t m_restrictDraenei;
-    /* 2EF8 */ uint32_t m_restrictOrc;
-    /* 2EFC */ uint32_t m_restrictTroll;
-    /* 2F00 */ uint32_t m_restrictTauren;
-    /* 2F04 */ uint32_t m_restrictUndead;
-    /* 2F08 */ uint32_t m_restrictBloodElf;
+    /* 2EE4 */ ClassMask m_restrictHuman;
+    /* 2EE8 */ ClassMask m_restrictDwarf;
+    /* 2EEC */ ClassMask m_restrictGnome;
+    /* 2EF0 */ ClassMask m_restrictNightElf;
+    /* 2EF4 */ ClassMask m_restrictDraenei;
+    /* 2EF8 */ ClassMask m_restrictOrc;
+    /* 2EFC */ ClassMask m_restrictTroll;
+    /* 2F00 */ ClassMask m_restrictTauren;
+    /* 2F04 */ ClassMask m_restrictUndead;
+    /* 2F08 */ ClassMask m_restrictBloodElf;
     /* 2F0C */ TSFixedArray<CHARACTER_INFO> m_characterList;
     /* 2F18 */ uint8_t m_authenticated;
     /* 2F19 */ uint8_t unk_2F19[3];

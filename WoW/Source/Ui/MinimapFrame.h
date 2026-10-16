@@ -2,6 +2,7 @@
 #define WOW_SOURCE_UI_MINIMAPFRAME_H
 
 #include <cstddef>
+#include "WoW/Common/ClassMask.h"
 #include <cstdint>
 #include "Engine/Source/Base/CDataAllocator.h"
 #include "Engine/Source/Frame/CSimpleFrame.h"
@@ -128,7 +129,7 @@ struct TrackingTypeInfo {
     /* 0004 */ uint32_t m_npcFlags;
     /* 0008 */ const char* m_name;
     /* 000C */ const char* m_texture;
-    /* 0010 */ uint32_t m_classMask;
+    /* 0010 */ ClassMask m_classMask;
 };
 
 void DisplayQuestPoint(float x, float y, int32_t importance, const char* name);

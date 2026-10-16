@@ -673,12 +673,13 @@ void CGMinimapFrame::InitializeGame() {
 int32_t CGMinimapFrame::CountAvailableTrackingTypes() {
     int32_t count = 0;
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-    uint32_t classMask = player ? 1 << player->m_unit->m_unitFieldBytes0[1] : 0;
+    uint32_t classID = player ? player->m_unit->m_unitFieldBytes0[1] : 0;
+    bool validClass = classID >= 1 && classID <= WOWDECOMP_MAX_CLASSES;
 
     for (uint32_t i = 0; i < sizeof(CGMinimapFrame::s_trackingTypes) / sizeof(CGMinimapFrame::s_trackingTypes[0]); i++) {
-        uint32_t mask = CGMinimapFrame::s_trackingTypes[i].m_classMask;
+        const ClassMask& mask = CGMinimapFrame::s_trackingTypes[i].m_classMask;
 
-        if (!mask || (mask & classMask)) {
+        if (!mask || (validClass && mask.TestBit(classID))) {
             count++;
         }
     }
@@ -691,12 +692,13 @@ int32_t CGMinimapFrame::CountAvailableTrackingTypes() {
 const TrackingTypeInfo* CGMinimapFrame::GetTrackingTypeByIndex(int32_t index) {
     int32_t count = 0;
     CGPlayer_C* player = static_cast<CGPlayer_C*>(ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__));
-    uint32_t classMask = player ? 1 << player->m_unit->m_unitFieldBytes0[1] : 0;
+    uint32_t classID = player ? player->m_unit->m_unitFieldBytes0[1] : 0;
+    bool validClass = classID >= 1 && classID <= WOWDECOMP_MAX_CLASSES;
 
     for (uint32_t i = 0; i < sizeof(CGMinimapFrame::s_trackingTypes) / sizeof(CGMinimapFrame::s_trackingTypes[0]); i++) {
-        uint32_t mask = CGMinimapFrame::s_trackingTypes[i].m_classMask;
+        const ClassMask& mask = CGMinimapFrame::s_trackingTypes[i].m_classMask;
 
-        if (mask && !(mask & classMask)) {
+        if (mask && !(validClass && mask.TestBit(classID))) {
             continue;
         }
 
@@ -2665,76 +2667,87 @@ void CGMinimapFrame::LeaveWorld() {
 // VERIFY: 5b02e890 manual
 // OFFSET: 0x0057FF70
 void CGMinimapFrame::RenderGroupBlips(const C44Matrix& rotation) {
-    if (!s_classBlipTexture) {
-        return;
-    }
-
-    for (uint32_t list = 0; list < 2; list++) {
-        for (uint32_t i = 0; i < s_objInfo[list].m_count; i++) {
-            OBJINFO* info = &s_objInfo[list].m_data[i];
-
-            if (info->m_otherFloor) {
-                continue;
-            }
-
-            C3Vector point(info->m_position.x, info->m_position.y, 0.0f);
-
-            if (g_rotateMinimapCVar->m_intValue) {
-                point = C3Vector(info->m_rotated.x, info->m_rotated.y, 0.0f);
-                point *= rotation;
-                info->m_position.x = point.x;
-                info->m_position.y = point.y;
-            }
-
-            uint16_t base = static_cast<uint16_t>(s_blipVertices.m_count);
-            C3Vector vertices[4];
-
-            for (uint32_t j = 0; j < 4; j++) {
-                vertices[j].x = this->m_layoutScale * CGMinimapFrame::s_blipQuads[0][j].x + point.x;
-                vertices[j].y = this->m_layoutScale * CGMinimapFrame::s_blipQuads[0][j].y + point.y;
-                vertices[j].z = 0.0f;
-            }
-
-            s_blipVertices.Add(4, vertices);
-            uint16_t indices[6];
-            indices[2] = base + 2;
-            indices[3] = base + 2;
-            indices[0] = base;
-            indices[1] = base + 1;
-            indices[4] = base + 1;
-            indices[5] = base + 3;
-            s_blipIndices.Add(6, indices);
-
-            int32_t icon = info->m_icon - 1;
-
-            if (!list) {
-                icon += 16;
-            }
-
-            s_blipTexCoords2.Add(4, s_blipTexCoords[icon]);
+    // Reuse ordinary party/raid dots when a class has no stock atlas icon.
+    for (uint32_t pass = 0; pass < 2; pass++) {
+        CTexture* texture = pass ? s_blipTexture : s_classBlipTexture;
+        if (!texture) {
+            continue;
         }
+
+        for (uint32_t list = 0; list < 2; list++) {
+            for (uint32_t i = 0; i < s_objInfo[list].m_count; i++) {
+                OBJINFO* info = &s_objInfo[list].m_data[i];
+                bool generic = info->m_icon < 1 || info->m_icon > 11;
+                if (generic != (pass != 0)) {
+                    continue;
+                }
+
+                if (info->m_otherFloor) {
+                    continue;
+                }
+
+                C3Vector point(info->m_position.x, info->m_position.y, 0.0f);
+
+                if (g_rotateMinimapCVar->m_intValue) {
+                    point = C3Vector(info->m_rotated.x, info->m_rotated.y, 0.0f);
+                    point *= rotation;
+                    info->m_position.x = point.x;
+                    info->m_position.y = point.y;
+                }
+
+                uint16_t base = static_cast<uint16_t>(s_blipVertices.m_count);
+                C3Vector vertices[4];
+
+                for (uint32_t j = 0; j < 4; j++) {
+                    vertices[j].x = this->m_layoutScale * CGMinimapFrame::s_blipQuads[0][j].x + point.x;
+                    vertices[j].y = this->m_layoutScale * CGMinimapFrame::s_blipQuads[0][j].y + point.y;
+                    vertices[j].z = 0.0f;
+                }
+
+                s_blipVertices.Add(4, vertices);
+                uint16_t indices[6];
+                indices[2] = base + 2;
+                indices[3] = base + 2;
+                indices[0] = base;
+                indices[1] = base + 1;
+                indices[4] = base + 1;
+                indices[5] = base + 3;
+                s_blipIndices.Add(6, indices);
+
+                int32_t icon = info->m_icon - 1;
+
+                if (!list) {
+                    icon += 16;
+                }
+
+                s_blipTexCoords2.Add(4, generic ? s_classBlipTexCoords[list] : s_blipTexCoords[icon]);
+            }
+        }
+
+        if (!s_blipVertices.m_count || !s_blipIndices.m_count) {
+            continue;
+        }
+
+        CGxTex* gxTex = TextureGetGxTex(texture, 0, nullptr);
+
+        if (!gxTex) {
+            s_blipVertices.SetCount(0);
+            s_blipTexCoords2.SetCount(0);
+            s_blipIndices.SetCount(0);
+            continue;
+        }
+
+        g_theGxDevicePtr->RsSet(GxRs_Texture0, gxTex);
+        static CImVector s_color(0xFF, 0xFF, 0xFF, 0xFF);
+        static C3Vector s_normal(0.0f, 0.0f, 1.0f);
+        GxPrimLockVertexPtrs(s_blipVertices.m_count, s_blipVertices.m_data, sizeof(C3Vector), &s_normal, 0, &s_color, 0, nullptr, 0, s_blipTexCoords2.m_data, sizeof(C2Vector), nullptr, 0);
+        GxPrimLockIndexPtr(GxPrim_Triangles, s_blipIndices.m_count, s_blipIndices.m_data);
+        GxDrawLockedElements();
+        GxPrimUnlockVertexPtrs();
+        s_blipVertices.SetCount(0);
+        s_blipTexCoords2.SetCount(0);
+        s_blipIndices.SetCount(0);
     }
-
-    if (!s_blipVertices.m_count || !s_blipIndices.m_count) {
-        return;
-    }
-
-    CGxTex* gxTex = TextureGetGxTex(s_classBlipTexture, 0, nullptr);
-
-    if (!gxTex) {
-        return;
-    }
-
-    g_theGxDevicePtr->RsSet(GxRs_Texture0, gxTex);
-    static CImVector s_color(0xFF, 0xFF, 0xFF, 0xFF);
-    static C3Vector s_normal(0.0f, 0.0f, 1.0f);
-    GxPrimLockVertexPtrs(s_blipVertices.m_count, s_blipVertices.m_data, sizeof(C3Vector), &s_normal, 0, &s_color, 0, nullptr, 0, s_blipTexCoords2.m_data, sizeof(C2Vector), nullptr, 0);
-    GxPrimLockIndexPtr(GxPrim_Triangles, s_blipIndices.m_count, s_blipIndices.m_data);
-    GxDrawLockedElements();
-    GxPrimUnlockVertexPtrs();
-    s_blipVertices.SetCount(0);
-    s_blipTexCoords2.SetCount(0);
-    s_blipIndices.SetCount(0);
 }
 
 // VERIFY: a2aea681 manual

@@ -211,11 +211,11 @@ int32_t Packet_SMSG_GOSSIP_MESSAGE(void* param, NETMESSAGE msgId, uint32_t time,
     uint32_t textId;
     msg->Get(textId);
 
-    uint32_t count;
+    uint32_t count = 0;
     msg->Get(count);
 
-    if (count > 32) {
-        count = 32;
+    if (msg->m_read > msg->m_size || count > sizeof(CGGossipInfo::m_options) / sizeof(CGGossipInfo::m_options[0])) {
+        return 0;
     }
 
     CGGossipInfo::m_gossipOptionsCount = count;
@@ -251,6 +251,10 @@ int32_t Packet_SMSG_GOSSIP_MESSAGE(void* param, NETMESSAGE msgId, uint32_t time,
     }
 
     msg->Get(count);
+
+    if (msg->m_read > msg->m_size || count > sizeof(CGGossipInfo::m_quests) / sizeof(CGGossipInfo::m_quests[0])) {
+        return 0;
+    }
 
     for (int32_t i = 0; i < static_cast<int32_t>(count); i++) {
         GossipQuestInfo& quest = CGGossipInfo::m_quests[i];

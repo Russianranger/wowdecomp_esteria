@@ -13,6 +13,8 @@ local choices = {
     { "NightElf", "Night Elf" },
     { "Orc", "Orc" },
     { "Undead", "Undead" },
+    { "Hearthstone", "Hearthstone" },
+    { "Starcraft", "Starcraft (Animated)" },
 }
 local dropdown = CreateFrame("Frame", "WowDecompCursorThemeDropDown", panel, "UIDropDownMenuTemplate")
 dropdown:SetPoint("TOPLEFT", InterfaceOptionsMousePanelWoWMouse, "BOTTOMLEFT", -13, -32)
