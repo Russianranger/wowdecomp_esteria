@@ -578,7 +578,11 @@ int32_t ValidateName(uint32_t language, const uint16_t* allowed, const char* nam
 int32_t ValidateCharacterNameConst(uint32_t language, const char* name, bool profanity, bool chatProfanity, bool reserved, bool english, int32_t extraLength) {
     uint32_t length;
     int32_t charset;
-    int32_t result = ValidateName(language, nullptr, name, &length, &charset, profanity, chatProfanity, reserved, false, english, -1);
+
+    // Two part names ("First Last"): a single space is allowed. ValidateName still rejects leading,
+    // trailing and doubled spaces.
+    static const uint16_t s_allowedSpace[2] = { ' ', 0 };
+    int32_t result = ValidateName(language, s_allowedSpace, name, &length, &charset, profanity, chatProfanity, reserved, false, english, -1);
 
     if (!result) {
         int32_t maxLength = 12;
@@ -589,6 +593,11 @@ int32_t ValidateCharacterNameConst(uint32_t language, const char* name, bool pro
             if (charset == 4) {
                 maxLength = 6;
             }
+        }
+
+        // each of the two name parts may be as long as a single name, plus the space
+        if (name && strchr(name, ' ')) {
+            maxLength = 2 * maxLength + 1;
         }
 
         if (length > static_cast<uint32_t>(extraLength + maxLength)) {

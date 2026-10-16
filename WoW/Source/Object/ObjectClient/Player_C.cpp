@@ -4671,6 +4671,13 @@ int32_t CGPlayer_C::GetLanguageSkill(uint32_t language, uint32_t& skill) {
         return 0;
     }
 
+    // A race's own language is always spoken. Custom races have no SkillLineAbility rows for their
+    // racial language, which made every chat message fail with "You do not know that language".
+    if (language && language == this->GetDefaultLanguage()) {
+        skill = 300;
+        return 1;
+    }
+
     int32_t languageSpell = CGSpellBook::m_languageSpells.m_data[language];
 
     if (!languageSpell) {
