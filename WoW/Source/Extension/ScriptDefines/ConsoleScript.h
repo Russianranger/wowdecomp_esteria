@@ -6,7 +6,7 @@
 #include "Engine/Source/ConsoleBase/Types.h"
 #include "WoW/Source/Extension/ScriptObject.h"
 
-class CVar;
+struct CVar;
 
 // A CVar change callback for ExtensionMgr::RegisterCVar, the shape CVar::Register takes: the
 // variable, its previous and new string values, and the registration's user pointer. Return true

@@ -18,12 +18,12 @@ class CMapObj;
 class CMapObjGroup;
 class CSimpleFrame;
 class CTexture;
-class CVar;
 class NetClient;
 class PlaySpellVisuaKitData;
 class SFileImpl;
 class WowClientDB_Base;
 class XMLNode;
+struct CVar;
 struct lua_State;
 
 // The central script manager: loads the compiled-in extensions, holds one ScriptRegistry<T> per
