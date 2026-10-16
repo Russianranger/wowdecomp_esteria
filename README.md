@@ -86,6 +86,7 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 | `WOWDECOMP_MAX_UPDATE_MASKS` | derived (`42` stock) | Accepted mask blocks; 1000 quests require 194 |
 | `WOWCLIENT_CRASH_LOG` | `ON` | Build `WowClient` with the crash logger |
 | `WOWCLIENT_OUTPUT_OVERRIDE` | empty | Name the `WowClient` executable something other than `WowClient64` / `WowClient32` |
+| `WOWDECOMP_EXTENSION_HELLOWORLD` | `ON` | Compile the imported extension hook examples into the client |
 
 See [extended limits](docs/uncaps.md) for the 1000-quest/254-class configuration, generated
 server field contract, and pending server/UI acceptance work. Extended descriptor
@@ -102,11 +103,26 @@ Human (Default), Night Elf, Orc, Undead, Hearthstone, and animated Starcraft app
 immediately and save between sessions.
 See [native cursor textures](Addons/Cursors/README.md) for conversion and behavior details.
 
+### Extensions and Vulkan
+
+The extension hook system from [upstream PR #10](https://github.com/SatyPardus/wowdecomp/pull/10)
+discovers extensions under `Extensions/<Name>/src/`. Each has a
+`WOWDECOMP_EXTENSION_<UPPERCASE_NAME>` CMake option; the bundled `HelloWorld` extension
+demonstrates the hooks and writes to `Logs/Extensions.log`.
+
+The experimental Vulkan backend from [upstream PR #11](https://github.com/SatyPardus/wowdecomp/pull/11)
+can be selected with `-vulkan` or the `gxApi` CVar set to `Vulkan`. D3D11 remains available
+with `-d3d11`. Vulkan requires a driver providing `vulkan-1.dll`; building it uses the
+bundled headers and requires a C++20 compiler, without requiring the Vulkan SDK.
+For world and model shaders, follow the [offline Vulkan shader translation instructions](Tools/VulkanShaders/README.md)
+using your own client data. Vulkan remains work in progress; build success does not establish
+rendering or gameplay correctness.
+
 ## Layout
 
 | Path | Contents |
 |---|---|
-| `Engine/Source/` | Engine modules: Storm, Gx (Direct3D 9 / OpenGL), Model2, Frame/FrameXML UI, SoundEngine, Lua, ... |
+| `Engine/Source/` | Engine modules: Storm, Gx (Direct3D 9 / Direct3D 11 / OpenGL / Vulkan), Model2, Frame/FrameXML UI, SoundEngine, Lua, ... |
 | `WoW/Source/` | Game modules: objects, world rendering, UI, networking, database, glue screens |
 | `WoW/Common/` | Code shared by the game modules |
 | `ThirdParty/` | Libraries linked from their upstream sources |

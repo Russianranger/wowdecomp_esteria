@@ -37,7 +37,7 @@ ID3D11Buffer* CGxDeviceD3d11::ICreateBuffer(uint32_t size, uint32_t bindFlags) {
 
 void CGxDeviceD3d11::IReleasePool(CGxPool* pool) {
     if (pool->m_usage == GxPoolUsage_Stream) {
-        pool->unk_001C = 0;
+        pool->m_offset = 0;
     }
 
     pool->Invalidate();
@@ -94,15 +94,15 @@ char* CGxDeviceD3d11::IBufLock(CGxBuf* buf) {
     }
 
     if (pool->m_usage == GxPoolUsage_Stream) {
-        uint32_t index = (buf->m_itemSize + pool->unk_001C - 1) - (buf->m_itemSize + pool->unk_001C - 1) % buf->m_itemSize;
+        uint32_t index = (buf->m_itemSize + pool->m_offset - 1) - (buf->m_itemSize + pool->m_offset - 1) % buf->m_itemSize;
 
         if (index + buf->m_size > static_cast<uint32_t>(pool->m_size)) {
             pool->Discard();
             buf->m_index = 0;
-            pool->unk_001C = buf->m_size;
+            pool->m_offset = buf->m_size;
         } else {
             buf->m_index = index;
-            pool->unk_001C = index + buf->m_size;
+            pool->m_offset = index + buf->m_size;
         }
     }
 
@@ -131,7 +131,7 @@ void CGxDeviceD3d11::IBufUnlock(CGxBuf* buf) {
 
     if (emergencyMem.m_lock) {
         emergencyMem.Unlock();
-        buf->unk_001D = 0;
+        buf->m_valid = 0;
         this->m_intF5C = 1;
         return;
     }
@@ -139,13 +139,13 @@ void CGxDeviceD3d11::IBufUnlock(CGxBuf* buf) {
     PoolData* data = static_cast<PoolData*>(pool->m_apiSpecific);
 
     if (!data || !data->m_buffer || !buf->m_size) {
-        buf->unk_001D = data != nullptr;
+        buf->m_valid = data != nullptr;
         return;
     }
 
     D3D11_BOX box = { buf->m_index, 0, 0, buf->m_index + buf->m_size, 1, 1 };
     this->m_d3dContext->UpdateSubresource(data->m_buffer, 0, &box, data->m_shadow + buf->m_index, 0, 0);
-    buf->unk_001D = 1;
+    buf->m_valid = 1;
 }
 
 char* CGxDeviceD3d11::BufLock(CGxBuf* buf) {

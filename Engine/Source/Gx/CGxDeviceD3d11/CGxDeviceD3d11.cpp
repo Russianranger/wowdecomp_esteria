@@ -860,7 +860,7 @@ void CGxDeviceD3d11::ISetCaps(const CGxFormat& format) {
     caps.m_maxTexAnisotropy = 16;
     caps.m_depthBias = 1;
     caps.m_numStreams = 16;
-    caps.unk_0010 = 1;  // vertex stream offsets supported
+    caps.m_streamOffset = 1;  // vertex stream offsets supported
 
     for (uint32_t i = 0; i < GxShTargets_Last; i++) {
         caps.m_shaderTargets[i] = 0;
@@ -929,10 +929,10 @@ void CGxDeviceD3d11::ISetCaps(const CGxFormat& format) {
     caps.m_pointScaleMax = 1.0f;
     caps.m_pointSprite = 0;
     caps.m_blendFactor = 1;
-    caps.unk_0130 = 1;
+    caps.m_shaderAlphaRef = 1;
 
     for (uint32_t i = 0; i < 5; i++) {
-        caps.unk_0114[i] = 0;
+        caps.unused_0114[i] = 0;
     }
 
     caps.unk_0134 = caps.m_shaderTargets[GxSh_Pixel] != 4;
