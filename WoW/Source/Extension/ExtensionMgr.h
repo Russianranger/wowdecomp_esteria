@@ -6,6 +6,9 @@
 #include "WoW/Source/Extension/ScriptDefines/AllScriptsObjects.h"
 
 class CDataStore;
+class CM2Model;
+class CM2Shared;
+class WowClientDB_Base;
 struct lua_State;
 
 // The central script manager: loads the compiled-in extensions, holds one ScriptRegistry<T> per
@@ -61,6 +64,23 @@ class ExtensionMgr {
     public: /* NetScript */
     void OnMessageReceived(NETMESSAGE msgId, uint32_t timeReceived, CDataStore* msg);
     void OnMessageSent(CDataStore* msg);
+
+    public: /* ModelScript */
+    void OnModelSharedLoaded(CM2Shared* shared);
+    void OnModelSkinLoaded(CM2Shared* shared);
+    void OnModelSharedDestroy(CM2Shared* shared);
+    void OnModelCreated(CM2Model* model);
+    void OnModelLoaded(CM2Model* model);
+    void OnModelDestroy(CM2Model* model);
+
+    public: /* AssetScript */
+    // True when a script redirected the open: redirect then holds the substitute path.
+    bool OnFileOpen(const char* name, char* redirect, uint32_t redirectSize);
+
+    public: /* ClientDBScript */
+    void OnClientDBLoaded(WowClientDB_Base* db, const char* fileName);
+    void OnClientDBInitialize();
+    void OnClientDBShutdown();
 
     public: /* LuaScript */
     // Replaces the client's FrameScript_CreateEvents(names, count) call at each FrameScript rebuild

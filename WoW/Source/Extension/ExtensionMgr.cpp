@@ -62,11 +62,14 @@ void ExtensionMgr::Unload() {
         return;
     }
 
+    ScriptRegistry<AssetScript>::Clear();
+    ScriptRegistry<ClientDBScript>::Clear();
     ScriptRegistry<ClientScript>::Clear();
-    ScriptRegistry<WorldScript>::Clear();
-    ScriptRegistry<RenderScript>::Clear();
-    ScriptRegistry<NetScript>::Clear();
     ScriptRegistry<LuaScript>::Clear();
+    ScriptRegistry<ModelScript>::Clear();
+    ScriptRegistry<NetScript>::Clear();
+    ScriptRegistry<RenderScript>::Clear();
+    ScriptRegistry<WorldScript>::Clear();
     m_scriptCount = 0;
 
     Log("Extensions: unloaded");
