@@ -51,6 +51,7 @@
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/Cfg_ConfigsRec.h"
 #include "WoW/Source/DB/Rec/MapRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Game/DeclinedWords.h"
 #include "WoW/Source/Game/GameClient/ComSatClient.h"
 #include "WoW/Source/Game/GameClient/PlayerName.h"
@@ -1345,6 +1346,8 @@ void ClientInitializeGame(uint32_t mapId, C3Vector position) {
     s_botCheckEnabled = 1;
     BattlenetUI_EnterRealm();
     s_gameInitialized = 1;
+
+    ExtensionMgr::OnEnterWorld(mapId);
 }
 
 // VERIFY: a768ccd6 manual
@@ -1549,6 +1552,8 @@ void ClientDestroyGame(int32_t charSelect, int32_t resumeGlue, int32_t worldLogi
     if (!s_gameInitialized) {
         return;
     }
+
+    ExtensionMgr::OnLeaveWorld();
 
     s_botCheckEnabled = 0;
     EventUnregister(EVENT_ID_IDLE, ClientIdle);
@@ -1766,12 +1771,17 @@ bool InitializeGlobal() {
     g_rndSeed.SetSeed(OsGetAsyncTimeMs());
     g_clientEventContext = EventCreateContextEx(1, InitializeEngineCallback, DestroyEngineCallback, 0, 0);
 
+    ExtensionMgr::Initialize();
+
     return true;
 }
 
 // VERIFY: 87ba0ad5 manual
 // OFFSET: 0x00406B70
 void BeginCloseGame() {
+
+    ExtensionMgr::Shutdown();
+
     SMemSetDebugFlags(0, 8);
     OsIMEDestroy();
     OsTimeShutdown();
