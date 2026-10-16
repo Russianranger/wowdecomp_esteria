@@ -1,13 +1,15 @@
 #include "WoW/Source/Extension/ScriptDefines/LuaScript.h"
 #include <vector>
 #include "Engine/Source/FrameScript/FrameScript.h"
+#include "Engine/Source/FrameScript/FrameScript_Object.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Extension/ExtensionMgrMacros.h"
 
-// Functions and events registered once by extensions and applied to every FrameScript state the
-// client creates for the contexts in their mask. The name pointers are the callers' string
-// literals, which outlive the tables.
+// Functions, events and script metatables registered once by extensions and applied to every
+// FrameScript state the client creates for the contexts in their mask. The name pointers are the
+// callers' string literals, which outlive the tables.
 struct EXTENSIONLUAFUNCTION {
     const char* m_name;
     lua_CFunction m_function;
@@ -19,8 +21,15 @@ struct EXTENSIONLUAEVENT {
     uint32_t m_contexts;
 };
 
+struct EXTENSIONSCRIPTMETATABLE {
+    int32_t* m_metatable;
+    void (*m_registerMethods)(lua_State*);
+    uint32_t m_contexts;
+};
+
 static std::vector<EXTENSIONLUAFUNCTION> s_luaFunctions;
 static std::vector<EXTENSIONLUAEVENT> s_luaEvents;
+static std::vector<EXTENSIONSCRIPTMETATABLE> s_scriptMetaTables;
 
 // The event array of the current state: the engine's names first (their indices are the
 // engine's enum values and must not move), the declared names after them. Built while
@@ -79,6 +88,27 @@ void ExtensionMgr::RegisterFrameScriptEvent(const char* name, uint32_t contexts)
     s_luaEvents.push_back({ name, contexts });
 }
 
+void ExtensionMgr::RegisterScriptMetaTable(int32_t* metatable, void (*registerMethods)(lua_State*), uint32_t contexts) {
+    if (!metatable || !registerMethods || !(contexts & FRAMESCRIPT_CONTEXTS_ALL)) {
+        return;
+    }
+
+    for (const EXTENSIONSCRIPTMETATABLE& entry : s_scriptMetaTables) {
+        if (entry.m_metatable == metatable) {
+            return;
+        }
+    }
+
+    s_scriptMetaTables.push_back({ metatable, registerMethods, contexts });
+    *metatable = LUA_NOREF;
+
+    // A matching live state gets its table now; the base types' tables it builds on
+    // (CSimpleFrame::RegisterScriptMethods and the like) already exist in such a state.
+    if (!s_eventNames.empty() && (contexts & (1u << GetFrameScriptContext()))) {
+        *metatable = FrameScript_Object::CreateScriptMetaTable(FrameScript_GetContext(), registerMethods);
+    }
+}
+
 uint32_t ExtensionMgr::GetFrameScriptEventIndex(const char* name) {
     return name ? FindEventName(name) : UINT32_MAX;
 }
@@ -128,6 +158,16 @@ void ExtensionMgr::OnFrameScriptInitialized(FrameScriptContext context, const ch
     }
 
     lua_State* L = FrameScript_GetContext();
+
+    // The engine's own metatables for this context are built before this call (LoadScriptFunctions
+    // in the game, RegisterSimpleFrameScriptMethods in the glue), so a registerMethods that starts
+    // from CSimpleFrame::RegisterScriptMethods finds them.
+    for (const EXTENSIONSCRIPTMETATABLE& entry : s_scriptMetaTables) {
+        if (entry.m_contexts & mask) {
+            *entry.m_metatable = FrameScript_Object::CreateScriptMetaTable(L, entry.m_registerMethods);
+        }
+    }
+
     CALL_HOOKS(LuaScript, script->OnFrameScriptInitialized(L, context));
 
     s_declaring = false;
@@ -144,12 +184,22 @@ void ExtensionMgr::OnFrameScriptInitialized(FrameScriptContext context, const ch
 void ExtensionMgr::OnFrameScriptDestroy(lua_State* L) {
     CALL_HOOKS(LuaScript, script->OnFrameScriptDestroy(L));
 
+    // The registry references die with the state; the owners' variables go back to "none" so a
+    // GetScriptMetaTable between states returns LUA_NOREF rather than a stale reference.
+    for (const EXTENSIONSCRIPTMETATABLE& entry : s_scriptMetaTables) {
+        if (*entry.m_metatable != LUA_NOREF) {
+            luaL_unref(L, LUA_REGISTRYINDEX, *entry.m_metatable);
+            *entry.m_metatable = LUA_NOREF;
+        }
+    }
+
     s_eventNames.clear();
 }
 
 void ExtensionMgr::ClearLuaRegistrations() {
     s_luaFunctions.clear();
     s_luaEvents.clear();
+    s_scriptMetaTables.clear();
     s_eventNames.clear();
 }
 

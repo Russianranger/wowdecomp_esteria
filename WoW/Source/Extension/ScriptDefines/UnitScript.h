@@ -5,6 +5,7 @@
 #include "WoW/Source/Extension/ScriptObject.h"
 
 class AuraData;
+class CDataStore;
 class CGUnit_C;
 
 // Units and players (CGUnit_C, WoW/Source/Object/ObjectClient/Unit_C.cpp): the method-level
@@ -40,6 +41,22 @@ class UnitScript : public ScriptObject {
     // Start of CGUnit_C::OnAuraRemoved: the aura is still applied; RemoveAuraEffect and the local
     // player side effects follow.
     virtual void OnUnitAuraRemoved(CGUnit_C& unit, uint32_t index, AuraData& aura, int32_t spellId) {}
+
+    // End of CGUnit_C::UpdateAuraEffectMask: unit.m_auraEffectMask is rebuilt from the unit's
+    // auras (one bit per SpellAura effect type present). Fires whenever the aura set changes.
+    virtual void OnUnitAuraEffectMaskUpdated(CGUnit_C& unit) {}
+
+    // End of CGUnit_C::UpdateWorldTransform: the smoothed ground normal is updated and the unit's
+    // model received its world transform (position, render facing, true scale, ground normal).
+    // Per frame per displayed unit: keep it cheap.
+    virtual void OnUnitWorldTransformUpdated(CGUnit_C& unit, float elapsed) {}
+
+    // CGUnit_C::SendMovementUpdate right before the message goes to the connection: the local
+    // player's (or controlled unit's) movement message is complete and finalized (cursor at the
+    // 32-bit opcode: MSG_MOVE_*, CMSG_MOVE_*_ACK, CMSG_CHANGE_SEATS_ON_CONTROLLED_VEHICLE). Fires
+    // only for messages the unit is allowed to send. Observe only; NetScript::OnMessageSent sees
+    // the same message a step later.
+    virtual void OnUnitMovementMessage(CGUnit_C& unit, uint32_t msgId, CDataStore& msg) {}
 };
 
 #endif

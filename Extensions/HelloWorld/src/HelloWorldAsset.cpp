@@ -19,7 +19,7 @@ class HelloWorldAssetStartup : public ClientScript {
     HelloWorldAssetStartup() : ClientScript("HelloWorldAssetStartup") {}
 
     void OnStartup() override {
-        s_redirectCursor = CVar::Register("helloWorldRedirectCursor", "HelloWorld: open Interface\\Cursor\\Attack.blp in place of Point.blp", 0, "0", nullptr, 0, false, nullptr, false);
+        s_redirectCursor = sExtensionMgr->RegisterCVar("helloWorldRedirectCursor", "HelloWorld: open Interface\\Cursor\\Attack.blp in place of Point.blp", 0, "0", nullptr, CATEGORY_DEBUG);
     }
 };
 

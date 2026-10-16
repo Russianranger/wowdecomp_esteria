@@ -65,6 +65,7 @@ void ExtensionMgr::Unload() {
     ScriptRegistry<AssetScript>::Clear();
     ScriptRegistry<ClientDBScript>::Clear();
     ScriptRegistry<ClientScript>::Clear();
+    ScriptRegistry<ConsoleScript>::Clear();
     ScriptRegistry<LuaScript>::Clear();
     ScriptRegistry<MapObjectScript>::Clear();
     ScriptRegistry<ModelScript>::Clear();
@@ -81,6 +82,7 @@ void ExtensionMgr::Unload() {
     ClearMessageHandlers();
     ClearLuaRegistrations();
     ClearXmlElements();
+    ClearConsoleRegistrations();
 
     Log("Extensions: unloaded");
 

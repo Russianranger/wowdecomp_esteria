@@ -5,6 +5,7 @@
 #include "WoW/Source/Extension/ScriptObject.h"
 
 class CGObject_C;
+class PlaySpellVisuaKitData;
 
 // The client object manager (WoW/Source/ObjectMgrClient) and its objects: every unit, player,
 // game object, dynamic object, corpse, item and container the server describes through
@@ -42,6 +43,13 @@ class ObjectScript : public ScriptObject {
     // about to be freed, from lazy-cleanup expiry or from the manager's own shutdown. Release
     // anything keyed by this object's address here.
     virtual void OnObjectDestroy(CGObject_C& object) {}
+
+    // CGObject_C::PlaySpellVisualKit once the request has a kit to play (requests without an
+    // impact kit return before this): data carries the spell record, the SpellVisualKit record,
+    // the kit type, an optional world position (transformed to the transport's frame by the
+    // engine afterwards) and the caster/target guids. The effects, animations, sounds and
+    // weapon trails of the kit are started after the hook.
+    virtual void OnObjectSpellVisualKit(CGObject_C& object, const PlaySpellVisuaKitData& data) {}
 };
 
 #endif

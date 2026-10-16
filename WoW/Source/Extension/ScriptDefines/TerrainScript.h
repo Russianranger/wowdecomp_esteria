@@ -4,6 +4,7 @@
 #include "WoW/Source/Extension/ScriptObject.h"
 
 class CMapArea;
+class CMapChunk;
 
 // Terrain tiles (WoW/Source/WorldClient/MapArea.cpp). A CMapArea is one ADT tile of the current
 // map: CMap::PrepareUpdate creates the tiles of the area of interest and CMapArea::Load issues
@@ -27,6 +28,16 @@ class TerrainScript : public ScriptObject {
     // unloaded); its chunks and file buffer are about to be released. A pending read is
     // cancelled, so a tile may be purged without ever having fired OnTerrainTileLoaded.
     virtual void OnTerrainTileUnload(CMapArea& area) {}
+
+    // CMapArea::PrepareChunk after CMapChunk::Create: one of the tile's 16x16 chunks is built
+    // from its MCNK data (heights, normals, layers, shadow map, liquid; the detail doodads are
+    // loaded later on demand). chunk.m_aIndex is the chunk's position in the tile, m_cOffset its
+    // position on the map. Chunks are built as the area of interest reaches them.
+    virtual void OnTerrainChunkCreated(CMapChunk& chunk) {}
+
+    // Start of CMapChunk::Purge: the chunk's render data, detail doodads and liquid are about to
+    // be released (tile purge or chunk rebuild).
+    virtual void OnTerrainChunkPurge(CMapChunk& chunk) {}
 };
 
 #endif

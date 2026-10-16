@@ -25,9 +25,27 @@ class HelloWorldTerrainScript : public TerrainScript {
         }
     }
 
+    void OnTerrainChunkCreated(CMapChunk& chunk) override {
+        m_chunks++;
+
+        if (m_chunks == 1) {
+            sExtensionMgr->Log("HelloWorld: OnTerrainChunkCreated (first)");
+        }
+    }
+
+    void OnTerrainChunkPurge(CMapChunk& chunk) override {
+        m_chunksPurged++;
+
+        if (m_chunksPurged % 256 == 0) {
+            sExtensionMgr->Log("HelloWorld: %u chunk(s) created, %u purged", m_chunks, m_chunksPurged);
+        }
+    }
+
     private:
     uint32_t m_loaded = 0;
     uint32_t m_unloaded = 0;
+    uint32_t m_chunks = 0;
+    uint32_t m_chunksPurged = 0;
 };
 
 }

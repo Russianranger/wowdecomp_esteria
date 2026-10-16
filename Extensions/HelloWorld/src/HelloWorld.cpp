@@ -8,6 +8,7 @@
 void AddHelloWorldAssetScripts();
 void AddHelloWorldClientDBScripts();
 void AddHelloWorldClientScripts();
+void AddHelloWorldConsoleScripts();
 void AddHelloWorldLuaScripts();
 void AddHelloWorldMapObjectScripts();
 void AddHelloWorldModelScripts();
@@ -27,6 +28,7 @@ void AddHelloWorldExtension() {
     AddHelloWorldAssetScripts();
     AddHelloWorldClientDBScripts();
     AddHelloWorldClientScripts();
+    AddHelloWorldConsoleScripts();
     AddHelloWorldLuaScripts();
     AddHelloWorldMapObjectScripts();
     AddHelloWorldModelScripts();

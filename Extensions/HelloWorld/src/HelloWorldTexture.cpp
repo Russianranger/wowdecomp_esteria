@@ -18,8 +18,17 @@ class HelloWorldTextureScript : public TextureScript {
         }
     }
 
+    void OnTextureLoaded(CTexture& texture) override {
+        m_loaded++;
+
+        if (m_loaded <= 3) {
+            sExtensionMgr->Log("HelloWorld: OnTextureLoaded %s", texture.GetObjectName());
+        }
+    }
+
     private:
     uint32_t m_created = 0;
+    uint32_t m_loaded = 0;
 };
 
 }

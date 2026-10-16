@@ -22,6 +22,18 @@ void ExtensionMgr::OnUnitAuraRemoved(CGUnit_C* unit, uint32_t index, AuraData* a
     CALL_HOOKS(UnitScript, script->OnUnitAuraRemoved(*unit, index, *aura, spellId));
 }
 
+void ExtensionMgr::OnUnitAuraEffectMaskUpdated(CGUnit_C* unit) {
+    CALL_HOOKS(UnitScript, script->OnUnitAuraEffectMaskUpdated(*unit));
+}
+
+void ExtensionMgr::OnUnitWorldTransformUpdated(CGUnit_C* unit, float elapsed) {
+    CALL_HOOKS(UnitScript, script->OnUnitWorldTransformUpdated(*unit, elapsed));
+}
+
+void ExtensionMgr::OnUnitMovementMessage(CGUnit_C* unit, uint32_t msgId, CDataStore* msg) {
+    CALL_HOOKS(UnitScript, script->OnUnitMovementMessage(*unit, msgId, *msg));
+}
+
 UnitScript::UnitScript(const char* name) : ScriptObject(name) {
     ScriptRegistry<UnitScript>::AddScript(this);
     sExtensionMgr->Log("Extensions: registered UnitScript %s", name);

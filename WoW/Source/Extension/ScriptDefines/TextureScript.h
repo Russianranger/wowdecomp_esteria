@@ -20,6 +20,14 @@ class TextureScript : public ScriptObject {
     // loading. fileName is the path as requested (before the .blp/.tga extension retry).
     // Cache hits do not fire: this is once per distinct file and flag set, not once per use.
     virtual void OnTextureCreated(CTexture& texture, const char* fileName) {}
+
+    // PumpBlpTextureAsync on success: a BLP texture's pixel data is decoded and uploaded
+    // (texture.m_gxTex allocated with TextureAllocGxTex and filled with GxTexUpdate). Both load
+    // paths end here, the synchronous one inside TextureCreate and the asynchronous one from
+    // AsyncTextureSuccessCallback when the file read completes. texture.m_filename is the path.
+    // Not fired for a BLP whose data failed to decode (the engine fills it with the default
+    // colour instead) nor for TGA or procedural textures.
+    virtual void OnTextureLoaded(CTexture& texture) {}
 };
 
 #endif

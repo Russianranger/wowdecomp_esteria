@@ -1850,6 +1850,9 @@ int32_t PumpBlpTextureAsync(CTexture* texture, void* data) {
 
     s_pumping = 0;
 
+    // Not in the original: the BLP's pixel data is in the Gx texture (both load paths end here).
+    sExtensionMgr->OnTextureLoaded(texture);
+
     return 1;
 }
 

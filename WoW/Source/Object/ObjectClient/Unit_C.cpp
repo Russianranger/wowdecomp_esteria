@@ -8649,6 +8649,9 @@ void CGUnit_C::UpdateAuraEffectMask() {
             }
         }
     }
+
+    // Not in the original: the mask reflects the current aura set.
+    sExtensionMgr->OnUnitAuraEffectMaskUpdated(this);
 }
 
 // VERIFY: 49281665 manual
@@ -9190,6 +9193,9 @@ void CGUnit_C::UpdateWorldTransform(float elapsed) {
         float facing = this->GetRenderFacing();
         model->SetWorldTransform(this->GetPosition(), facing, scale, this->m_groundNormal, 0xFFFFFFFF);
     }
+
+    // Not in the original: ground normal smoothed and the model placed for this frame.
+    sExtensionMgr->OnUnitWorldTransformUpdated(this, elapsed);
 }
 
 // VERIFY: 315f8bea manual
@@ -11052,6 +11058,10 @@ int32_t CGUnit_C::SendMovementUpdate(uint32_t time, uint32_t msgId, float value,
     }
 
     msg.Finalize();
+
+    // Not in the original: the movement message is complete and about to be sent.
+    sExtensionMgr->OnUnitMovementMessage(this, msgId, &msg);
+
     ClientServices::Send2(&msg);
     this->m_movementData.UpdateHeartbeatTimerA(time);
     return 1;

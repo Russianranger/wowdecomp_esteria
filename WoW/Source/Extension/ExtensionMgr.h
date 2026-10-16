@@ -13,11 +13,14 @@ class CGUnit_C;
 class CM2Model;
 class CM2Shared;
 class CMapArea;
+class CMapChunk;
 class CMapObj;
 class CMapObjGroup;
 class CSimpleFrame;
 class CTexture;
+class CVar;
 class NetClient;
+class PlaySpellVisuaKitData;
 class SFileImpl;
 class WowClientDB_Base;
 class XMLNode;
@@ -54,6 +57,20 @@ class ExtensionMgr {
     // console screen exists. The file is the record: console output is dropped before the console
     // font is loaded, which is the case for OnStartup.
     void Log(const char* format, ...);
+
+    public: /* ConsoleScript */
+    // Registration API. A console command (ConsoleCommandRegister; refused and logged when the
+    // engine owns the name) usable from the console window and "/console <name> ..."; the
+    // extension's commands are unregistered at Unload. A CVar (CVar::Register with the given
+    // default, change callback, category and user pointer): the returned CVar* is the extension's
+    // handle (m_intValue, m_floatValue, m_stringValue); Config.wtf values already loaded attach
+    // to it. Both tables exist before the extensions load, so these apply at once from the entry
+    // point or OnStartup.
+    bool RegisterConsoleCommand(const char* name, COMMANDHANDLER handler, CATEGORY category, const char* help);
+    void UnregisterConsoleCommand(const char* name);
+    CVar* RegisterCVar(const char* name, const char* help, uint32_t flags, const char* defaultValue, ExtensionCVarCallback callback, CATEGORY category, void* arg = nullptr);
+
+    void OnConsoleCommand(const char* command, const char* arguments);
 
     public: /* ClientScript */
     void OnStartup();
@@ -119,6 +136,9 @@ class ExtensionMgr {
     void OnUnitDeath(CGUnit_C* unit);
     void OnUnitAuraAdded(CGUnit_C* unit, uint32_t index, AuraData* aura, int32_t spellId);
     void OnUnitAuraRemoved(CGUnit_C* unit, uint32_t index, AuraData* aura, int32_t spellId);
+    void OnUnitAuraEffectMaskUpdated(CGUnit_C* unit);
+    void OnUnitWorldTransformUpdated(CGUnit_C* unit, float elapsed);
+    void OnUnitMovementMessage(CGUnit_C* unit, uint32_t msgId, CDataStore* msg);
 
     public: /* UIScript */
     // Registration API: adds an XML element type (and CreateFrame type) backed by factory. Takes
@@ -132,16 +152,20 @@ class ExtensionMgr {
 
     void OnFrameCreated(CSimpleFrame* frame, XMLNode* node);
     void OnUnknownFrameType(const char* name, XMLNode* node);
+    void OnFrameDestroyed(CSimpleFrame* frame);
 
     public: /* ObjectScript */
     void OnObjectCreated(CGObject_C* object);
     void OnObjectUpdate(CGObject_C* object, uint32_t time);
     void OnObjectRemoved(CGObject_C* object);
     void OnObjectDestroy(CGObject_C* object);
+    void OnObjectSpellVisualKit(CGObject_C* object, const PlaySpellVisuaKitData* data);
 
     public: /* TerrainScript */
     void OnTerrainTileLoaded(CMapArea* area);
     void OnTerrainTileUnload(CMapArea* area);
+    void OnTerrainChunkCreated(CMapChunk* chunk);
+    void OnTerrainChunkPurge(CMapChunk* chunk);
 
     public: /* MapObjectScript */
     void OnMapObjLoaded(CMapObj* mapObj);
@@ -149,6 +173,7 @@ class ExtensionMgr {
 
     public: /* TextureScript */
     void OnTextureCreated(CTexture* texture, const char* fileName);
+    void OnTextureLoaded(CTexture* texture);
 
     public: /* AssetScript */
     // True when a script redirected the open: redirect then holds the substitute path.
@@ -174,6 +199,16 @@ class ExtensionMgr {
     uint32_t GetFrameScriptEventIndex(const char* name);
     FrameScriptContext GetFrameScriptContext();
 
+    // Registration API for a frame type's Lua methods (the piece a RegisterXmlElement type needs
+    // to expose methods of its own). metatable is the type's static metatable reference, the one
+    // its GetScriptMetaTable() override returns; registerMethods fills the method table the way
+    // CGCooldown::RegisterScriptMethods does (the base type's RegisterScriptMethods first, then
+    // FrameScript_Object::FillScriptMethodTable with its own FrameScript_Method array). The core
+    // creates the table with FrameScript_Object::CreateScriptMetaTable in every state of the mask
+    // (after the engine's own tables, before the LuaScript hooks) and resets the reference to
+    // LUA_NOREF when the state is destroyed.
+    void RegisterScriptMetaTable(int32_t* metatable, void (*registerMethods)(lua_State*), uint32_t contexts = FRAMESCRIPT_CONTEXTS_ALL);
+
     // Replaces the client's FrameScript_CreateEvents(names, count) call at each FrameScript rebuild
     // site. Registers the recorded functions and events for the context, fires
     // LuaScript::OnFrameScriptInitialized for every script (where they may declare more), then
@@ -193,6 +228,7 @@ class ExtensionMgr {
     void ClearMessageHandlers();
     void ClearLuaRegistrations();
     void ClearXmlElements();
+    void ClearConsoleRegistrations();
 
     uint32_t m_scriptCount;
 };

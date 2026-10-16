@@ -67,6 +67,10 @@ void ExtensionMgr::OnUnknownFrameType(const char* name, XMLNode* node) {
     CALL_HOOKS(UIScript, script->OnUnknownFrameType(name, *node));
 }
 
+void ExtensionMgr::OnFrameDestroyed(CSimpleFrame* frame) {
+    CALL_HOOKS(UIScript, script->OnFrameDestroyed(*frame));
+}
+
 UIScript::UIScript(const char* name) : ScriptObject(name) {
     ScriptRegistry<UIScript>::AddScript(this);
     sExtensionMgr->Log("Extensions: registered UIScript %s", name);

@@ -45,6 +45,12 @@ class UIScript : public ScriptObject {
     // cannot supply the frame here (register the type with RegisterXmlElement instead), it can
     // record or report the miss.
     virtual void OnUnknownFrameType(const char* name, XMLNode& node) {}
+
+    // Start of CSimpleFrame::~CSimpleFrame: the frame is leaving (its lifecycle state is being
+    // set to destroyed), still complete, about to unregister from its CSimpleTop and free its
+    // regions, batches and children links. Every frame type derives from CSimpleFrame, so this
+    // pairs with OnFrameCreated for any per-frame state an extension keeps.
+    virtual void OnFrameDestroyed(CSimpleFrame& frame) {}
 };
 
 #endif

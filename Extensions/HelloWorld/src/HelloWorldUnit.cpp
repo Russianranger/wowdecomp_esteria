@@ -42,6 +42,26 @@ class HelloWorldUnitScript : public UnitScript {
         }
     }
 
+    void OnUnitAuraEffectMaskUpdated(CGUnit_C& unit) override {
+        m_masks++;
+    }
+
+    void OnUnitWorldTransformUpdated(CGUnit_C& unit, float elapsed) override {
+        m_transforms++;
+
+        if (m_transforms == 1) {
+            sExtensionMgr->Log("HelloWorld: OnUnitWorldTransformUpdated (first, %.4f s)", elapsed);
+        }
+    }
+
+    void OnUnitMovementMessage(CGUnit_C& unit, uint32_t msgId, CDataStore& msg) override {
+        m_movementMessages++;
+
+        if (m_movementMessages <= 3) {
+            sExtensionMgr->Log("HelloWorld: OnUnitMovementMessage opcode 0x%03X (%u aura mask update(s), %u transform(s) so far)", msgId, m_masks, m_transforms);
+        }
+    }
+
     private:
     static bool IsLocalPlayer(CGUnit_C& unit) {
         return unit.m_obj->m_guid == ClntObjMgrGetActivePlayer();
@@ -50,6 +70,9 @@ class HelloWorldUnitScript : public UnitScript {
     uint32_t m_moves = 0;
     uint32_t m_displays = 0;
     uint32_t m_deaths = 0;
+    uint32_t m_masks = 0;
+    uint32_t m_transforms = 0;
+    uint32_t m_movementMessages = 0;
 };
 
 }

@@ -5,6 +5,7 @@
 #include "WoW/Source/Extension/ScriptDefines/AssetScript.h"
 #include "WoW/Source/Extension/ScriptDefines/ClientDBScript.h"
 #include "WoW/Source/Extension/ScriptDefines/ClientScript.h"
+#include "WoW/Source/Extension/ScriptDefines/ConsoleScript.h"
 #include "WoW/Source/Extension/ScriptDefines/LuaScript.h"
 #include "WoW/Source/Extension/ScriptDefines/MapObjectScript.h"
 #include "WoW/Source/Extension/ScriptDefines/ModelScript.h"

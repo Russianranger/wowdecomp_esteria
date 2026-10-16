@@ -18,6 +18,10 @@ void ExtensionMgr::OnObjectDestroy(CGObject_C* object) {
     CALL_HOOKS(ObjectScript, script->OnObjectDestroy(*object));
 }
 
+void ExtensionMgr::OnObjectSpellVisualKit(CGObject_C* object, const PlaySpellVisuaKitData* data) {
+    CALL_HOOKS(ObjectScript, script->OnObjectSpellVisualKit(*object, *data));
+}
+
 ObjectScript::ObjectScript(const char* name) : ScriptObject(name) {
     ScriptRegistry<ObjectScript>::AddScript(this);
     sExtensionMgr->Log("Extensions: registered ObjectScript %s", name);

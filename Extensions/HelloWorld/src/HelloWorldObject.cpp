@@ -33,7 +33,15 @@ class HelloWorldObjectScript : public ObjectScript {
         m_destroyed++;
 
         if (m_destroyed % 100 == 0) {
-            sExtensionMgr->Log("HelloWorld: objects %u created, %u removed, %u destroyed, %u update(s)", m_created, m_removed, m_destroyed, m_updates);
+            sExtensionMgr->Log("HelloWorld: objects %u created, %u removed, %u destroyed, %u update(s), %u spell visual kit(s)", m_created, m_removed, m_destroyed, m_updates, m_visualKits);
+        }
+    }
+
+    void OnObjectSpellVisualKit(CGObject_C& object, const PlaySpellVisuaKitData& data) override {
+        m_visualKits++;
+
+        if (m_visualKits <= 3) {
+            sExtensionMgr->Log("HelloWorld: OnObjectSpellVisualKit (%u so far)", m_visualKits);
         }
     }
 
@@ -42,6 +50,7 @@ class HelloWorldObjectScript : public ObjectScript {
     uint32_t m_updates = 0;
     uint32_t m_removed = 0;
     uint32_t m_destroyed = 0;
+    uint32_t m_visualKits = 0;
 };
 
 }
