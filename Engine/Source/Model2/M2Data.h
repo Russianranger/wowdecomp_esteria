@@ -364,6 +364,22 @@ class M2SkinProfile {
     /* 002C */ uint32_t m_boneCountMax;
 };
 
+// Esteria: models whose index lists exceed 65535 keep the high 16 bits of a section's index start in its level word
+// (+2); `totalIndices` validates it. Sections that were rewritten by M2Shared::SetIndices carry the processed start.
+inline uint32_t M2WideIndexStart(const M2SkinSection* section, uint32_t totalIndices) {
+    uint32_t wide = (section->m_skinSectionId >> 16 << 16) | section->m_indexStart;
+
+    if (wide <= totalIndices && section->m_indexCount <= totalIndices - wide) {
+        return wide;
+    }
+
+    return section->m_indexStart;
+}
+
+inline uint32_t M2ProcessedIndexStart(const M2SkinSection* section) {
+    return (section->m_skinSectionId >> 16 << 16) | section->m_indexStart;
+}
+
 // OFFSET: [0x0081CD50]
 template <class T>
 inline T& M2Array<T>::operator[](uint32_t index) const {

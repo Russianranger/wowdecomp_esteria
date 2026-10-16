@@ -1,4 +1,5 @@
 #include "RealmConnection.h"
+#include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Util/SHA1.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -22,6 +23,9 @@ RealmConnection::REALMCONNECTIONNODE::REALMCONNECTIONNODE() {
 // VERIFY: ec31eb67 manual
 // OFFSET: 0x00464C10
 int32_t RealmConnection::HandleCharEnum(uint32_t msgId, uint32_t time, CDataStore* msg) {
+    // Esteria: strip the extension records (extra appearance bytes) appended after the character list.
+    EsteriaEnumExtra(msg);
+
     if (this->m_realmResponse) {
         this->m_realmResponse->GameServerResult(this, "SMSG_CHAR_ENUM", nullptr, nullptr);
     }
@@ -31,7 +35,8 @@ int32_t RealmConnection::HandleCharEnum(uint32_t msgId, uint32_t time, CDataStor
 
     int32_t invalid = 0;
 
-    if (count > 10) {
+    // Esteria: realms may return up to 100 characters (stock client: 10)
+    if (count > 100) {
         count = 0;
         invalid = 1;
     }
@@ -83,6 +88,9 @@ int32_t RealmConnection::HandleCharEnum(uint32_t msgId, uint32_t time, CDataStor
         if (!invalid) {
             success = 1;
         }
+    } else if (!invalid && msg->m_size - msg->m_read != 10) {
+        // Esteria: the server appends extension data after the character list; ignore it
+        success = 1;
     } else if (!invalid) {
         msg->Get(this->m_restrictHuman);
         msg->Get(this->m_restrictDwarf);

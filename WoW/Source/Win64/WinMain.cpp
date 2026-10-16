@@ -16,6 +16,11 @@ static bool ReturnFalse() {
     return false;
 }
 
+// Esteria: same export the Win32 Client.dll provides, so launcher tooling can probe the client protocol level.
+extern "C" __declspec(dllexport) int EsteriaClientVersion() {
+    return 4;
+}
+
 extern "C" int WinMainCRTStartup();
 
 // OFFSET: 0x00401000

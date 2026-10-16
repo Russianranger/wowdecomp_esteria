@@ -1,3 +1,4 @@
+#include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Unit_C.h"
 #include <cmath>
 #include <new>
@@ -14700,7 +14701,11 @@ int32_t CGUnit_C::InitializeExtendedDisplay(CGPlayer_C* player, int32_t hasDispl
     data.m_flags ^= (data.m_flags ^ (static_cast<uint32_t>(this->m_obj->m_guid == ClntObjMgrGetActivePlayer()) << 1)) & 0x2;
     data.m_model->m_refCount++;
 
-    if (player) {
+    // Esteria: custom races keep the server's packed appearance bytes; stock validation would clamp them against
+    // the sparse CharSections rows.
+    if (EsteriaKeepsAppearance(data.m_preferences.m_raceID)) {
+        EsteriaCaptureUnit(this->m_characterComponent, this->m_unit->m_unitFieldPadding, this->m_obj->m_pad, player != nullptr);
+    } else if (player) {
         CCharacterComponent::ValidateComponentData(&data, COMPONENT_CONTEXT_1);
     } else {
         CCharacterComponent::ValidateComponentData(&data, COMPONENT_CONTEXT_2);

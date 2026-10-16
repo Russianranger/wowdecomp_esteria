@@ -28,8 +28,9 @@ int32_t PatchFiles::EnumPatchArchives(OS_FILE_DATA& data, void* param) {
 // OFFSET: 0x00405AB0
 PatchFiles::PatchFiles(const char* locale, bool flag) {
     PATCHARCHIVESPEC specs[12] = {
-        { 0, 0, false, "Data\\", "patch-?.MPQ" },
-        { 0, 0, false, "Data\\%s\\", "patch-%s-?.MPQ" },
+        // Esteria: any patch-<name>.MPQ, not just a single character
+        { 0, 0, false, "Data\\", "patch-*.MPQ" },
+        { 0, 0, false, "Data\\%s\\", "patch-%s-*.MPQ" },
         { 1, 0, false, "Data\\", "patch.MPQ" },
         { 1, 0, false, "Data\\%s\\", "patch-%s.MPQ" },
         { 1, 1, false, "Data\\", "patch-4.MPQ" },

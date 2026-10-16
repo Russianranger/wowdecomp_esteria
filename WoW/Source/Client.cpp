@@ -152,7 +152,7 @@ static const _ARGLIST s_wowArgList[] = {
 static uint32_t s_startArchivePriority = 0x40;
 
 // STATIC: 0x00AB6168
-static ARCHIVEINFO s_archives[28] = {
+static ARCHIVEINFO s_archives[29] = {
     { "alternate.MPQ", 3, 3, false },
     { "interface.MPQ", 1, 1, false },
     { "misc.MPQ", 1, 1, false },
@@ -181,6 +181,8 @@ static ARCHIVEINFO s_archives[28] = {
     { "development.MPQ", 2, 1, false },
     { "streaming.MPQ", 4, 1, false },
     { "streamingloc.MPQ", 4, 1, false },
+    // Esteria: appended, not after common-2, so the fixed indices above stay valid
+    { "common-3.MPQ", 2, 2, false },
 };
 // STATIC: 0x009E0DA4
 static const uint8_t s_signatureExponent[4] = { 0x01, 0x00, 0x01, 0x00 };
@@ -1362,7 +1364,8 @@ static void OpenArchives() {
 
     int32_t priority = 64;
     uint32_t slot = 0;
-    s_archiveHandles.SetCount(64);
+    // Worst case: every patch, one derived archive per patch per type-3 base archive, and every base archive.
+    s_archiveHandles.SetCount(patches.m_files.Count() * 4 + sizeof(s_archives) / sizeof(s_archives[0]));
 
     for (uint32_t i = patches.m_files.Count(); i; i--) {
         if (SFile::OpenArchive(patches.m_files[i - 1], priority, 0xC00, &s_archiveHandles[slot])) {

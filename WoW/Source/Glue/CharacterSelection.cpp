@@ -1,3 +1,4 @@
+#include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "CharacterSelection.h"
 #include <cstring>
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -455,6 +456,7 @@ void CCharacterSelection::ShowCharacter() {
         data.m_flags |= 0x2;
 
         CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component->Init(&data, nullptr);
+        EsteriaSelectCharacter(CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component, info.m_guid.m_guid, info.m_skinColorID, info.m_faceID, info.m_hairStyleID, info.m_hairColorID, info.m_facialHairStyleID);
 
         CM2Model* characterModel = CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component->m_data.m_model;
         characterModel->m_lightingCallback = &CCharacterSelection::GenericLightingCallback;

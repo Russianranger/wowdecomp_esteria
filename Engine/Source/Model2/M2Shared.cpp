@@ -1,6 +1,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <vector>
 #include <malloc.h>
 #include <new>
 #include <typeinfo>
@@ -357,7 +358,7 @@ int32_t CM2Shared::SetIndices() {
 
         for (uint32_t i = 0; i < this->m_skinData->m_skinSections.m_count; i++) {
             M2SkinSection* section = &this->m_skinSections[i];
-            uint32_t start = this->m_skinData->m_skinSections[i].m_indexStart;
+            uint32_t start = M2WideIndexStart(&this->m_skinData->m_skinSections[i], this->m_skinData->m_indices.m_count);
             uint16_t offset = sharedVertices ? 0 : static_cast<uint16_t>(-section->m_vertexStart);
 
             for (uint32_t instance = 0; instance < this->m_instances; instance++) {
@@ -370,6 +371,7 @@ int32_t CM2Shared::SetIndices() {
             }
 
             section->m_indexStart = static_cast<uint16_t>(indexStart);
+section->m_skinSectionId = (section->m_skinSectionId & 0xFFFF) | (indexStart >> 16 << 16);
             indexStart += this->m_instances * section->m_indexCount;
         }
 
@@ -741,7 +743,9 @@ CShaderEffect* CM2Shared::GetEffect(M2Batch* batch) {
                 alphaOp = static_cast<EGxTexOp>(3);
                 break;
             default:
-                break;
+                // Esteria: modern M2 models use shader IDs beyond the three the 3.3.5a client knows. Use the
+                // standard fallback below instead of dereferencing the missing shader names.
+                return this->GetEffect(batch->m_textureCount, 0x11, batch->m_textureCoordComboIndex);
         }
 
         char effectName[256];
@@ -1301,9 +1305,25 @@ int32_t M2Init<M2TextureWeight>(uint8_t* base, uint32_t size, const M2Data& data
 
 // VERIFY: 2f176c2e auto
 // OFFSET: 0x00838490
+// Esteria (WoW/Common/ComponentCore/EsteriaAppearance.cpp): prepared Wrath skin for catalog models, or null.
+const std::vector<unsigned char>* EsteriaSkinBlob(const char* modelFile);
+
 int32_t CM2Shared::FinishLoadingSkinProfile(uint32_t size) {
     if (this->m_flags & 2) {
         return 1;
+    }
+
+    // Esteria: replace skins whose wide-index meshes the stock file cannot represent with the catalog's prepared skin.
+    if (const std::vector<unsigned char>* blob = EsteriaSkinBlob(this->m_fileName)) {
+        void* copy = SIMD::AllocA16(static_cast<uint32_t>(blob->size()), __FILE__, __LINE__);
+
+        if (copy) {
+            memcpy(copy, blob->data(), blob->size());
+            *reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(copy) + 44) = 75;
+            SIMD::FreeA16(this->m_skinData);
+            this->m_skinData = static_cast<M2SkinProfile*>(copy);
+            size = static_cast<uint32_t>(blob->size());
+        }
     }
 
     M2Data* data = this->m_data;

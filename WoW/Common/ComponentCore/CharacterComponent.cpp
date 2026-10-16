@@ -11,6 +11,7 @@
 #include <alloca.h>
 #endif
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
+#include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/Base/Prop.h"
@@ -1722,11 +1723,18 @@ static int32_t GetConditionalGeoset(CharacterPreferences* prefs) {
 // VERIFY: 4a5d8b79 manual
 // OFFSET: 0x004EA0B0
 void CCharacterComponent::ReplaceExtraSkinTexture(const char* debug) {
+    EsteriaSetContext(this);
     if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID)) {
         return;
     }
 
-    const char* textureName = CCharacterComponent::s_chrVarArray[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID].m_variation[VARIATION_SKIN].m_variation[0].m_color[this->m_data.m_preferences.m_skinID]->m_textureName[1];
+    CharSectionsRec* sectionRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID, nullptr);
+
+    if (!sectionRec) {
+        return;
+    }
+
+    const char* textureName = sectionRec->m_textureName[1];
 
     if (!*textureName) {
         return;
@@ -1744,11 +1752,18 @@ void CCharacterComponent::ReplaceExtraSkinTexture(const char* debug) {
 // VERIFY: d35306aa manual
 // OFFSET: 0x004EA150
 void CCharacterComponent::ReplaceHairTexture(int32_t hairStyleID, const char* debug) {
+    EsteriaSetContext(this);
     if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId)) {
         return;
     }
 
-    const char* textureName = CCharacterComponent::s_chrVarArray[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID].m_variation[VARIATION_HAIR].m_variation[hairStyleID].m_color[this->m_data.m_preferences.m_hairColorId]->m_textureName[0];
+    CharSectionsRec* sectionRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId, nullptr);
+
+    if (!sectionRec) {
+        return;
+    }
+
+    const char* textureName = sectionRec->m_textureName[0];
 
     if (!*textureName) {
         return;
@@ -1766,6 +1781,7 @@ void CCharacterComponent::ReplaceHairTexture(int32_t hairStyleID, const char* de
 // VERIFY: 88329d82 manual
 // OFFSET: 0x004EA1F0
 void CCharacterComponent::LoadBaseVariation(COMPONENT_VARIATIONS variation, int32_t textureIndex, int32_t variationIndex, int32_t colorIndex, COMPONENT_SECTIONS section, const char* debug) {
+    EsteriaSetContext(this);
     void*& texture = this->m_baseVariation[variation].m_texture[textureIndex];
 
     if (texture) {
@@ -1773,11 +1789,23 @@ void CCharacterComponent::LoadBaseVariation(COMPONENT_VARIATIONS variation, int3
         texture = nullptr;
     }
 
+    // Esteria: custom races take their skin/face layers from the catalog (stock hook at 0x004F3B10 and neighbours).
+    if (EsteriaBaseLayer(this, variation, textureIndex, &texture)) {
+        this->SetDirtySections(1 << section);
+        return;
+    }
+
     if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, variation, variationIndex, colorIndex)) {
         return;
     }
 
-    const char* textureName = CCharacterComponent::s_chrVarArray[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID].m_variation[variation].m_variation[variationIndex].m_color[colorIndex]->m_textureName[textureIndex];
+    CharSectionsRec* sectionRec = ComponentGetSectionsRecord(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, variation, variationIndex, colorIndex, nullptr);
+
+    if (!sectionRec) {
+        return;
+    }
+
+    const char* textureName = sectionRec->m_textureName[textureIndex];
 
     if (*textureName) {
         strcpy(s_pathEnd, textureName);
@@ -1794,6 +1822,7 @@ void CCharacterComponent::LoadBaseVariation(COMPONENT_VARIATIONS variation, int3
 // VERIFY: 63815769 auto
 // OFFSET: 0x004EA2F0
 void CCharacterComponent::SetHairColor(int32_t hairColorID, bool loadHair, const char* debug) {
+    EsteriaSetContext(this);
     if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, this->m_data.m_preferences.m_hairStyleId, hairColorID)) {
         return;
     }
@@ -1823,6 +1852,7 @@ void CCharacterComponent::SetHairColor(int32_t hairColorID, bool loadHair, const
 // VERIFY: 2d880572 manual
 // OFFSET: 0x004EA3E0
 void CCharacterComponent::SetHairStyle(int32_t hairStyleID, const char* debug) {
+    EsteriaSetContext(this);
     if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId)) {
         return;
     }
@@ -1843,6 +1873,7 @@ void CCharacterComponent::SetHairStyle(int32_t hairStyleID, const char* debug) {
 // VERIFY: 901d909d auto
 // OFFSET: 0x004EA490
 void CCharacterComponent::SetFace(int32_t faceID, bool loadHair, const char* debug) {
+    EsteriaSetContext(this);
     if (this->m_data.m_flags & 0x1) {
         return;
     }
@@ -1873,6 +1904,7 @@ void CCharacterComponent::SetFace(int32_t faceID, bool loadHair, const char* deb
 // VERIFY: 336da2ea auto
 // OFFSET: 0x004EA590
 void CCharacterComponent::SetBeardStyle(int32_t facialHairID, bool loadVariation, const char* debug) {
+    EsteriaSetContext(this);
     if (facialHairID < 0 || facialHairID > static_cast<int32_t>(CCharacterComponent::s_characterFacialHairStylesList[this->m_data.m_preferences.m_raceID * 2 + this->m_data.m_preferences.m_sexID])) {
         return;
     }
@@ -1908,9 +1940,12 @@ void CCharacterComponent::SetBeardStyle(int32_t facialHairID, bool loadVariation
 // VERIFY: 3c40af57 auto
 // OFFSET: 0x004EA6B0
 void CCharacterComponent::SetSkinColor(int32_t skinID, bool loadHair, bool renderAll, const char* debug) {
+    EsteriaSetContext(this);
     this->m_data.m_preferences.m_skinID = skinID;
 
-    if ((this->m_data.m_flags & 0x1) || !ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, skinID)) {
+    bool esteria = EsteriaOwnsRace(this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID);
+
+    if ((this->m_data.m_flags & 0x1) || (!esteria && !ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, skinID))) {
         return;
     }
 
@@ -1930,7 +1965,7 @@ void CCharacterComponent::SetSkinColor(int32_t skinID, bool loadHair, bool rende
             this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[1] = nullptr;
         }
 
-        if (*underwearRec->m_textureName[0] && CopyStringToBuffer(underwearRec->m_textureName[0], s_pathEnd)) {
+        if (underwearRec && *underwearRec->m_textureName[0] && CopyStringToBuffer(underwearRec->m_textureName[0], s_pathEnd)) {
             this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[0] = TextureCacheCreateTexture(s_path);
 
             if (!this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[0]) {
@@ -1938,7 +1973,7 @@ void CCharacterComponent::SetSkinColor(int32_t skinID, bool loadHair, bool rende
             }
         }
 
-        if (*underwearRec->m_textureName[1] && CopyStringToBuffer(underwearRec->m_textureName[1], s_pathEnd)) {
+        if (underwearRec && *underwearRec->m_textureName[1] && CopyStringToBuffer(underwearRec->m_textureName[1], s_pathEnd)) {
             this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[1] = TextureCacheCreateTexture(s_path);
 
             if (!this->m_baseVariation[VARIATION_UNDERWEAR].m_texture[1]) {
@@ -3438,6 +3473,9 @@ void CCharacterComponent::GeosRenderPrep() {
     CM2Model* model = this->m_data.m_model;
     model->SetGeometryVisible(0, 2000, 0);
     model->SetGeometryVisible(0, 0, 1);
+
+    // Esteria: custom-race geosets and replaceable textures (stock hook at 0x004ED945).
+    EsteriaGeometry(this);
 
     for (int32_t i = 0; i < 19; i++) {
         if (i == 17 && eyeGlow) {
@@ -5155,6 +5193,7 @@ bool CCharacterComponent::RenderPrep(int32_t wait) {
 // VERIFY: 3d69252b auto
 // OFFSET: 0x004F16C0
 void CCharacterComponent::FreeComponent(CCharacterComponent* component) {
+    EsteriaForgetCharacter(component);
     uint32_t* heap = s_componentHeap;
     component->~CCharacterComponent();
     ObjectFree(*heap, component->m_heapIndex);

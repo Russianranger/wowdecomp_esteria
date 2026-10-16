@@ -1,6 +1,7 @@
 #include <cstddef>
 #include <cstdint>
 #include "WoW/Common/ComponentCore/ComponentUtils.h"
+#include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/CharSectionsRec.h"
@@ -89,6 +90,13 @@ int32_t ComponentGetNumVariations(st_race* lookup, int32_t raceID, int32_t sexID
 // VERIFY: 725a4a25 auto
 // OFFSET: 0x004F3B10
 int32_t ComponentGetNumColors(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation, int32_t variationIndex) {
+    // Esteria: custom races store sparse CharSections rows; report their authored capacity instead.
+    int32_t capacity = EsteriaSectionCount(raceID, sexID, variation);
+
+    if (capacity >= 0) {
+        return capacity;
+    }
+
     CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
 
     if (!list.m_variation || variationIndex >= list.m_numVariations || list.m_numVariations <= 0 || !list.m_variation[variationIndex].m_color) {
@@ -101,6 +109,8 @@ int32_t ComponentGetNumColors(st_race* lookup, int32_t raceID, int32_t sexID, CO
 // VERIFY: 387cd93c manual
 // OFFSET: 0x004F3B50
 bool ComponentValidateBase(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation, int32_t variationIndex, int32_t colorIndex) {
+    EsteriaSectionArguments(raceID, sexID, variation, &variationIndex, &colorIndex);
+
     if (static_cast<uint32_t>(variation) >= NUM_COMPONENT_VARIATIONS || variationIndex < 0) {
         return false;
     }
@@ -119,6 +129,8 @@ bool ComponentValidateBase(st_race* lookup, int32_t raceID, int32_t sexID, COMPO
 // VERIFY: 04a6cba3 manual
 // OFFSET: 0x004F3BA0
 CharSectionsRec* ComponentGetSectionsRecord(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation, int32_t variationIndex, int32_t colorIndex, bool* found) {
+    EsteriaSectionArguments(raceID, sexID, variation, &variationIndex, &colorIndex);
+
     if (static_cast<uint32_t>(variation) < NUM_COMPONENT_VARIATIONS && variationIndex >= 0) {
         CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
 

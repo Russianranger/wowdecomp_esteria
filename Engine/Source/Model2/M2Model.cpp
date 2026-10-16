@@ -2656,7 +2656,7 @@ int32_t CM2Model::SetIndices() {
         }
 
         for (uint32_t i = 0; i < this->m_optGeo->m_skinSectionCount; i++) {
-            M2BatchRange* range = &this->m_optGeo->m_batchRanges[this->m_optGeo->m_skinSections[i].m_skinSectionId];
+            M2BatchRange* range = &this->m_optGeo->m_batchRanges[this->m_optGeo->m_skinSections[i].m_skinSectionId & 0xFFFF];
             uint16_t vertexBase = 0;
 
             for (uint32_t b = range->m_first; b <= range->m_last; b++) {
@@ -2669,10 +2669,10 @@ int32_t CM2Model::SetIndices() {
                 M2SkinSection* section = &skin->m_skinSections[sectionIndex];
 
                 if (copyIndices || singleBone) {
-                    memcpy(indices, &skin->m_indices[section->m_indexStart], section->m_indexCount * sizeof(uint16_t));
+                    memcpy(indices, &skin->m_indices[M2WideIndexStart(section, skin->m_indices.m_count)], section->m_indexCount * sizeof(uint16_t));
                 } else {
                     for (uint32_t j = 0; j < section->m_indexCount; j++) {
-                        indices[j] = vertexBase + skin->m_indices[j + section->m_indexStart] - section->m_vertexStart;
+                        indices[j] = vertexBase + skin->m_indices[j + M2WideIndexStart(section, skin->m_indices.m_count)] - section->m_vertexStart;
                     }
                 }
 
@@ -2702,7 +2702,7 @@ int32_t CM2Model::SetVertices(int32_t optimized, M2SkinSection* section, int32_t
 
     if (optimized) {
         M2SkinProfile* skin = this->m_shared->m_skinData;
-        M2BatchRange* range = &this->m_optGeo->m_batchRanges[section->m_skinSectionId];
+        M2BatchRange* range = &this->m_optGeo->m_batchRanges[section->m_skinSectionId & 0xFFFF];
 
         for (uint32_t b = range->m_first; b <= range->m_last; b++) {
             uint16_t sectionIndex = skin->m_batches[b].m_skinSectionIndex;
@@ -2888,7 +2888,7 @@ void CM2Model::RenderModelBatchesForProjectedTexture() {
 
             CGxBatch gxBatch;
             gxBatch.m_primType = GxPrim_Triangles;
-            gxBatch.m_start = section->m_indexStart;
+            gxBatch.m_start = M2ProcessedIndexStart(section);
             gxBatch.m_count = section->m_indexCount;
             gxBatch.m_minIndex = 0;
             gxBatch.m_maxIndex = this->m_shared->m_skinData->m_vertices.m_count - 1;
@@ -2937,7 +2937,7 @@ void CM2Model::RenderBatchShadowMap(int32_t untextured, M2Batch* batch, const CM
 
     CGxBatch gxBatch;
     gxBatch.m_primType = GxPrim_Triangles;
-    gxBatch.m_start = section->m_indexStart;
+    gxBatch.m_start = M2ProcessedIndexStart(section);
     gxBatch.m_count = 0;
     gxBatch.m_minIndex = 0;
     gxBatch.m_maxIndex = 0;
@@ -4032,7 +4032,8 @@ void CM2Model::SetGeometryVisible(uint32_t first, uint32_t last, int32_t visible
         int32_t changed = 0;
 
         for (uint32_t i = 0; i < skin->m_skinSections.m_count; i++) {
-            uint32_t id = skin->m_skinSections[i].m_skinSectionId;
+            // Esteria: the high word of the id field carries wide index-start bits, not part of the geoset id.
+            uint32_t id = skin->m_skinSections[i].m_skinSectionId & 0xFFFF;
 
             if (first <= id && id <= last) {
                 uint32_t* section = &this->m_skinSections[i];
@@ -4242,11 +4243,13 @@ void CM2Model::OptimizeVisibleGeometry() {
             int32_t indexStart = indexStarts[batch->m_skinSectionIndex];
 
             if (indexStart < 0) {
-                indexStart = static_cast<uint16_t>(indexCount);
+                indexStart = indexCount;
                 indexStarts[batch->m_skinSectionIndex] = indexCount;
             }
 
-            target->m_indexStart = indexStart;
+            // Esteria: optimized index starts may exceed 16 bits; the high word rides in the id field.
+            target->m_indexStart = static_cast<uint16_t>(indexStart);
+            target->m_skinSectionId = sectionCount | (static_cast<uint32_t>(indexStart) >> 16 << 16);
 
             if (!keepVertices) {
                 target->m_vertexStart = 0;
@@ -4507,7 +4510,7 @@ int32_t CM2Model::SetVerticesMultiSample(int32_t optimized, M2SkinSection* secti
 
     if (optimized) {
         M2SkinProfile* skin = this->m_shared->m_skinData;
-        M2BatchRange* range = &this->m_optGeo->m_batchRanges[section->m_skinSectionId];
+        M2BatchRange* range = &this->m_optGeo->m_batchRanges[section->m_skinSectionId & 0xFFFF];
 
         for (uint32_t b = range->m_first; b <= range->m_last; b++) {
             uint16_t sectionIndex = skin->m_batches[b].m_skinSectionIndex;

@@ -2299,6 +2299,19 @@ CTexture* TextureCreate(EGxTexTarget target, uint32_t width, uint32_t height, ui
     return reinterpret_cast<CTexture*>(HandleCreate(texture, "HTEXTURE"));
 }
 
+// Esteria: builds a texture from an in-memory BLP (no stock counterpart).
+CTexture* TextureCreateFromBlpData(const char* name, CGxTexFlags texFlags, void* blpData) {
+    CTexture* texture = new ("HTEXTURE", SLOG_OBJECT) CTexture;
+    texture->m_gxTexFlags = texFlags;
+    SStrCopy(texture->m_filename, name, STORM_MAX_STR);
+
+    if (!PumpBlpTextureAsync(texture, blpData)) {
+        FillInSolidTexture(*reinterpret_cast<const CImVector*>(&s_defaultColor), texture);
+    }
+
+    return reinterpret_cast<CTexture*>(HandleCreate(texture, "HTEXTURE"));
+}
+
 // VERIFY: 42c19e46 manual
 // OFFSET: 0x004B8D70
 CTexture* TextureCreateBlob(char* fileName, CGxTexFlags texFlags, CStatus* status, int32_t defaultFilter) {

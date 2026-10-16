@@ -1,5 +1,6 @@
 #include "CharacterCreation.h"
 #include <cstring>
+#include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Model2/M2Model.h"
@@ -35,7 +36,7 @@ int32_t CCharacterCreation::m_selectedClassID = 1;
 int32_t CCharacterCreation::m_existingCharacterIndex = -1;
 
 // STATIC: 0x00B6B0D0
-CharacterPreferences* CCharacterCreation::m_charPreferences[22][2];
+CharacterPreferences* CCharacterCreation::m_charPreferences[CCharacterCreation::MAX_RACES][2];
 
 // STATIC: 0x00B6B180
 uint32_t CCharacterCreation::m_raceIndex;
@@ -122,7 +123,7 @@ void CCharacterCreation::Shutdown() {
     CCharacterCreation::m_nameGen.m_names.Clear();
     CCharacterCreation::m_nameGen.m_dictionary.Clear();
 
-    for (uint32_t i = 0; i < 22; i++) {
+    for (uint32_t i = 0; i < CCharacterCreation::MAX_RACES; i++) {
         for (uint32_t j = 0; j < 2; j++) {
             delete CCharacterCreation::m_charPreferences[i][j];
             CCharacterCreation::m_charPreferences[i][j] = nullptr;
@@ -416,6 +417,11 @@ int32_t CCharacterCreation::GetRandomClassID() {
 // VERIFY: b15e5451 auto
 // OFFSET: 0x004E0FD0
 void CCharacterCreation::Dress() {
+    // Esteria: a race whose model failed to load leaves a component without a model.
+    if (!CCharacterCreation::m_character || !CCharacterCreation::m_character->m_data.m_model) {
+        return;
+    }
+
     if (CCharacterCreation::m_existingCharacterIndex >= 0) {
         CharacterSelectionDisplay* display = CCharacterSelection::GetCharacterDisplay(CCharacterCreation::m_existingCharacterIndex);
 
@@ -670,6 +676,11 @@ void CCharacterCreation::SetSelectedClass(int32_t classID) {
 
     CCharacterCreation::m_selectedClassID = classID;
 
+    // Esteria: races without a loadable model leave no character to rebuild.
+    if (!CCharacterCreation::m_character || !CCharacterCreation::m_character->m_data.m_model) {
+        return;
+    }
+
     ComponentData data;
     data.m_preferences.m_raceID = CCharacterCreation::m_character->m_data.m_preferences.m_raceID;
     data.m_preferences.m_sexID = CCharacterCreation::m_character->m_data.m_preferences.m_sexID;
@@ -743,10 +754,26 @@ void CCharacterCreation::ResetCharCustomizeInfo() {
         CCharacterCreation::m_charCustomizeFrame->m_model->DetachAllChildrenById(0);
     }
 
+    // Esteria: some listed races have no loadable model (missing display/model records). Retry with another random
+    // race until a character exists, so the rest of the glue never sees a null component.
     ComponentData data;
-    CCharacterCreation::GetRandomRaceAndSex(&data);
-    CCharacterCreation::CalcClasses(data.m_preferences.m_raceID);
-    CCharacterCreation::InitCharacterComponents(&data, true);
+    for (int32_t attempt = 0; attempt < 64; attempt++) {
+        data = ComponentData();
+        CCharacterCreation::GetRandomRaceAndSex(&data);
+        CCharacterCreation::CalcClasses(data.m_preferences.m_raceID);
+        CCharacterCreation::InitCharacterComponents(&data, true);
+
+        if (CCharacterCreation::m_character && CCharacterCreation::m_character->m_data.m_model) {
+            break;
+        }
+
+        EsteriaTrace("create screen: race %u sex %u has no loadable model", data.m_preferences.m_raceID, data.m_preferences.m_sexID);
+    }
+
+    if (!CCharacterCreation::m_character) {
+        return;
+    }
+
     CCharacterCreation::SetSelectedClass(CCharacterCreation::GetRandomClassID());
     data.m_preferences.m_classId = CCharacterCreation::m_selectedClassID;
 

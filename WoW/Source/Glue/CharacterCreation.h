@@ -14,7 +14,9 @@ struct CharacterPreferences;
 
 class CCharacterCreation {
     public:
-    static CharacterPreferences* m_charPreferences[22][2];
+    // Esteria: race IDs 0..128 (stock client: 22 slots)
+    static const uint32_t MAX_RACES = 129;
+    static CharacterPreferences* m_charPreferences[MAX_RACES][2];
     static CCharacterComponent* m_character;
     static CNameGen m_nameGen;
     static CSimpleModelFFX* m_charCustomizeFrame;

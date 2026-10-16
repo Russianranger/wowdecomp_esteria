@@ -9,6 +9,8 @@
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
+#include "WoW/Common/ComponentCore/EsteriaAppearance.h"
+#include "WoW/Source/Glue/CharacterSelectionDisplay.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/ChrClassesRec.h"
 #include "WoW/Source/DB/Rec/ChrRacesRec.h"
@@ -105,7 +107,12 @@ static int32_t Script_IsRaceClassRestricted(lua_State* L) {
 
         default: {
             restricted = false;
-            luaL_error(L, "Script_IsRaceClassRestricted: unsupported race ID(%d)", raceID);
+
+            // Esteria: custom races (12..128) are never restricted by the stock realm flags
+            if (raceID < 12 || raceID >= static_cast<int32_t>(CCharacterCreation::MAX_RACES)) {
+                luaL_error(L, "Script_IsRaceClassRestricted: unsupported race ID(%d)", raceID);
+            }
+
             break;
         }
     }
@@ -202,6 +209,8 @@ static int32_t Script_GetFactionForRace(lua_State* L) {
 // OFFSET: 0x004E0830
 static int32_t Script_GetAvailableClasses(lua_State* L) {
     int32_t count = g_chrClassesDB.m_numRecords;
+
+    lua_checkstack(L, count * 3 + 3);
 
     for (int32_t i = 0; i < count; i++) {
         ChrClassesRec* classRec = i >= 0 && i < g_chrClassesDB.m_numRecords ? &g_chrClassesDB.m_records[i] : nullptr;
@@ -301,6 +310,32 @@ static int32_t Script_GetSelectedClass(lua_State* L) {
 // VERIFY: 8c236267 manual
 // OFFSET: 0x004E0B50
 static int32_t Script_CycleCharCustomization(lua_State* L) {
+    // Esteria: GlueXML multiplexes EsteriaAppearance commands ("EA_PREVIEW_SCALE", "EA_SET", ...) through this
+    // function. The appearance system is not ported, so they are ignored instead of raising a usage error.
+    if (lua_type(L, 1) == LUA_TSTRING && !lua_isnumber(L, 1) && !strncmp(lua_tolstring(L, 1, nullptr), "EA_", 3)) {
+        if (!strcmp(lua_tolstring(L, 1, nullptr), "EA_PREVIEW_SCALE") && lua_isnumber(L, 2)) {
+            // Index 0 is the create-screen character, 1.. are character-select rows.
+            double index = lua_tonumber(L, 2);
+            CCharacterComponent* component = nullptr;
+
+            if (index == 0) {
+                component = CCharacterCreation::m_character;
+            } else if (index >= 1 && index <= 100) {
+                CharacterSelectionDisplay* display = CCharacterSelection::GetCharacterDisplay(static_cast<uint32_t>(index) - 1);
+                component = display ? display->m_component : nullptr;
+            }
+
+            if (component) {
+                EsteriaPreviewScale(component);
+            }
+
+            return 0;
+        }
+
+        int32_t results = EsteriaCycleCommand(L, CCharacterCreation::m_character, lua_tolstring(L, 1, nullptr));
+        return results < 0 ? 0 : results;
+    }
+
     if (!lua_isnumber(L, 1) || !lua_isnumber(L, 2)) {
         luaL_error(L, "Usage: CycleCharCustomization(index, delta)");
         return 0;
@@ -425,6 +460,9 @@ static int32_t Script_GetCreateBackgroundModel(lua_State* L) {
 static int32_t Script_GetAvailableRaces(lua_State* L) {
     uint32_t count = CCharacterCreation::m_races.Count();
 
+    // Three values per race; Lua only guarantees 20 free slots.
+    lua_checkstack(L, count * 3 + 3);
+
     for (uint32_t i = 0; i < count; i++) {
         lua_pushstring(L, CGUnit_C::GetDisplayRaceNameFromRecord(g_chrRacesDB.GetRecord(CCharacterCreation::m_races.m_data[i]), CCharacterCreation::m_character->m_data.m_preferences.m_sexID, nullptr));
 
@@ -443,6 +481,8 @@ static int32_t Script_GetAvailableRaces(lua_State* L) {
 // OFFSET: 0x004E19A0
 static int32_t Script_GetClassesForRace(lua_State* L) {
     uint32_t count = CCharacterCreation::m_classes.Count();
+
+    lua_checkstack(L, count * 3 + 3);
 
     for (uint32_t i = 0; i < count; i++) {
         ChrClassesRec* classRec = i < CCharacterCreation::m_classes.Count() ? CCharacterCreation::m_classes.m_data[i] : nullptr;
@@ -562,8 +602,21 @@ static int32_t Script_PaidChange_GetPreviousRaceIndex(lua_State* L) {
     return 1;
 }
 
+// Esteria (Client.dll): GetAvailableRaceIDs() returns the race IDs 1..27 as 27 separate values.
+static int32_t Script_GetAvailableRaceIDs(lua_State* L) {
+    // Lua only guarantees LUA_MINSTACK (20) free slots; 27 pushes overran the stack block and corrupted the heap.
+    lua_checkstack(L, 27);
+
+    for (int32_t raceID = 1; raceID <= 27; raceID++) {
+        lua_pushnumber(L, raceID);
+    }
+
+    return 27;
+}
+
 // STATIC: 0x00AC4228
 static FrameScript_Method s_scriptFunctions[] = {
+    { "GetAvailableRaceIDs", &Script_GetAvailableRaceIDs },
     { "SetCharCustomizeFrame", &Script_SetCharCustomizeFrame },
     { "SetCharCustomizeBackground", &Script_SetCharCustomizeBackground },
     { "ResetCharCustomize", &Script_ResetCharCustomize },
