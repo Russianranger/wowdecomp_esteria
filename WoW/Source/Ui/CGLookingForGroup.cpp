@@ -158,7 +158,7 @@ int32_t CGLookingForGroup::GetLFGRoleUpdateSlot(lua_State* L) {
 // VERIFY: 49637f08 manual
 // OFFSET: 0x005572D0
 void CGLookingForGroup::JoinLFG() {
-    if ((CGLookingForGroup::m_localInfo.m_joined && !CGLookingForGroup::m_localInfo.unk_0003) || !s_cvLfgSelectedRoles) {
+    if ((CGLookingForGroup::m_localInfo.m_joined && !CGLookingForGroup::m_localInfo.m_dirty) || !s_cvLfgSelectedRoles) {
         return;
     }
 
@@ -184,8 +184,8 @@ void CGLookingForGroup::JoinLFG() {
 
     msg.Put(static_cast<uint32_t>(CMSG_LFG_JOIN));
     msg.Put(roles);
-    msg.Put(static_cast<uint8_t>(CGLookingForGroup::m_localInfo.unk_0004 != 0));
-    msg.Put(static_cast<uint8_t>(CGLookingForGroup::m_localInfo.unk_0005 != 0));
+    msg.Put(static_cast<uint8_t>(CGLookingForGroup::m_localInfo.m_noPartial != 0));
+    msg.Put(static_cast<uint8_t>(CGLookingForGroup::m_localInfo.m_achievements != 0));
     msg.Put(static_cast<uint8_t>(CGLookingForGroup::m_localInfo.m_numDungeons));
 
     for (LFGDungeonEntry* dungeon = CGLookingForGroup::m_localInfo.m_dungeons.Head(); dungeon; dungeon = CGLookingForGroup::m_localInfo.m_dungeons.Next(dungeon)) {
@@ -201,7 +201,7 @@ void CGLookingForGroup::JoinLFG() {
     msg.PutString(CGLookingForGroup::m_localInfo.m_comment);
     msg.Finalize();
     CGLookingForGroup::m_localInfo.m_joined = 1;
-    CGLookingForGroup::m_localInfo.unk_0003 = 0;
+    CGLookingForGroup::m_localInfo.m_dirty = 0;
     ClientServices::Send2(&msg);
 }
 
@@ -238,7 +238,7 @@ void CGLookingForGroup::LeaveLFG() {
     msg.Put(static_cast<uint32_t>(CMSG_LFG_LEAVE));
     msg.Finalize();
     CGLookingForGroup::m_localInfo.m_joined = 0;
-    CGLookingForGroup::m_localInfo.unk_0003 = 0;
+    CGLookingForGroup::m_localInfo.m_dirty = 0;
     ClientServices::Send2(&msg);
 }
 
@@ -252,7 +252,7 @@ int32_t CGLookingForGroup::GetLFGProposalMember(lua_State* L) {
 
     uint32_t index = static_cast<uint32_t>(lua_tonumber(L, 1)) - 1;
 
-    if (!CGLookingForGroup::m_proposal.m_id || index > 4) {
+    if (!CGLookingForGroup::m_proposal.m_dungeonId || index > 4) {
         return 0;
     }
 
@@ -270,8 +270,8 @@ int32_t CGLookingForGroup::GetLFGProposalMember(lua_State* L) {
     }
 
     lua_pushnumber(L, 0.0);
-    lua_pushboolean(L, member->m_accepted);
-    lua_pushboolean(L, member->unk_0014);
+    lua_pushboolean(L, member->m_answered);
+    lua_pushboolean(L, member->m_isAccepted);
     lua_pushnil(L);
     lua_pushnil(L);
     return 7;
@@ -288,7 +288,7 @@ int32_t CGLookingForGroup::GetLFGProposalEncounter(lua_State* L) {
     double index = lua_tonumber(L, 1);
     LfgDungeonsRec* rec;
 
-    if (CGLookingForGroup::m_proposal.m_id && (rec = g_lfgDungeonsDB.GetRecord(CGLookingForGroup::m_proposal.m_id & 0xFFFFFF))) {
+    if (CGLookingForGroup::m_proposal.m_dungeonId && (rec = g_lfgDungeonsDB.GetRecord(CGLookingForGroup::m_proposal.m_dungeonId & 0xFFFFFF))) {
         return PushDungeonEncounterInfo(L, rec->m_mapID, rec->m_difficulty, static_cast<int32_t>(index - 1.0), CGLookingForGroup::m_proposal.m_completedMask);
     }
 
@@ -298,7 +298,7 @@ int32_t CGLookingForGroup::GetLFGProposalEncounter(lua_State* L) {
 // VERIFY: 0ad38c35 manual
 // OFFSET: 0x00554450
 void CGLookingForGroup::ProposalResponse(bool accept) {
-    if (!CGLookingForGroup::m_proposal.m_id) {
+    if (!CGLookingForGroup::m_proposal.m_dungeonId) {
         return;
     }
 
@@ -317,7 +317,7 @@ void CGLookingForGroup::ProposalResponse(bool accept) {
 
     CDataStore msg;
     msg.Put(static_cast<uint32_t>(CMSG_LFG_PROPOSAL_RESULT));
-    msg.Put(CGLookingForGroup::m_proposal.unk_0008);
+    msg.Put(CGLookingForGroup::m_proposal.m_proposalId);
     msg.Put(static_cast<uint8_t>(accept));
     msg.Finalize();
     ClientServices::Send2(&msg);
@@ -325,8 +325,8 @@ void CGLookingForGroup::ProposalResponse(bool accept) {
     if (accept) {
         for (uint32_t i = 0; i < 5; i++) {
             if (CGLookingForGroup::m_proposal.m_members[i].m_isLocal) {
-                CGLookingForGroup::m_proposal.m_members[i].m_accepted = 1;
-                CGLookingForGroup::m_proposal.m_members[i].unk_0014 = 1;
+                CGLookingForGroup::m_proposal.m_members[i].m_answered = 1;
+                CGLookingForGroup::m_proposal.m_members[i].m_isAccepted = 1;
             }
         }
     } else {
@@ -493,7 +493,7 @@ void CGLookingForGroup::ClearLFGDungeon(uint32_t slot) {
         if (entry->m_slot == slot) {
             delete entry;
             CGLookingForGroup::m_localInfo.m_numDungeons--;
-            CGLookingForGroup::m_localInfo.unk_0003 = 1;
+            CGLookingForGroup::m_localInfo.m_dirty = 1;
             return;
         }
     }
@@ -528,7 +528,7 @@ void CGLookingForGroup::ClearPartyInfo() {
         FrameScript_SignalEvent(SCRIPT_EVENT_LFG_ROLE_CHECK_HIDE, nullptr);
     }
 
-    if (CGLookingForGroup::m_proposal.m_id) {
+    if (CGLookingForGroup::m_proposal.m_dungeonId) {
         CGLookingForGroup::m_proposal.Clear();
         FrameScript_SignalEvent(SCRIPT_EVENT_LFG_PROPOSAL_FAILED, nullptr);
     }

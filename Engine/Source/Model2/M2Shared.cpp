@@ -25,6 +25,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Os/OsMemory.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 
 // Out of range / 0xFFFF coordinate combo indices (newer or converted models) read as coordinate set 0.
 static uint16_t SafeCoordCombo(const M2Data* data, uint32_t index) {
@@ -352,7 +353,7 @@ int32_t CM2Shared::SetIndices() {
         }
     }
 
-    if (!this->m_indexBuf->unk_001C || !this->m_indexBuf->unk_001D) {
+    if (!this->m_indexBuf->m_hasData || !this->m_indexBuf->m_valid) {
         uint16_t* indices = reinterpret_cast<uint16_t*>(g_theGxDevicePtr->BufLock(this->m_indexBuf));
 
         if (!indices) {
@@ -383,7 +384,7 @@ section->m_skinSectionId = (section->m_skinSectionId & 0xFFFF) | (indexStart >> 
 
         CGxBuf* buf = this->m_indexBuf;
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
     }
 
     g_theGxDevicePtr->PrimIndexPtr(this->m_indexBuf);
@@ -404,7 +405,7 @@ int32_t CM2Shared::SetVertices(uint32_t texCoordIndex) {
     }
 
     if (!CShaderEffect::s_enableShaders) {
-        if (!this->m_vertexBuf->unk_001C || !this->m_vertexBuf->unk_001D) {
+        if (!this->m_vertexBuf->m_hasData || !this->m_vertexBuf->m_valid) {
             M2VertexPNT2* vertices = reinterpret_cast<M2VertexPNT2*>(g_theGxDevicePtr->BufLock(this->m_vertexBuf));
 
             if (!vertices) {
@@ -427,7 +428,7 @@ int32_t CM2Shared::SetVertices(uint32_t texCoordIndex) {
 
             CGxBuf* buf = this->m_vertexBuf;
             g_theGxDevicePtr->BufUnlock(buf, 0);
-            buf->unk_001C = 1;
+            buf->m_hasData = 1;
         }
 
         GxPrimVertexPtr(this->m_vertexBuf, GxVBF_PNT2);
@@ -435,7 +436,7 @@ int32_t CM2Shared::SetVertices(uint32_t texCoordIndex) {
         return 1;
     }
 
-    if (!this->m_vertexBuf->unk_001C || !this->m_vertexBuf->unk_001D) {
+    if (!this->m_vertexBuf->m_hasData || !this->m_vertexBuf->m_valid) {
         M2Vertex* vertices = reinterpret_cast<M2Vertex*>(g_theGxDevicePtr->BufLock(this->m_vertexBuf));
 
         if (!vertices) {
@@ -459,7 +460,7 @@ int32_t CM2Shared::SetVertices(uint32_t texCoordIndex) {
 
         CGxBuf* buf = this->m_vertexBuf;
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
     }
 
     GxPrimVertexPtr(this->m_vertexBuf, GxVBF_PBNT2);
@@ -1356,6 +1357,9 @@ int32_t CM2Shared::FinishLoadingSkinProfile(uint32_t size) {
 
     this->m_flags |= 2;
 
+    // Not in the original: the skin profile is usable, the waiting models are not initialised yet.
+    sExtensionMgr->OnModelSkinLoaded(this);
+
     while (this->m_callbackList) {
         CM2Model* model = this->m_callbackList;
         model->UnlinkFromCallbackList();
@@ -1600,6 +1604,9 @@ int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, uint
 
     sequence->m_flags = (sequence->m_flags & ~0x30u) | 0x20;
 
+    // Not in the original: this sequence's .anim data is relocated and the sequence flagged loaded.
+    sExtensionMgr->OnModelSequenceLoaded(this, sequenceIndex);
+
     return 1;
 }
 
@@ -1750,6 +1757,9 @@ int32_t CM2Shared::Initialize() {
         }
     }
 
+    // Not in the original: one CTexture per M2Texture exists now.
+    sExtensionMgr->OnModelTexturesCreated(this);
+
     for (uint32_t i = 0; i < this->m_data->m_bones.m_count; i++) {
         if (this->m_data->m_bones[i].m_flags & 0x2F8) {
             this->m_billboardBoneCount++;
@@ -1789,6 +1799,9 @@ int32_t CM2Shared::FinishLoading() {
     this->m_lowPrioritySequenceCapacity = count;
     this->m_flags |= 1;
     this->m_lowPrioritySequenceCount = 0;
+
+    // Not in the original: the .m2 data is relocated and initialised; the skin read is in flight.
+    sExtensionMgr->OnModelSharedLoaded(this);
 
     return 1;
 }
@@ -1881,6 +1894,9 @@ void CM2Shared::CancelAllDeferredSequences() {
 // VERIFY: 7f65a462 manual
 // OFFSET: 0x0083D5B0
 CM2Shared::~CM2Shared() {
+    // Not in the original: everything the shared owns is still allocated here.
+    sExtensionMgr->OnModelSharedDestroy(this);
+
     this->CancelAllDeferredSequences();
 
     int32_t pending = 0;

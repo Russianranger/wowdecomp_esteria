@@ -29,6 +29,8 @@ target_include_directories(Wow
         ${CMAKE_SOURCE_DIR}
 )
 
+target_link_options(Wow PRIVATE "/INCREMENTAL:NO" "/ENTRY:start")
+
 target_link_libraries(Wow
     PRIVATE
         BLPFile
@@ -59,6 +61,7 @@ target_link_libraries(Wow
         Console
         ConsoleDevice
         DB
+        Extension
         Game
         Glue
         LiquidSystem
@@ -74,4 +77,5 @@ target_link_libraries(Wow
         WorldClient
         WowServices
         WowSvcs
+        WowExtensions
 )

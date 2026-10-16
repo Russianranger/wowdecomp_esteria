@@ -35,6 +35,7 @@
 #include "WoW/Source/DB/Rec/MapRec.h"
 #include "WoW/Source/DB/Rec/ScreenEffectRec.h"
 #include "WoW/Source/DB/Rec/SpellRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Game/GameClient/FFXEffects.h"
 #include "WoW/Source/Game/GameClient/PassFogSeed.h"
 #include "WoW/Source/Game/GameClient/PlayerName.h"
@@ -880,16 +881,16 @@ void CGWorldFrame::OnLayerTrackObject(const HITTESTRESULT& result) {
 CGWorldFrameUnkObj::CGWorldFrameUnkObj() {
     for (int32_t i = 0; i < 16; i++) {
         CGWorldFrameUnkObjSomeElement& element = this->m_elements[i];
-        element.unk_0014 = 0.0f;
-        element.unk_0018 = 0.0f;
-        element.unk_001C = 0.0f;
-        element.unk_0020 = 0.0f;
-        element.unk_0024 = 0.0f;
-        element.unk_0028 = 0.0f;
-        element.unk_002C = 0.0f;
-        element.unk_0030 = 0.0f;
-        element.unk_0034 = 0.0f;
-        element.unk_0038 = 0.0f;
+        element.unused_0014 = 0.0f;
+        element.unused_0018 = 0.0f;
+        element.unused_001C = 0.0f;
+        element.unused_0020 = 0.0f;
+        element.unused_0024 = 0.0f;
+        element.unused_0028 = 0.0f;
+        element.unused_002C = 0.0f;
+        element.unused_0030 = 0.0f;
+        element.unused_0034 = 0.0f;
+        element.unused_0038 = 0.0f;
     }
 
     for (int32_t i = 0; i < 13; i++) {
@@ -1215,8 +1216,8 @@ void CGWorldFrame::UnitClear() {
 // VERIFY: 0cec28f7 manual
 // OFFSET: 0x004FABD0
 CGWorldFrame::CGWorldFrame(CSimpleFrame* parent) : CSimpleFrame(parent) {
-    this->unk_02C0 = 1;
-    this->unk_02C4 = 1;
+    this->unused_02C0 = 1;
+    this->unused_02C4 = 1;
     this->m_trackedGuid = WOWGUID();
     this->m_hitGuid = WOWGUID();
     this->m_defaultActionHit.m_guid = WOWGUID();
@@ -1242,7 +1243,7 @@ CGWorldFrame::CGWorldFrame(CSimpleFrame* parent) : CSimpleFrame(parent) {
 
     this->m_camera = new (__FILE__, __LINE__) CGCamera();
     s_listenerAtCharacterVar = CVar::Lookup("Sound_ListenerAtCharacter");
-    this->unk_02C0 = 5;
+    this->unused_02C0 = 5;
 
     CStatus status;
 
@@ -1475,6 +1476,9 @@ static int32_t UnitUpdateProc(WOWGUID guid, void* param) {
         default:
             break;
     }
+
+    // Not in the original: every visible object, after its own display update.
+    sExtensionMgr->OnObjectUpdate(object, FrameTime::s_curTimeMs);
 
     return 1;
 }
@@ -1795,7 +1799,7 @@ void CGWorldFrame::OnWorldRender() {
 
 // VERIFY: 79b17fb9 manual
 // OFFSET: 0x004F9F70
-int32_t CGWorldFrame::ObjectEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t a4) {
+int32_t CGWorldFrame::ObjectEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t param32) {
     CGWorldFrame* frame = CGWorldFrame::s_currentWorldFrame;
     CGObject_C* object = ClntObjMgrObjectPtr(WOWGUID{ guid }, TYPEMASK_OBJECT, __FILE__, __LINE__);
 
@@ -2086,6 +2090,9 @@ void CGWorldFrame::OnWorldUpdate() {
 
     CGUnit_C::UpdateAllSmoothFacing();
     CheckEventWorldStateUITimerUpdate();
+
+    // Not in the original: the world is updated for this frame and about to be rendered.
+    sExtensionMgr->OnWorldUpdate(elapsedSec);
 }
 
 // VERIFY: 09c5961f manual
@@ -2101,6 +2108,9 @@ void CGWorldFrame::RenderWorld(void* param) {
     PlayerNameUpdateWorldText();
     worldFrame->OnWorldRender();
     WorldTextRenderBatch();
+
+    // Not in the original: the world is drawn and the device still holds the world camera.
+    sExtensionMgr->OnWorldRendered();
 
     g_theGxDevicePtr->XformSetProjection(projection);
     g_theGxDevicePtr->XformSetView(view);
@@ -2325,8 +2335,8 @@ static const char* KeyCodeToString(KEY key) {
 
 // VERIFY: 00570459 auto
 // OFFSET: 0x004F5C10
-void CGWorldFrame::OnLayerCursorExit(int32_t a2, int32_t a3) {
-    this->CSimpleFrame::OnLayerCursorExit(a2, a3);
+void CGWorldFrame::OnLayerCursorExit(int32_t motion, int32_t a3) {
+    this->CSimpleFrame::OnLayerCursorExit(motion, a3);
     WOWGUID tracked = this->m_trackedGuid;
 
     if (tracked) {
@@ -2472,15 +2482,15 @@ int32_t CGWorldFrame::OnLayerMouseWheel(const CMouseEvent& evt) {
 
 // VERIFY: 548e1cb9 manual
 // OFFSET: 0x004F5910
-int32_t CGWorldFrame::MissileEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t a4) {
-    CMissile* missile = reinterpret_cast<CMissile*>(a4);
+int32_t CGWorldFrame::MissileEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t param32) {
+    CMissile* missile = reinterpret_cast<CMissile*>(param32);
     return !missile || missile->m_mapEntity != nullptr;
 }
 
 // VERIFY: c40ba1e3 auto
 // OFFSET: 0x004F5930
-int32_t CGWorldFrame::SpellEffectEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t a4) {
-    CEffect* effect = reinterpret_cast<CEffect*>(a4);
+int32_t CGWorldFrame::SpellEffectEnumProc(void* param, uint32_t flags, uint64_t guid, uintptr_t param32) {
+    CEffect* effect = reinterpret_cast<CEffect*>(param32);
 
     if (effect) {
         effect->UpdateWorldObject(CGWorldFrame::s_currentWorldFrame->m_elapsedSec, flags);

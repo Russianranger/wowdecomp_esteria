@@ -36,6 +36,7 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Tempest/CMath.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Object/ObjectClient/Types.h"
 
 // STATIC: 0x00A45570
@@ -2639,7 +2640,7 @@ void CM2Model::AnimateST() {
 int32_t CM2Model::SetIndices() {
     CGxBuf* buf = this->m_optGeo->m_indexBuf;
 
-    if (!buf->unk_001C || !buf->unk_001D) {
+    if (!buf->m_hasData || !buf->m_valid) {
         uint16_t* indices = reinterpret_cast<uint16_t*>(g_theGxDevicePtr->BufLock(buf));
 
         if (!indices) {
@@ -2683,7 +2684,7 @@ int32_t CM2Model::SetIndices() {
 
         buf = this->m_optGeo->m_indexBuf;
         g_theGxDevicePtr->BufUnlock(buf, 0);
-        buf->unk_001C = 1;
+        buf->m_hasData = 1;
     }
 
     g_theGxDevicePtr->PrimIndexPtr(this->m_optGeo->m_indexBuf);
@@ -2718,7 +2719,7 @@ int32_t CM2Model::SetVertices(int32_t optimized, M2SkinSection* section, int32_t
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
     GxPrimVertexPtr(buf, GxVBF_PNT);
     return 1;
 }
@@ -4526,7 +4527,7 @@ int32_t CM2Model::SetVerticesMultiSample(int32_t optimized, M2SkinSection* secti
     }
 
     g_theGxDevicePtr->BufUnlock(buf, 0);
-    buf->unk_001C = 1;
+    buf->m_hasData = 1;
     GxPrimVertexPtr(buf, GxVBF_PNT2);
     return 1;
 }
@@ -6574,6 +6575,9 @@ void CM2Model::ProcessCallbacksRecursive() {
 // VERIFY: d96ccadd manual
 // OFFSET: 0x00832640
 CM2Model::~CM2Model() {
+    // Not in the original: the instance is still complete here.
+    sExtensionMgr->OnModelDestroy(this);
+
     CM2Model* model30 = this->m_model30;
 
     if (model30 && model30->m_refCount-- == 1) {
@@ -7646,6 +7650,10 @@ int32_t CM2Model::InitializeLoaded() {
     this->m_scene->m_time = time;
     this->UpdateLoaded();
     this->m_fFlags &= ~0x800u;
+
+    // Not in the original: the instance is fully built and its queued calls are applied.
+    sExtensionMgr->OnModelLoaded(this);
+
     return 1;
 }
 
@@ -7787,6 +7795,9 @@ int32_t CM2Model::Initialize(CM2Scene* scene, CM2Shared* shared, CM2Model* sourc
             }
         }
     }
+
+    // Not in the original: the instance exists in its scene; loading may still be pending.
+    sExtensionMgr->OnModelCreated(this);
 
     return this->m_shared->CallbackWhenLoaded(this);
 }

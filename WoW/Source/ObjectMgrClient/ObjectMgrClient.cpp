@@ -26,6 +26,7 @@
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
 #include "WoW/Source/Object/ObjectClient/VehiclePassenger_C.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Object/Player.h"
 #include "WoW/Source/Object/Unit.h"
 #include "WoW/Source/ObjectMgrClient/CClientObjCreate.h"
@@ -601,6 +602,9 @@ static void InitObject(CGObject_C* object, const CClientObjCreate& create, uint3
 // VERIFY: d78e827e manual
 // OFFSET: 0x004D4090
 static void DestroyRemovedObject(CGObject_C* object) {
+    // Not in the original: the object is whole until the destructor below.
+    sExtensionMgr->OnObjectDestroy(object);
+
     int32_t activePlayer = object->m_obj->m_guid == ClntObjMgrGetActivePlayer();
 
     switch (object->m_obj->m_type) {
@@ -1371,6 +1375,10 @@ static int32_t CreateObject(CDataStore* msg, uint32_t time) {
 
     InitObject(object, create, time);
     s_curMgr->m_visibleObjects.LinkToTail(object);
+
+    // Not in the original: a new object is filled, initialised and visible.
+    sExtensionMgr->OnObjectCreated(object);
+
     return 1;
 }
 
@@ -1453,6 +1461,9 @@ static void UpdateInRangeObjects(CDataStore* msg) {
 // VERIFY: 9ca63081 manual
 // OFFSET: 0x004D6FC0
 static void ObjDelete(CGObject_C* object) {
+    // Not in the original: the object leaves the active set here, it is freed later.
+    sExtensionMgr->OnObjectRemoved(object);
+
     ClearMirrorLists(object);
 
     ObjectMgr* mgr = s_curMgr;

@@ -42,6 +42,7 @@
 #include "WoW/Source/DB/Rec/ChrClassesRec.h"
 #include "WoW/Source/DB/Rec/ChrRacesRec.h"
 #include "WoW/Source/DB/Rec/GameTipsRec.h"
+#include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Game/GameClient/FFXEffects.h"
 #include "WoW/Source/Game/ValidateName.h"
 #include "WoW/Source/Glue/CharacterCreation.h"
@@ -119,7 +120,7 @@ static const char* s_serverAlertTag = "SERVERALERT:";
 static const char* s_serverAlertTagBOM = "\xEF\xBB\xBFSERVERALERT:";
 
 // STATIC: 0x00AC4370
-int32_t CGlueMgr::s_unk_AC4370 = -1;
+int32_t CGlueMgr::s_displayedCharacterIndex = -1;
 
 // STATIC: 0x00AC3DC0
 static TSExplicitList<ConsoleString, offsetof(ConsoleString, m_link)> s_connectionStatus;
@@ -714,7 +715,9 @@ void CGlueMgr::Resume() {
     AccountMsg_RegisterScriptFunctions();
     CGVideoOptions::RegisterScriptFunctions();
     CGlueMgr::s_scriptFunctionsLoaded = 1;
-    FrameScript_CreateEvents(g_glueScriptEvents, sizeof(g_glueScriptEvents) / sizeof(g_glueScriptEvents[0]));
+    // Not in the original: extensions register in the new glue state, then the glue events and the
+    // declared events are created together (FrameScript_CreateEvents replaces the whole array).
+    sExtensionMgr->OnFrameScriptInitialized(FRAMESCRIPT_CONTEXT_GLUE, g_glueScriptEvents, sizeof(g_glueScriptEvents) / sizeof(g_glueScriptEvents[0]));
 
     CCharacterSelection::Initialize();
     CCharacterCreation::Initialize();
@@ -1630,7 +1633,7 @@ void CGlueMgr::ChangeRealm(REALM_INFO* realm) {
 
     ClientServices::SelectRealm(realm->m_realmName);
 
-    if (ClientServices::Connection()->unk_2F3C) {
+    if (ClientServices::Connection()->m_connected) {
         CGlueMgr::m_disconnectPending = 1;
         CGlueMgr::m_reconnect = 1;
         ClientServices::Connection()->Disconnect();
@@ -1979,9 +1982,9 @@ void CGlueMgr::EnterWorld() {
         return;
     }
 
-    CGlueMgr::s_unk_AC4370 = CCharacterSelection::s_selectionIndex;
+    CGlueMgr::s_displayedCharacterIndex = CCharacterSelection::s_selectionIndex;
 
-    if (!ClientServices::Connection()->unk_2F3C) {
+    if (!ClientServices::Connection()->m_connected) {
         return;
     }
 
