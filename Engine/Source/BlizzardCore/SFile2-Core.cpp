@@ -1121,6 +1121,9 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
     }
 
     if (!(flags & 0x20000)) {
+        // Not in the original: the handle is open and about to be handed out.
+        sExtensionMgr->OnFileOpened(name, *result);
+
         return opened;
     }
 
@@ -1133,6 +1136,9 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
 
     (*result)->m_type = 5;
     (*result)->m_position = 0;
+
+    // Not in the original: the whole file is read into the handle and about to be handed out.
+    sExtensionMgr->OnFileOpened(name, *result);
 
     return opened;
 

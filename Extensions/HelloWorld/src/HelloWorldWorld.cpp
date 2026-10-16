@@ -1,3 +1,4 @@
+#include "Engine/Source/Tempest/C3Vector.h"
 #include "WoW/Source/Extension/ExtensionMgr.h"
 
 namespace {
@@ -5,6 +6,14 @@ namespace {
 class HelloWorldWorldScript : public WorldScript {
     public:
     HelloWorldWorldScript() : WorldScript("HelloWorldWorldScript") {}
+
+    void OnLoginVerifyWorld(uint32_t mapId, const C3Vector& position, float facing) override {
+        sExtensionMgr->Log("HelloWorld: OnLoginVerifyWorld map %u at %.1f %.1f %.1f facing %.2f", mapId, position.x, position.y, position.z, facing);
+    }
+
+    void OnLogoutComplete() override {
+        sExtensionMgr->Log("HelloWorld: OnLogoutComplete");
+    }
 
     void OnMapLoaded(uint32_t mapId, const char* mapName) override {
         m_worldUpdates = 0;

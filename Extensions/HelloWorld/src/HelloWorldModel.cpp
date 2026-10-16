@@ -27,6 +27,26 @@ class HelloWorldModelScript : public ModelScript {
         }
     }
 
+    void OnModelTexturesCreated(CM2Shared& shared) override {
+        m_texturesCreated++;
+    }
+
+    void OnModelSequenceLoaded(CM2Shared& shared, uint32_t sequenceIndex) override {
+        m_sequencesLoaded++;
+
+        if (m_sequencesLoaded <= 3) {
+            sExtensionMgr->Log("HelloWorld: OnModelSequenceLoaded %s sequence %u", shared.m_fileName, sequenceIndex);
+        }
+    }
+
+    void OnModelAnimated(CM2Model& model) override {
+        m_animated++;
+
+        if (m_animated == 1) {
+            sExtensionMgr->Log("HelloWorld: OnModelAnimated (first)");
+        }
+    }
+
     void OnModelSharedDestroy(CM2Shared& shared) override {
         m_sharedDestroyed++;
     }
@@ -47,13 +67,16 @@ class HelloWorldModelScript : public ModelScript {
         m_destroyed++;
 
         if (m_destroyed % 500 == 0) {
-            sExtensionMgr->Log("HelloWorld: models %u created, %u loaded, %u destroyed; files %u loaded, %u skins, %u freed", m_created, m_loaded, m_destroyed, m_sharedLoaded, m_skinsLoaded, m_sharedDestroyed);
+            sExtensionMgr->Log("HelloWorld: models %u created, %u loaded, %u destroyed, %u animated; files %u loaded, %u textured, %u skins, %u anim(s), %u freed", m_created, m_loaded, m_destroyed, m_animated, m_sharedLoaded, m_texturesCreated, m_skinsLoaded, m_sequencesLoaded, m_sharedDestroyed);
         }
     }
 
     private:
     uint32_t m_sharedLoaded = 0;
+    uint32_t m_texturesCreated = 0;
     uint32_t m_skinsLoaded = 0;
+    uint32_t m_sequencesLoaded = 0;
+    uint32_t m_animated = 0;
     uint32_t m_sharedDestroyed = 0;
     uint32_t m_created = 0;
     uint32_t m_loaded = 0;

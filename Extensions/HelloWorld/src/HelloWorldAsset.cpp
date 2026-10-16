@@ -1,3 +1,4 @@
+#include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/Extension/ExtensionMgr.h"
@@ -42,8 +43,17 @@ class HelloWorldAssetScript : public AssetScript {
         return false;
     }
 
+    void OnFileOpened(const char* name, SFileImpl& file) override {
+        m_opened++;
+
+        if (m_opened <= 3) {
+            sExtensionMgr->Log("HelloWorld: OnFileOpened %s (source type %u)", name, file.m_type);
+        }
+    }
+
     private:
     uint32_t m_opens = 0;
+    uint32_t m_opened = 0;
 };
 
 }

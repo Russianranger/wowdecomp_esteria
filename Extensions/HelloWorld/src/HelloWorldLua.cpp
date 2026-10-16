@@ -34,6 +34,12 @@ class HelloWorldLuaScript : public LuaScript {
 
         sExtensionMgr->Log("HelloWorld: OnFrameScriptInitialized (%s state), HELLO_WORLD_PING is event %u", context == FRAMESCRIPT_CONTEXT_GLUE ? "glue" : "game", s_pingEventIndex);
     }
+
+    // The event index dies with the state; forget it so a ping between states signals nothing.
+    void OnFrameScriptDestroy(lua_State* L) override {
+        s_pingEventIndex = UINT32_MAX;
+        sExtensionMgr->Log("HelloWorld: OnFrameScriptDestroy after %u ping(s)", s_pingCount);
+    }
 };
 
 }

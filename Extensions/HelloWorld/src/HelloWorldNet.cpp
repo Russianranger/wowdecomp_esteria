@@ -9,6 +9,19 @@ class HelloWorldNetScript : public NetScript {
     public:
     HelloWorldNetScript() : NetScript("HelloWorldNetScript") {}
 
+    void OnConnected(NetClient& client) override {
+        sExtensionMgr->Log("HelloWorld: OnConnected");
+    }
+
+    void OnDisconnected(NetClient& client) override {
+        sExtensionMgr->Log("HelloWorld: OnDisconnected after %u received, %u sent", m_received, m_sent);
+    }
+
+    // Lets everything through; a real script would compare msgId against the opcodes it owns.
+    bool CanMessageReceive(NETMESSAGE msgId, uint32_t timeReceived, CDataStore& msg) override {
+        return true;
+    }
+
     void OnMessageReceived(NETMESSAGE msgId, uint32_t timeReceived, CDataStore& msg) override {
         m_received++;
 

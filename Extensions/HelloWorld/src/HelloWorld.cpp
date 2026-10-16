@@ -8,9 +8,13 @@ void AddHelloWorldAssetScripts();
 void AddHelloWorldClientDBScripts();
 void AddHelloWorldClientScripts();
 void AddHelloWorldLuaScripts();
+void AddHelloWorldMapObjectScripts();
 void AddHelloWorldModelScripts();
 void AddHelloWorldNetScripts();
+void AddHelloWorldObjectScripts();
 void AddHelloWorldRenderScripts();
+void AddHelloWorldTerrainScripts();
+void AddHelloWorldTextureScripts();
 void AddHelloWorldWorldScripts();
 
 // The entry point the generated loader calls: Add<DirectoryName>Extension(). Instantiate every
@@ -21,8 +25,12 @@ void AddHelloWorldExtension() {
     AddHelloWorldClientDBScripts();
     AddHelloWorldClientScripts();
     AddHelloWorldLuaScripts();
+    AddHelloWorldMapObjectScripts();
     AddHelloWorldModelScripts();
     AddHelloWorldNetScripts();
+    AddHelloWorldObjectScripts();
     AddHelloWorldRenderScripts();
+    AddHelloWorldTerrainScripts();
+    AddHelloWorldTextureScripts();
     AddHelloWorldWorldScripts();
 }
