@@ -78,6 +78,10 @@ logger off in `WowClient` with `-DWOWCLIENT_CRASH_LOG=OFF`.
 2. Point `Data/<locale>/realmlist.wtf` at the server you want to connect to.
 3. Start `bin/Win/WowClient64.exe` (or `Wow64.exe`).
 
+The built-in cursor selector is under **Escape → Interface → Mouse → Cursor appearance**.
+Human (Default), Night Elf, Orc, and Undead apply immediately and save between sessions.
+See [native cursor textures](Addons/Cursors/README.md) for conversion and behavior details.
+
 ## Layout
 
 | Path | Contents |

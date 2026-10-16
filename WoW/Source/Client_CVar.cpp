@@ -21,6 +21,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Hardware.h"
+#include "WoW/Source/UIUtil/Cursor.h"
 #include "WoW/Source/WowSysMessageOutput.h"
 
 // STATIC: 0x00AB6004
@@ -638,6 +639,7 @@ bool LocaleCallback(CVar* var, const char* oldValue, const char* value, void* ar
 // VERIFY: 9951b118 manual
 // OFFSET: 0x00401B60
 void ClientRegisterConsoleCommands() {
+    CursorRegisterCVars();
     ConsoleCommandRegister("reloadUI", CCommand_ReloadUI, CATEGORY_GRAPHICS, nullptr);
     ConsoleCommandRegister("perf", CCommand_Perf, CATEGORY_DEBUG, nullptr);
 

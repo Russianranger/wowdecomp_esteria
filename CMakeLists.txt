@@ -117,3 +117,11 @@ foreach (target Wow WowClient MapViewer M2Viewer GxTest MpqTest BlpTest DbcTest 
         target_sources(${target} PRIVATE ${CMAKE_SOURCE_DIR}/waystone.rc)
     endif ()
 endforeach ()
+
+# Embed the native cursor art: release clients intentionally disable loose-file reads.
+configure_file(Addons/Cursors/CursorThemes.rc.in CursorThemes.rc @ONLY)
+foreach (target Wow WowClient)
+    if (TARGET ${target})
+        target_sources(${target} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/CursorThemes.rc")
+    endif ()
+endforeach ()

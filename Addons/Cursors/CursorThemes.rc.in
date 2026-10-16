@@ -1,0 +1,6 @@
+#include <windows.h>
+
+// IDs 202..204 match the native theme indices in UIUtil/Cursor.cpp.
+202 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/NightElf.blp"
+203 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Orc.blp"
+204 RCDATA "@CMAKE_SOURCE_DIR@/Addons/Cursors/Textures/Undead.blp"
