@@ -1477,6 +1477,9 @@ static int32_t UnitUpdateProc(WOWGUID guid, void* param) {
             break;
     }
 
+    // Not in the original: every visible object, after its own display update.
+    sExtensionMgr->OnObjectUpdate(object, FrameTime::s_curTimeMs);
+
     return 1;
 }
 

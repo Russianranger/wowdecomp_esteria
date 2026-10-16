@@ -50,6 +50,10 @@ void ExtensionMgr::OnFrameScriptInitialized(FrameScriptContext context, const ch
     s_eventNames.clear();
 }
 
+void ExtensionMgr::OnFrameScriptDestroy(lua_State* L) {
+    CALL_HOOKS(LuaScript, script->OnFrameScriptDestroy(L));
+}
+
 LuaScript::LuaScript(const char* name) : ScriptObject(name) {
     ScriptRegistry<LuaScript>::AddScript(this);
     sExtensionMgr->Log("Extensions: registered LuaScript %s", name);

@@ -37,6 +37,13 @@ class LuaScript : public ScriptObject {
     // FrameScript_RegisterFunction (they run as engine code, untainted) and build Lua tables with
     // the lua_* API on L. No FrameXML or addon file has been loaded yet in this state.
     virtual void OnFrameScriptInitialized(lua_State* L, FrameScriptContext context) {}
+
+    // Start of FrameScript_Destroy (Engine/Source/FrameScript/FrameScript.cpp), before
+    // lua_close: the state L is about to go, with every function, table, reference and event
+    // registered in it. Fires for each rebuild (the Destroy half of CGlueMgr::Resume's flush,
+    // CGGameUI::InitializeFrameXML, /reloadui) and once at client shutdown. Drop anything that
+    // points into the state here; the next OnFrameScriptInitialized gets a fresh one.
+    virtual void OnFrameScriptDestroy(lua_State* L) {}
 };
 
 #endif

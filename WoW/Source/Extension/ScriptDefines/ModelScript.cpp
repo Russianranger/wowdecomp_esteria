@@ -10,6 +10,18 @@ void ExtensionMgr::OnModelSkinLoaded(CM2Shared* shared) {
     CALL_HOOKS(ModelScript, script->OnModelSkinLoaded(*shared));
 }
 
+void ExtensionMgr::OnModelTexturesCreated(CM2Shared* shared) {
+    CALL_HOOKS(ModelScript, script->OnModelTexturesCreated(*shared));
+}
+
+void ExtensionMgr::OnModelSequenceLoaded(CM2Shared* shared, uint32_t sequenceIndex) {
+    CALL_HOOKS(ModelScript, script->OnModelSequenceLoaded(*shared, sequenceIndex));
+}
+
+void ExtensionMgr::OnModelAnimated(CM2Model* model) {
+    CALL_HOOKS(ModelScript, script->OnModelAnimated(*model));
+}
+
 void ExtensionMgr::OnModelSharedDestroy(CM2Shared* shared) {
     CALL_HOOKS(ModelScript, script->OnModelSharedDestroy(*shared));
 }

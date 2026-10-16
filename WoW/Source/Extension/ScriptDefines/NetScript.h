@@ -6,17 +6,36 @@
 #include "WoW/Source/Net/Types.h"
 
 class CDataStore;
+class NetClient;
 
-// The world-server connection, at the two points every message passes through
-// (WoW/Source/Net/NetClient/NetClient.cpp). Both hooks observe: they cannot drop or rewrite a
-// message, and the core restores the stream's read cursor after the hooks so the engine's own
-// handler sees the message exactly as if no script had looked at it. A script may therefore read
-// from msg freely with CDataStore::Get. Do not keep a pointer to msg past the hook.
+// The world-server connection (WoW/Source/Net/NetClient/NetClient.cpp): its state changes and
+// the two points every message passes through. The message hooks never rewrite a message, and
+// the core restores the stream's read cursor after each hook so the engine's own handler sees
+// the message exactly as if no script had looked at it. A script may therefore read from msg
+// freely with CDataStore::Get. Do not keep a pointer to msg past the hook.
 class NetScript : public ScriptObject {
     protected:
     explicit NetScript(const char* name);
 
     public:
+    // NetClient::HandleConnect, once m_netState is NS_CONNECTED: the socket to the world server
+    // is up, nothing has been sent yet (the encryption handshake follows with the first
+    // messages). Fires for the realm connection and for a redirect connection alike.
+    virtual void OnConnected(NetClient& client) {}
+
+    // NetClient::HandleDisconnect, once m_netState is back to NS_INITIALIZED and before the glue
+    // is told (CGlueMgr::NetDisconnectHandler): the connection is gone, whatever the cause
+    // (server close, logout, network error).
+    virtual void OnDisconnected(NetClient& client) {}
+
+    // NetClient::ProcessMessage after OnMessageReceived ran for every script, before the
+    // handler dispatch. Return false to drop the message: it is then treated like an opcode with
+    // no handler (stream reset, ProcessMessage returns 0) and no engine handler sees it. The
+    // first script that returns false ends the vote. Dropping a message the engine relies on
+    // (SMSG_AUTH_CHALLENGE, movement, object updates) desynchronises the client; this is for
+    // messages the script owns or knowingly suppresses.
+    virtual bool CanMessageReceive(NETMESSAGE msgId, uint32_t timeReceived, CDataStore& msg) { return true; }
+
     // NetClient::ProcessMessage, after the 16-bit opcode is read and before the message is
     // dispatched to the handler registered for it (or dropped if there is none). The read cursor
     // is at the payload, where a handler starts reading. Fires for every message of a connected

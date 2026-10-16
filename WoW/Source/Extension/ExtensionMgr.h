@@ -5,9 +5,17 @@
 #include <vector>
 #include "WoW/Source/Extension/ScriptDefines/AllScriptsObjects.h"
 
+class C3Vector;
 class CDataStore;
+class CGObject_C;
 class CM2Model;
 class CM2Shared;
+class CMapArea;
+class CMapObj;
+class CMapObjGroup;
+class CTexture;
+class NetClient;
+class SFileImpl;
 class WowClientDB_Base;
 struct lua_State;
 
@@ -52,6 +60,8 @@ class ExtensionMgr {
     void OnShutdown();
 
     public: /* WorldScript */
+    void OnLoginVerifyWorld(uint32_t mapId, const C3Vector* position, float facing);
+    void OnLogoutComplete();
     void OnMapLoaded(uint32_t mapId, const char* mapName);
     void OnMapUnload();
     void OnWorldUpdate(float elapsedSec);
@@ -62,20 +72,45 @@ class ExtensionMgr {
     void OnFrameEnd();
 
     public: /* NetScript */
+    void OnConnected(NetClient* client);
+    void OnDisconnected(NetClient* client);
     void OnMessageReceived(NETMESSAGE msgId, uint32_t timeReceived, CDataStore* msg);
+    // False when a script refused the message: the caller drops it instead of dispatching.
+    bool CanMessageReceive(NETMESSAGE msgId, uint32_t timeReceived, CDataStore* msg);
     void OnMessageSent(CDataStore* msg);
 
     public: /* ModelScript */
     void OnModelSharedLoaded(CM2Shared* shared);
     void OnModelSkinLoaded(CM2Shared* shared);
+    void OnModelTexturesCreated(CM2Shared* shared);
+    void OnModelSequenceLoaded(CM2Shared* shared, uint32_t sequenceIndex);
     void OnModelSharedDestroy(CM2Shared* shared);
     void OnModelCreated(CM2Model* model);
     void OnModelLoaded(CM2Model* model);
+    void OnModelAnimated(CM2Model* model);
     void OnModelDestroy(CM2Model* model);
+
+    public: /* ObjectScript */
+    void OnObjectCreated(CGObject_C* object);
+    void OnObjectUpdate(CGObject_C* object, uint32_t time);
+    void OnObjectRemoved(CGObject_C* object);
+    void OnObjectDestroy(CGObject_C* object);
+
+    public: /* TerrainScript */
+    void OnTerrainTileLoaded(CMapArea* area);
+    void OnTerrainTileUnload(CMapArea* area);
+
+    public: /* MapObjectScript */
+    void OnMapObjLoaded(CMapObj* mapObj);
+    void OnMapObjGroupLoaded(CMapObjGroup* group);
+
+    public: /* TextureScript */
+    void OnTextureCreated(CTexture* texture, const char* fileName);
 
     public: /* AssetScript */
     // True when a script redirected the open: redirect then holds the substitute path.
     bool OnFileOpen(const char* name, char* redirect, uint32_t redirectSize);
+    void OnFileOpened(const char* name, SFileImpl* file);
 
     public: /* ClientDBScript */
     void OnClientDBLoaded(WowClientDB_Base* db, const char* fileName);
@@ -89,6 +124,7 @@ class ExtensionMgr {
     // FrameScript_CreateEvents call, so the engine's indices are unchanged and the declared
     // events get the indices DeclareFrameScriptEvent returned.
     void OnFrameScriptInitialized(FrameScriptContext context, const char** names, uint32_t count);
+    void OnFrameScriptDestroy(lua_State* L);
 
     // Service for LuaScript::OnFrameScriptInitialized only: returns the index name will have in the
     // event array being built, usable with FrameScript_SignalEvent once the hook has returned. An

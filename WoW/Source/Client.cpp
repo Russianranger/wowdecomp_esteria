@@ -984,6 +984,9 @@ static int32_t Packet_SMSG_LOGIN_VERIFY_WORLD(void* param, NETMESSAGE msgId, uin
     msg->Get(position.z);
     msg->Get(rotation);
 
+    // Not in the original: the server's world position, before the map-change decision.
+    sExtensionMgr->OnLoginVerifyWorld(zoneID, &position, rotation);
+
     if (zoneID == ClntObjMgrGetMapID()) {
         return 1;
     }

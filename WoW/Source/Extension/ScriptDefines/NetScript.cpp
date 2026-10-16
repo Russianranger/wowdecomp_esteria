@@ -3,6 +3,14 @@
 #include "WoW/Source/Extension/ExtensionMgr.h"
 #include "WoW/Source/Extension/ExtensionMgrMacros.h"
 
+void ExtensionMgr::OnConnected(NetClient* client) {
+    CALL_HOOKS(NetScript, script->OnConnected(*client));
+}
+
+void ExtensionMgr::OnDisconnected(NetClient* client) {
+    CALL_HOOKS(NetScript, script->OnDisconnected(*client));
+}
+
 void ExtensionMgr::OnMessageReceived(NETMESSAGE msgId, uint32_t timeReceived, CDataStore* msg) {
     if (ScriptRegistry<NetScript>::ScriptPointerList.empty()) {
         return;
@@ -15,6 +23,29 @@ void ExtensionMgr::OnMessageReceived(NETMESSAGE msgId, uint32_t timeReceived, CD
     CALL_HOOKS(NetScript, (msg->m_read = read, script->OnMessageReceived(msgId, timeReceived, *msg)));
 
     msg->m_read = read;
+}
+
+bool ExtensionMgr::CanMessageReceive(NETMESSAGE msgId, uint32_t timeReceived, CDataStore* msg) {
+    if (ScriptRegistry<NetScript>::ScriptPointerList.empty()) {
+        return true;
+    }
+
+    uint32_t read = msg->m_read;
+    bool allowed = true;
+
+    // First refusal ends the vote; the cursor is restored for the dispatch either way.
+    for (NetScript* script : ScriptRegistry<NetScript>::ScriptPointerList) {
+        msg->m_read = read;
+
+        if (!script->CanMessageReceive(msgId, timeReceived, *msg)) {
+            allowed = false;
+            break;
+        }
+    }
+
+    msg->m_read = read;
+
+    return allowed;
 }
 
 void ExtensionMgr::OnMessageSent(CDataStore* msg) {

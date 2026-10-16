@@ -9,6 +9,10 @@ bool ExtensionMgr::OnFileOpen(const char* name, char* redirect, uint32_t redirec
     return false;
 }
 
+void ExtensionMgr::OnFileOpened(const char* name, SFileImpl* file) {
+    CALL_HOOKS(AssetScript, script->OnFileOpened(name, *file));
+}
+
 AssetScript::AssetScript(const char* name) : ScriptObject(name) {
     ScriptRegistry<AssetScript>::AddScript(this);
     sExtensionMgr->Log("Extensions: registered AssetScript %s", name);

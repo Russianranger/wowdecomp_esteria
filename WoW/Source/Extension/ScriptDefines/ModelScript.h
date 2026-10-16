@@ -1,6 +1,7 @@
 #ifndef WOW_SOURCE_EXTENSION_SCRIPTDEFINES_MODELSCRIPT_H
 #define WOW_SOURCE_EXTENSION_SCRIPTDEFINES_MODELSCRIPT_H
 
+#include <cstdint>
 #include "WoW/Source/Extension/ScriptObject.h"
 
 class CM2Model;
@@ -31,6 +32,17 @@ class ModelScript : public ScriptObject {
     // budget selected (the NN in <model>NN.skin).
     virtual void OnModelSkinLoaded(CM2Shared& shared) {}
 
+    // CM2Shared::Initialize after the texture loop: shared.m_textures holds one CTexture per
+    // M2Texture of the model (a file texture for a named one, a white solid for a runtime
+    // replaceable one). Fires before OnModelSharedLoaded, while the skin read is being issued.
+    virtual void OnModelTexturesCreated(CM2Shared& shared) {}
+
+    // CM2Shared::FinishLoadingLowPrioritySequence once a .anim file's data is relocated into
+    // the model's sequence (M2Init with the sequence's buffer) and the sequence is flagged
+    // loaded. Fires once per sequence index the file satisfies, aliases included, from the
+    // async-read completion; sequenceIndex indexes shared.m_data->m_sequences.
+    virtual void OnModelSequenceLoaded(CM2Shared& shared, uint32_t sequenceIndex) {}
+
     // Start of ~CM2Shared: the file data, skin, textures and buffers are still allocated. Fires
     // when the cache evicts the shared or the last reference goes with no cache.
     virtual void OnModelSharedDestroy(CM2Shared& shared) {}
@@ -47,6 +59,15 @@ class ModelScript : public ScriptObject {
     // queued while it was loading (sequences, textures, lights...) replayed. The model can be
     // rendered from here on.
     virtual void OnModelLoaded(CM2Model& model) {}
+
+    // CM2Scene::Animate, in the single-threaded pass, right after a root model's AnimateST: the
+    // bone matrices, particle and ribbon emitters, lights and texture transforms of this model
+    // and of its attached children are computed for the frame (the multithreaded AnimateMT pass
+    // ran before), lighting not yet set up, nothing drawn. Only models that were queued for
+    // animation this frame (visible ones) come here, and only roots: children animate with
+    // their parent. Every visible model every frame, on the main thread: keep it cheap. The
+    // dispatcher skips the loop entirely when no ModelScript is registered.
+    virtual void OnModelAnimated(CM2Model& model) {}
 
     // Start of ~CM2Model: the instance is about to release its shared and free its arrays;
     // everything is still valid for reading.

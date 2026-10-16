@@ -278,8 +278,14 @@ int32_t NetClient::ProcessMessage(uint32_t timeReceived, CDataStore* msg, int32_
     msg->Get(msgId);
     this->ValidateMessageId(msgId);
 
-    // Not in the original: every incoming message passes here with the cursor at its payload.
+    // Not in the original: every incoming message passes here with the cursor at its payload;
+    // a refused message takes the same exit as an opcode without a handler.
     sExtensionMgr->OnMessageReceived(static_cast<NETMESSAGE>(msgId), timeReceived, msg);
+
+    if (!sExtensionMgr->CanMessageReceive(static_cast<NETMESSAGE>(msgId), timeReceived, msg)) {
+        msg->Reset();
+        return 0;
+    }
 
     if (msgId < NUM_MSG_TYPES && this->m_handlers[msgId]) {
         return this->m_handlers[msgId](this->m_handlerParams[msgId], static_cast<NETMESSAGE>(msgId), timeReceived, msg);
@@ -401,6 +407,10 @@ int32_t NetClient::HandleConnect() {
     }
 
     this->m_netState = NS_CONNECTED;
+
+    // Not in the original: the connection is up, nothing sent yet.
+    sExtensionMgr->OnConnected(this);
+
     NetClient::PopObjMgr();
 
     return 1;
@@ -415,6 +425,10 @@ int32_t NetClient::HandleDisconnect() {
 
     this->m_netState = NS_INITIALIZED;
     ConsolePrintf("NetClient::HandleDisconnect()");
+
+    // Not in the original: the connection is gone, the glue has not reacted yet.
+    sExtensionMgr->OnDisconnected(this);
+
     CGlueMgr::NetDisconnectHandler(this);
     NetClient::PopObjMgr();
 

@@ -4,6 +4,8 @@
 #include <cstdint>
 #include "WoW/Source/Extension/ScriptObject.h"
 
+class SFileImpl;
+
 // Data file access. Every file the client reads by name from the archives or the data directory
 // (.dbc, .m2, .skin, .anim, .blp, .wmo, .adt, FrameXML, addons, sounds) goes through
 // SFile::OpenEx(nullptr, name, ...) (Engine/Source/BlizzardCore/SFile2-Core.cpp), either directly
@@ -25,8 +27,15 @@ class AssetScript : public ScriptObject {
     // asked. Return false to leave the request alone. The substitute must itself exist in the
     // archives or under the data path: this hook changes which file is opened, it does not
     // supply bytes. Not consulted for opens that name an archive explicitly (SFile::OpenEx with
-    // an SArchive) nor for SFile::FileExists checks.
+    // an SArchive). SFile::FileExists and FileExistsEx ask the same question, so an existence
+    // check follows the redirect too.
     virtual bool OnFileOpen(const char* name, char* redirect, uint32_t redirectSize) { return false; }
+
+    // SFile::OpenEx on success, before the handle is returned to the caller: name is the path
+    // that was opened (after any redirect), file the open handle (file.m_type tells the source:
+    // 0 a file on disk, 3 an archive entry, 5 fully read into file.m_data for a 0x20000 open;
+    // file.m_name the resolved name). Observe only; the caller owns and closes the handle.
+    virtual void OnFileOpened(const char* name, SFileImpl& file) {}
 };
 
 #endif

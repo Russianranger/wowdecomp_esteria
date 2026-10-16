@@ -6,9 +6,13 @@
 #include "WoW/Source/Extension/ScriptDefines/ClientDBScript.h"
 #include "WoW/Source/Extension/ScriptDefines/ClientScript.h"
 #include "WoW/Source/Extension/ScriptDefines/LuaScript.h"
+#include "WoW/Source/Extension/ScriptDefines/MapObjectScript.h"
 #include "WoW/Source/Extension/ScriptDefines/ModelScript.h"
 #include "WoW/Source/Extension/ScriptDefines/NetScript.h"
+#include "WoW/Source/Extension/ScriptDefines/ObjectScript.h"
 #include "WoW/Source/Extension/ScriptDefines/RenderScript.h"
+#include "WoW/Source/Extension/ScriptDefines/TerrainScript.h"
+#include "WoW/Source/Extension/ScriptDefines/TextureScript.h"
 #include "WoW/Source/Extension/ScriptDefines/WorldScript.h"
 
 #endif

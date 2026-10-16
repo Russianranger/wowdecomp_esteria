@@ -66,9 +66,13 @@ void ExtensionMgr::Unload() {
     ScriptRegistry<ClientDBScript>::Clear();
     ScriptRegistry<ClientScript>::Clear();
     ScriptRegistry<LuaScript>::Clear();
+    ScriptRegistry<MapObjectScript>::Clear();
     ScriptRegistry<ModelScript>::Clear();
     ScriptRegistry<NetScript>::Clear();
+    ScriptRegistry<ObjectScript>::Clear();
     ScriptRegistry<RenderScript>::Clear();
+    ScriptRegistry<TerrainScript>::Clear();
+    ScriptRegistry<TextureScript>::Clear();
     ScriptRegistry<WorldScript>::Clear();
     m_scriptCount = 0;
 

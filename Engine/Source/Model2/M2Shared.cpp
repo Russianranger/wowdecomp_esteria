@@ -1570,6 +1570,9 @@ int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, uint
 
     sequence->m_flags = (sequence->m_flags & ~0x30u) | 0x20;
 
+    // Not in the original: this sequence's .anim data is relocated and the sequence flagged loaded.
+    sExtensionMgr->OnModelSequenceLoaded(this, sequenceIndex);
+
     return 1;
 }
 
@@ -1719,6 +1722,9 @@ int32_t CM2Shared::Initialize() {
             this->m_textures[i] = TextureCreateSolid(*reinterpret_cast<const CImVector*>(&white));
         }
     }
+
+    // Not in the original: one CTexture per M2Texture exists now.
+    sExtensionMgr->OnModelTexturesCreated(this);
 
     for (uint32_t i = 0; i < this->m_data->m_bones.m_count; i++) {
         if (this->m_data->m_bones[i].m_flags & 0x2F8) {

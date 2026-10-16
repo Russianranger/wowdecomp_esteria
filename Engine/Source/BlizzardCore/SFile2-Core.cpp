@@ -1022,6 +1022,13 @@ int32_t STORMAPI SFile::FileExistsEx(const char* name, uint32_t flags) {
     char path[260];
     uint32_t type;
 
+    // Not in the original: an existence check follows the same redirect as an open.
+    char redirected[260];
+
+    if (sExtensionMgr->OnFileOpen(name, redirected, sizeof(redirected))) {
+        name = redirected;
+    }
+
     return System_SFile2::FindFile(name, path, sizeof(path), flags, &type, nullptr);
 }
 
@@ -1144,6 +1151,13 @@ fail:
 int32_t STORMAPI SFile::FileExists(const char* name) {
     char path[260];
     uint32_t type;
+
+    // Not in the original: an existence check follows the same redirect as an open.
+    char redirected[260];
+
+    if (sExtensionMgr->OnFileOpen(name, redirected, sizeof(redirected))) {
+        name = redirected;
+    }
 
     return System_SFile2::FindFile(name, path, sizeof(path), 0, &type, nullptr);
 }
