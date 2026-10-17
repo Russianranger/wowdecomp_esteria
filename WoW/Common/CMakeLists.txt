@@ -8,3 +8,7 @@ target_include_directories(WoWCommon
     PUBLIC
         ${CMAKE_SOURCE_DIR}
 )
+
+if (WOWDECOMP_RETAIL_ASSETS)
+    target_link_libraries(WoWCommon PRIVATE RetailAssets)
+endif ()

@@ -46,10 +46,10 @@ namespace gxvk::vk::pipelines
     constexpr uint32_t kTextureStages = 16;
 
     /// The constant register files of the translated interface: pixel c0..c15, vertex c0..c63 or
-    /// c0..c255 by the vertex record's `vconst`.
-    constexpr uint32_t kPixelRows       = 16;
+    /// c0..c511 by the vertex record's `vconst`.
+    constexpr uint32_t kPixelRows       = 20;
     constexpr uint32_t kVertexRowsSmall = 64;
-    constexpr uint32_t kVertexRowsLarge = 256;
+    constexpr uint32_t kVertexRowsLarge = 512;
 
     enum class VertexProgram : uint32_t
     {

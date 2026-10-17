@@ -26,6 +26,10 @@
 #include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Os/OsMemory.h"
 #include "WoW/Source/Extension/ExtensionMgr.h"
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+#include "Engine/Source/Retail/CascSource.h"
+#include "Engine/Source/Retail/RetailShader.h"
+#endif
 
 // Out of range / 0xFFFF coordinate combo indices (newer or converted models) read as coordinate set 0.
 static uint16_t SafeCoordCombo(const M2Data* data, uint32_t index) {
@@ -730,6 +734,38 @@ int32_t M2Init<M2Texture>(uint8_t* base, uint32_t size, const M2Data& data, M2Ar
 CShaderEffect* CM2Shared::GetEffect(M2Batch* batch) {
     CShaderEffect* effect;
 
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    if (Retail::Source().Handles(this->m_fileName) && batch->m_shader == 0x8010) {
+        const char* name = "Retail_Opaque_Reflection_Glow";
+        if (auto* existing = CShaderEffectManager::GetEffect(name)) return existing;
+        effect = CShaderEffectManager::CreateEffect(name);
+        effect->InitEffect("Diffuse_T1_Env", "Combiners_Opaque_Mod2xNA_Alpha");
+        for (unsigned i = 0; i < 16; ++i) {
+            auto* original = effect->m_pixelShaders[i];
+            std::vector<uint8_t> input(original->m_code.m_data, original->m_code.m_data + original->m_code.m_count), code;
+            std::string error;
+            if (!Retail::AddGlowLayer(input, code, error)) {
+                DebugLog("Retail material: %s", error.c_str()); return nullptr;
+            }
+            char shaderName[80]; std::snprintf(shaderName, sizeof(shaderName), "%s:%u", name, i);
+            auto* shader = g_theGxDevicePtr->m_shaderList[GxSh_Pixel].New(shaderName, 0, 0);
+            shader->m_refCount = 1; shader->m_target = GxSh_Pixel;
+            shader->m_code.SetCount(uint32_t(code.size()));
+            std::memcpy(shader->m_code.m_data, code.data(), code.size());
+            g_theGxDevicePtr->ShaderDestroy(effect->m_pixelShaders[i]);
+            effect->m_pixelShaders[i] = shader;
+        }
+        return effect;
+    }
+    if (Retail::Source().Handles(this->m_fileName) && batch->m_shader == 0x8011) {
+        const char* name = "Retail_Mod_Mod2x_T1_T2";
+        if (auto* existing = CShaderEffectManager::GetEffect(name)) return existing;
+        effect = CShaderEffectManager::CreateEffect(name);
+        effect->InitEffect("Diffuse_T1_T2", "Combiners_Mod_Mod2x");
+        return effect;
+    }
+#endif
+
     if (!(batch->m_shader & 0x8000)) {
         effect = this->GetEffect(batch->m_textureCount, batch->m_shader, batch->m_textureCoordComboIndex);
     } else {
@@ -1194,8 +1230,16 @@ int32_t CM2Shared::InitializeSkinProfile() {
         memset(this->m_effects, 0, sizeof(CShaderEffect*) * this->m_skinData->m_batches.m_count);
     }
 
-    this->SubstituteSimpleShaders();
-    this->SubstituteSpecializedShaders();
+    // Retail's adapter has already resolved shader IDs and texture table runs.
+    // Legacy specialization packs pairs into one word and cannot preserve a
+    // three-layer material, so it must not process these native batches again.
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    if (!Retail::Source().Handles(this->m_fileName))
+#endif
+    {
+        this->SubstituteSimpleShaders();
+        this->SubstituteSpecializedShaders();
+    }
 
     if (this->m_skinData->m_indices.m_count) {
         for (uint32_t i = 0; i < this->m_skinData->m_batches.m_count; i++) {
@@ -1980,6 +2024,10 @@ CM2Shared::~CM2Shared() {
     if (!pending) {
         SIMD::FreeA16(this->m_data);
     }
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    // Drop the validation copy when the last native cache using this model lets go.
+    Retail::Source().ReleaseModel(this->m_fileName);
+#endif
 }
 
 // VERIFY: aeff737a manual

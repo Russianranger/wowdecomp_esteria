@@ -81,6 +81,7 @@ def main(argv):
     ap.add_argument('--out', default=DEFAULT_OUT, help='the output tree (default: translated/ here)')
     ap.add_argument('--deploy', action='store_true', help='copy the result into <client>/VulkanShaders/')
     ap.add_argument('--names', default=None, help='only these Name:perm (comma-separated), for a look')
+    ap.add_argument('--extra-pixel', default=None, help='folder of raw ps_3_0 token streams (*.bin) translated as extra pixel records')
     ap.add_argument('--print', action='store_true', help='print the GLSL of each emitted record')
     args = ap.parse_args(argv)
 
@@ -100,6 +101,8 @@ def main(argv):
     sys.path.insert(0, HERE)
     from bls import translate
     argv2 = ['--data', data, '--glslang', glslang]
+    if args.extra_pixel:
+        argv2 += ['--extra-pixel', args.extra_pixel]
     if args.names:
         argv2 += ['--names', args.names]
         if args.print:

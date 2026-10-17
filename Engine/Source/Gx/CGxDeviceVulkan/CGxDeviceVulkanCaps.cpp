@@ -102,7 +102,7 @@ void CGxDeviceVulkan::ISetCaps(const CGxFormat& format) {
 
     this->m_caps.m_shaderTargets[GxSh_Pixel] = 4;
     this->m_caps.m_shaderTargets[GxSh_Vertex] = 3;
-    this->m_caps.m_shaderConstants[GxSh_Vertex] = 256;
+    this->m_caps.m_shaderConstants[GxSh_Vertex] = 512;
 
     if (format.m_fixedFunction[GxSh_Pixel] != -1 && format.m_fixedFunction[GxSh_Pixel] <= this->m_caps.m_shaderTargets[GxSh_Pixel]) {
         this->m_caps.m_shaderTargets[GxSh_Pixel] = format.m_fixedFunction[GxSh_Pixel];

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <d3d11sdklayers.h>
 #include "Engine/Source/Gx/CGxDeviceD3d11/CGxDeviceD3d11.h"
 #include "Engine/Source/Gx/Blit.h"
 #include "Engine/Source/Gx/CGxBuf.h"
@@ -59,6 +60,30 @@ const char* const CGxDeviceD3d11::s_attribSemantic[GxVAs_Last] = { "POSITION", "
 const uint32_t CGxDeviceD3d11::s_attribSemanticIndex[GxVAs_Last] = { 0, 0, 0, 0, 0, 1, 0, 1, 2, 3, 4, 5, 6, 7 };
 
 static bool s_d3d11Debug = false;
+
+// Driver validation is opt-in. Keep API warnings with the renderer log so a
+// successful shader compile cannot hide invalid buffer or pipeline bindings.
+static void LogDebugMessages(ID3D11Device* device) {
+    if (!s_d3d11Debug) return;
+    ID3D11InfoQueue* queue = nullptr;
+    if (FAILED(device->QueryInterface(__uuidof(ID3D11InfoQueue), reinterpret_cast<void**>(&queue)))) return;
+    static unsigned logged = 0;
+    static std::map<unsigned, unsigned> seen;
+    const UINT64 count = queue->GetNumStoredMessagesAllowedByRetrievalFilter();
+    for (UINT64 i = 0; i < count && logged < 512; ++i) {
+        SIZE_T size = 0;
+        queue->GetMessage(i, nullptr, &size);
+        std::vector<uint8_t> bytes(size);
+        auto* message = reinterpret_cast<D3D11_MESSAGE*>(bytes.data());
+        if (SUCCEEDED(queue->GetMessage(i, message, &size)) && message->Severity <= D3D11_MESSAGE_SEVERITY_WARNING &&
+            seen[message->ID]++ < 4) {
+            D3d11Log("D3D11 validation %u severity %u: %s", message->ID, message->Severity, message->pDescription);
+            ++logged;
+        }
+    }
+    queue->ClearStoredMessages();
+    queue->Release();
+}
 
 
 void D3d11Log(const char* format, ...) {
@@ -1044,6 +1069,7 @@ void CGxDeviceD3d11::ScenePresent() {
 
         UINT interval = this->m_format.m_vsync ? 1 : 0;
         HRESULT hr = this->m_swapChain->Present(interval, 0);
+        LogDebugMessages(this->m_d3dDevice);
 
         this->m_statFrames++;
 

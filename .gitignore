@@ -412,3 +412,8 @@ FodyWeavers.xsd
 # Local Visual Studio CMake settings (absolute paths to re/tools)
 CMakeSettings.json
 /Tools/VulkanShaders/translated
+
+# Per-machine Retail CDN configuration and game data cache.
+RetailCasc.ini
+RetailCache/
+__pycache__/

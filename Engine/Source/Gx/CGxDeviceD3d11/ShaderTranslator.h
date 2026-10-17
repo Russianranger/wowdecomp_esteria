@@ -9,7 +9,7 @@
 // Translates D3D9 SM2.0/SM3.0 shader bytecode (the payload of a .bls) to HLSL source
 // that compiles for vs_5_0 / ps_5_0. SM1.x is not supported.
 //
-// Constants live in a single cbuffer b0 (float4 c[256]), the same layout as
+// Constants live in a single cbuffer b0 (float4 c[1024]), the same layout as
 // ShadowConstants. Samplers s# map to Texture2D/TextureCube/Texture3D t# + SamplerState s#.
 struct D3d9ShaderInfo {
     bool m_isPixel = false;

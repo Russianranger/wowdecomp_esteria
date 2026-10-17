@@ -13,3 +13,7 @@ target_link_libraries(Model2
     PRIVATE
         Extension
 )
+
+if (WOWDECOMP_RETAIL_ASSETS)
+    target_link_libraries(Model2 PRIVATE RetailAssets)
+endif ()

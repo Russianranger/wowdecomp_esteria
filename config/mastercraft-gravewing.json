@@ -1,0 +1,22 @@
+{
+  "slug": "mastercraft-gravewing",
+  "name": "Mastercraft Gravewing",
+  "product": "wow",
+  "build": "88d5e8ef05ec5a8446cdec93d142d7c6",
+  "retail_mount_id": 803,
+  "retail_spell_id": 215545,
+  "retail_item_id": 186479,
+  "retail_display_id": 100108,
+  "retail_model_id": 12614,
+  "model_file_id": 3852506,
+  "texture_file_ids": [3852567, 3852551],
+  "icon_file_id": 3852563,
+  "collision_width": 0.61111110449,
+  "collision_height": 2.03127789497,
+  "mount_height": 5.65102291107,
+  "bounds": [-6.18130731583, -4.0892829895, -0.76160949469, 3.62361621857, 3.83387827873, 5.64782190323],
+  "metadata_build": "12.1.5.70448",
+  "metadata_tables": ["Mount:803", "MountXDisplay:706", "CreatureDisplayInfo:100108", "CreatureModelData:12614"],
+  "metadata_provider": "https://wago.tools/db2",
+  "summon_donor": 61309
+}

@@ -76,6 +76,7 @@ void CM2SceneRender::SetupTextures() {
 
     M2Batch* batch = this->m_curBatch;
     uint32_t count = batch->m_textureCount;
+    const bool retailGlow = batch->m_shader == 0x8010 && count == 3;
     int32_t envSecond;
 
     if (!CShaderEffect::s_enableShaders) {
@@ -113,7 +114,13 @@ void CM2SceneRender::SetupTextures() {
             uint32_t stage = envSecond ? 1 : i;
             uint16_t shader = this->m_curBatch->m_shader;
 
-            if ((shader & 0x8000) || !((shader >> shift) & 8)) {
+            if (retailGlow && i == 2) {
+                const C44Matrix& matrix = transform < this->m_data->m_textureTransforms.m_count ?
+                    this->m_curModel->m_textureMatrices[transform] : s_identity;
+                const float constants[12] = {matrix.a0, matrix.a1, 0, 0, matrix.b0, matrix.b1, 0, 0,
+                    matrix.d0, matrix.d1, 1, 0};
+                GxShaderConstantsSet(GxSh_Pixel, 16, constants, 3);  // c16..c18: past the fog rows of the Vulkan pixel window
+            } else if ((shader & 0x8000) || !((shader >> shift) & 8)) {
                 if (transform >= this->m_data->m_textureTransforms.m_count) {
                     CShaderEffect::SetTexMtx_Identity(stage);
                 } else {
@@ -123,7 +130,7 @@ void CM2SceneRender::SetupTextures() {
                 CShaderEffect::SetTexMtx_SphereMap(stage);
             }
 
-            shift -= 4;
+            if (shift >= 4) shift -= 4;
             i++;
         } while (i < count);
 

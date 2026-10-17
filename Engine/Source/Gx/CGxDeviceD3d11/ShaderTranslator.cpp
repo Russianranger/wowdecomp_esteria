@@ -682,7 +682,7 @@ bool Translator::Run(std::string& out) {
 
     // assemble
     std::string h;
-    h += "cbuffer Constants : register(b0) { float4 c[256]; };\n";
+    h += "cbuffer Constants : register(b0) { float4 c[1024]; };\n";
     // b1: device-emulated D3D9 render state. gx_alpha.x/y = alpha test enable / reference, gx_clip = user clip planes.
     h += "cbuffer Extra : register(b1) { float4 gx_alpha; float4 gx_clip[6]; };\n";
     h += samplers;

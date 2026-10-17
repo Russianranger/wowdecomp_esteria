@@ -38,7 +38,9 @@ class CImVector;
 
 class ShadowConstants {
     public:
-    /* 0000 */ float constants[256 * 4];
+    // Native Retail bone palettes can exceed the old 75-bone register budget.
+    static constexpr uint32_t Count = 1024;
+    /* 0000 */ float constants[Count * 4];
     /* 1000 */ uint32_t dirtyMax;
     /* 1004 */ uint32_t dirtyMin;
 };

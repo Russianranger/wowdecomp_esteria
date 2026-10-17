@@ -15,6 +15,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(cmake/ExtendedLimits.cmake)
 
+option(WOWDECOMP_RETAIL_ASSETS "Read Retail assets from local CASC or Blizzard's CDN" OFF)
+if (WOWDECOMP_RETAIL_ASSETS)
+    include(cmake/RetailAssets.cmake)
+endif ()
+
 if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
     message(FATAL_ERROR "wowdecomp targets Windows only.")
 endif ()

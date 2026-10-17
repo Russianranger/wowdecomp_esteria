@@ -155,14 +155,14 @@ namespace
             if (std::strncmp(t[i], "vconst=", 7) == 0)
             {
                 const long v = std::strtol(t[i] + 7, nullptr, 10);
-                if (v != 64 && v != 256) return false;
+                if (v != 64 && v != 512) return false;
                 out.vconst = static_cast<uint16_t>(v);
                 haveV      = true;
             }
             else if (std::strncmp(t[i], "pconst=", 7) == 0)
             {
                 const long p = std::strtol(t[i] + 7, nullptr, 10);
-                if (p <= 0 || p > 16) return false;
+                if (p <= 0 || p > 20) return false;
                 out.pconst = static_cast<uint16_t>(p);
                 haveP      = true;
             }

@@ -695,7 +695,8 @@ void CMap::Initialize() {
         CMap::m_areaInfo[i].m_flags = 0;
     }
 
-    CMap::scCollideList.SetCount(2048);
+    // Long collision sweeps (fast flight, large mounted boxes) walk well over 1024 cells; the walkers do not all bound-check.
+    CMap::scCollideList.SetCount(65536);
 
     CMap::cCount = 0;
     CMap::s_queryTag = 0;
@@ -1067,7 +1068,7 @@ void CMap::VectorIntersectDX(C3Vector& start, C3Vector& end, CiRect& cells) {
     CMap::scCollideList.m_data[CMap::cCount++] = y;
 
     while (x != cells.maxX + step) {
-        if (CMap::cCount >= 0x7FC) {
+        if (CMap::cCount >= 0xFFFC) {
             return;
         }
 
@@ -1119,7 +1120,7 @@ void CMap::VectorIntersectDY(C3Vector& start, C3Vector& end, CiRect& cells) {
     CMap::scCollideList.m_data[CMap::cCount++] = cells.minY;
 
     while (y != cells.maxY + step) {
-        if (CMap::cCount >= 0x7FC) {
+        if (CMap::cCount >= 0xFFFC) {
             return;
         }
 

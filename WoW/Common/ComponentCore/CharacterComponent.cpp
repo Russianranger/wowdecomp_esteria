@@ -49,6 +49,10 @@
 #include "WoW/Source/DB/Rec/ItemVisualsRec.h"
 #include "WoW/Source/DB/Rec/ParticleColorRec.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+#include "Engine/Source/Retail/CascSource.h"
+#include "Engine/Source/Retail/RetailModel.h"
+#endif
 
 // STATIC: 0x009F6A00
 static int32_t s_itemPriority[NUM_ITEM_SLOTS][NUM_COMPONENT_SECTIONS] = {
@@ -2192,6 +2196,18 @@ GEOCOMPONENTLINKS CCharacterComponent::AddHandItem(CM2Model* model, const ItemDi
     if (model->IsLoaded(0, 0) && !model->HasAttachment(link)) {
         return ATTACH_NONE;
     }
+
+    // Keep the normal hand/sheath links, finger pose, item visuals and scale.
+    // Only the model and object-skin texture filenames come from Retail.
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    Retail::HandItemAppearance retail;
+    if (Retail::Source().HandItem(displayRec->m_id, retail, invSlot == INVSLOT_MAINHAND)) {
+        const auto modelPath = Retail::FileName(retail.modelId, ".m2");
+        const auto texturePath = Retail::FileName(retail.textureId, ".blp");
+        CCharacterComponent::AddLink(model, link, modelPath.c_str(), texturePath.c_str(), itemVisual ? itemVisual : displayRec->m_itemVisual, displayRec);
+        return link;
+    }
+#endif
 
     strcpy(s_buffer, folder);
     strcat(s_buffer, displayRec->m_modelName[0]);

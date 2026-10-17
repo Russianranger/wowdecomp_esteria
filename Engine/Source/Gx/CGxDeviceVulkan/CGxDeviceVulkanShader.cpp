@@ -268,22 +268,22 @@ void CGxDeviceVulkan::IShaderFolder(char* folder, size_t size) {
 void CGxDeviceVulkan::IShaderConstantsFlush() {
     ShadowConstants& vs = CGxDevice::s_shadowConstants[1];
 
-    if (vs.dirtyMin <= vs.dirtyMax && vs.dirtyMax < 256) {
+    if (vs.dirtyMin <= vs.dirtyMax && vs.dirtyMax < ShadowConstants::Count) {
         memcpy(&this->m_vertexRegs[vs.dirtyMin * 4], &vs.constants[vs.dirtyMin * 4], (vs.dirtyMax - vs.dirtyMin + 1) * 4 * sizeof(float));
         g_stats.flushes++;
     }
 
-    vs.dirtyMin = 255;
+    vs.dirtyMin = ShadowConstants::Count - 1;
     vs.dirtyMax = 0;
 
     ShadowConstants& ps = CGxDevice::s_shadowConstants[0];
 
-    if (ps.dirtyMin <= ps.dirtyMax && ps.dirtyMax < 256) {
+    if (ps.dirtyMin <= ps.dirtyMax && ps.dirtyMax < ShadowConstants::Count) {
         memcpy(&this->m_pixelRegs[ps.dirtyMin * 4], &ps.constants[ps.dirtyMin * 4], (ps.dirtyMax - ps.dirtyMin + 1) * 4 * sizeof(float));
         g_stats.flushes++;
     }
 
-    ps.dirtyMin = 255;
+    ps.dirtyMin = ShadowConstants::Count - 1;
     ps.dirtyMax = 0;
 }
 

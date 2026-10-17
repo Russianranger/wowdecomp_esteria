@@ -10,7 +10,7 @@ The interface contract every module shares (the device's pipelines are built aga
                   pixel module whose reads it covers.
   Constants       one std140 block, set 1 binding 0: { vec4 p[16]; vec4 misc; vec4 v[VCONST]; }.
                   p[] and misc come first so a pixel module, which never reads v[], can declare v[64]
-                  whatever class the paired vertex module is. VCONST is 64 or 256 per the vertex
+                  whatever class the paired vertex module is. VCONST is 64 or 512 per the vertex
                   record's highest constant (manifest `vconst=`). misc.x is the alpha test reference
                   (alphaRef / 255, 0 = off), misc.z / misc.w the stage-0 colour / alpha op (read by
                   the generated companion stages only).
@@ -37,8 +37,8 @@ VARYING_LOCATION = {'color0': 0, 'color1': 1, 'fog0': 10}
 for _i in range(8):
     VARYING_LOCATION['texcoord%d' % _i] = 2 + _i
 VARYING_TYPE = {'fog0': 'float'}
-PCONST = 16
-VCONST_SMALL, VCONST_LARGE = 64, 256
+PCONST = 20
+VCONST_SMALL, VCONST_LARGE = 64, 512
 
 # vs_2_0 fixed-function output registers -> semantic
 VS2_OUT = {'oPos': 'position0', 'oD0': 'color0', 'oD1': 'color1', 'oFog': 'fog0', 'oPts': 'psize0'}
@@ -136,7 +136,7 @@ class Emitter(object):
         self.cmax = max(self.cmax, o.index)
         if self.vs:
             if o.index >= VCONST_LARGE:
-                raise Refused('vertex constant c%d beyond the 256-row window' % o.index)
+                raise Refused('vertex constant c%d beyond the 512-row window' % o.index)
             return 'regs.v[%d]' % o.index
         if o.index >= PCONST:
             raise Refused('pixel constant c%d beyond the 16-row window' % o.index)
@@ -621,7 +621,7 @@ class Emitter(object):
         P('')
         P('// One slice of the uniform ring. p[] and misc come FIRST so that a pixel module, which never')
         P('// reads v[], can declare v[64] whatever class the paired vertex module is: p[i] is at byte')
-        P('// 16*i, misc at 256, v[i] at 272 + 16*i, in both classes. VCONST is 64 or 256 per the vertex')
+        P('// 16*i, misc at 256, v[i] at 272 + 16*i, in both classes. VCONST is 64 or 512 per the vertex')
         P('// record\'s highest constant (manifest `vconst=`); the slice is 272 + 16*VCONST bytes.')
         P('layout(std140, set = 1, binding = 0) uniform Regs {')
         P('    vec4 p[%d];     // pixel c0..c%d' % (PCONST, PCONST - 1))

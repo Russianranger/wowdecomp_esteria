@@ -55,3 +55,7 @@ target_link_libraries(WowExtensions
     PUBLIC
         Extension
 )
+
+if (WOWDECOMP_RETAIL_ASSETS)
+    target_link_libraries(WowExtensions PRIVATE RetailAssets)
+endif ()

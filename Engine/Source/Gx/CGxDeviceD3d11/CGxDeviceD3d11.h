@@ -100,7 +100,7 @@ class CGxDeviceD3d11 : public CGxDevice {
     ID3D11Buffer* m_constants[2] = {};  // 0 = pixel, 1 = vertex (matches s_shadowConstants)
     ID3D11Buffer* m_extraConstants[2] = {};
     float m_extra[2][28] = {};
-    float m_gpuConstants[2][1024] = {};
+    float m_gpuConstants[2][ShadowConstants::Count * 4] = {};
     float m_curBlendFactor = 1.0f;
     int32_t m_extraDirty[2] = { 1, 1 };
 

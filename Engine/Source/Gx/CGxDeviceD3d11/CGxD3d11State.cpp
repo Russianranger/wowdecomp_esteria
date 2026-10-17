@@ -338,7 +338,7 @@ void CGxDeviceD3d11::IShaderConstantsFlush() {
             this->m_d3dContext->UpdateSubresource(this->m_constants[stage], 0, nullptr, this->m_gpuConstants[stage], 0, 0);
         }
 
-        constants.dirtyMin = 255;
+        constants.dirtyMin = ShadowConstants::Count - 1;
         constants.dirtyMax = 0;
     }
 
@@ -595,6 +595,25 @@ void CGxDeviceD3d11::IBindVertexInput(ShaderData* vs) {
 // draw
 
 void CGxDeviceD3d11::IStateSync() {
+    static const bool rebind = GetEnvironmentVariableA("WOW_D3D11_REBIND", nullptr, 0) != 0;
+    if (rebind) {
+        // Diagnostic control: reconstruct bindings from Gx without relying on
+        // cached hardware state across offscreen and main-scene draws.
+        this->m_curBlend = nullptr;
+        this->m_curDepth = nullptr;
+        this->m_curRaster = nullptr;
+        this->m_curLayout = nullptr;
+        this->m_curVs = nullptr;
+        this->m_curPs = nullptr;
+        this->m_curIndexBuffer = nullptr;
+        this->m_curTopology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
+        memset(this->m_curVertexBuffers, 0, sizeof(this->m_curVertexBuffers));
+        memset(this->m_curSrvs, 0, sizeof(this->m_curSrvs));
+        memset(this->m_curSamplers, 0, sizeof(this->m_curSamplers));
+        this->m_targetsDirty = 1;
+        this->m_viewportDirty = 1;
+        this->m_scissorRectDirty = 1;
+    }
     this->IRsSync(0);
     this->ISetTargets();
     this->IShaderConstantsFlush();

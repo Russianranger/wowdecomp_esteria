@@ -17,6 +17,10 @@ target_link_libraries(BlizzardCore
         Extension
 )
 
+if (WOWDECOMP_RETAIL_ASSETS)
+    target_link_libraries(BlizzardCore PUBLIC RetailAssets)
+endif ()
+
 if(WIN32)
     target_link_libraries(BlizzardCore
         PUBLIC
