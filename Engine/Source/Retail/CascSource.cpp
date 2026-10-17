@@ -428,8 +428,20 @@ CascSource& Source() {
     static std::once_flag initialized;
     std::call_once(initialized, [&] {
         const char* path = std::getenv("WOW_RETAIL_CONFIG");
-        std::string error;
-        if (!source.Configure(path && *path ? path : "RetailCasc.ini", error))
+        std::string error, fallback = "RetailCasc.ini";
+#ifdef _WIN32
+        if (!path || !*path) {
+            // Launching the .exe directly: use the installed pack's config beside it (Data\\Retail\\RetailCasc.ini).
+            char exe[MAX_PATH];
+            const DWORD length = GetModuleFileNameA(nullptr, exe, sizeof(exe));
+            if (length && length < sizeof(exe)) {
+                const auto installed = std::filesystem::path(exe).parent_path() / "Data" / "Retail" / "RetailCasc.ini";
+                std::error_code code;
+                if (std::filesystem::exists(installed, code)) fallback = installed.string();
+            }
+        }
+#endif
+        if (!source.Configure(path && *path ? path : fallback.c_str(), error))
             std::fprintf(stderr, "Retail CASC: %s\n", error.c_str());
     });
     return source;

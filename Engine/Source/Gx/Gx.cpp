@@ -115,7 +115,12 @@ static int (*s_drawListSorters[GxuSorts_Last])(const void*, const void*) = { Dra
 // VERIFY: 0b88acbc auto
 // OFFSET: 0x008C8DE0
 EGxApi GxDefaultApi() {
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    // Native Retail models need the larger bone palette, which D3D9 cannot hold (-d3d9 / the gxApi CVar still override).
+    return GxApi_Vulkan;
+#else
     return GxApi_D3d9;
+#endif
 }
 
 // VERIFY: cef2b995 auto

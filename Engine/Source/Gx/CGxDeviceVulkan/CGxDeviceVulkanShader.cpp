@@ -259,6 +259,17 @@ void CGxDeviceVulkan::IShaderFolder(char* folder, size_t size) {
         *slash = '\0';
     }
 
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    // Retail builds read the shader set with the 512-row vertex class and the glow permutations when it is installed.
+    char retailManifest[MAX_PATH];
+    SStrPrintf(retailManifest, sizeof(retailManifest), "%s\\VulkanShadersRetail\\manifest.txt", exe);
+
+    if (GetFileAttributesA(retailManifest) != INVALID_FILE_ATTRIBUTES) {
+        SStrPrintf(folder, static_cast<int32_t>(size), "%s\\VulkanShadersRetail", exe);
+        return;
+    }
+#endif
+
     SStrPrintf(folder, static_cast<int32_t>(size), "%s\\VulkanShaders", exe);
 }
 

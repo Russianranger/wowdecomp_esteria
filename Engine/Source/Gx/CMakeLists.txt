@@ -36,3 +36,7 @@ if (WIN32)
             GxVulkan
     )
 endif ()
+
+if (WOWDECOMP_RETAIL_ASSETS)
+    target_compile_definitions(Gx PRIVATE WOWDECOMP_RETAIL_ASSETS=1)
+endif ()

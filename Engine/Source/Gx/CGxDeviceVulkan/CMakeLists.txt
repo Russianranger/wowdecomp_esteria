@@ -26,3 +26,7 @@ target_link_libraries(GxVulkan
     PUBLIC
         VulkanHeaders
 )
+
+if (WOWDECOMP_RETAIL_ASSETS)
+    target_compile_definitions(GxVulkan PRIVATE WOWDECOMP_RETAIL_ASSETS=1)
+endif ()
