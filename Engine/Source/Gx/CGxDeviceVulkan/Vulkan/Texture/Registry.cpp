@@ -113,19 +113,59 @@ namespace gxvk::vk::texture::detail
         return missing == 0;
     }
 
-    /// The dense index of an image, or kMaxImages when it is not in the table.
+    /// Reserve one more entry before creating GPU resources. Commit both tables together so a
+    /// failed allocation leaves every existing image and lookup intact.
+    bool EnsureOwnedCapacity()
+    {
+        if (s.ownedCount < s.ownedCapacity) return true;
+        // Leave room for doubling the hash slot count in uint32_t as well as both host arrays.
+        if (s.ownedCapacity >= (1u << 30)) return false;
+        const uint32_t capacity = s.ownedCapacity ? s.ownedCapacity * 2 : kInitialImages;
+        const uint32_t slots = capacity * 2;
+        if (uint64_t(capacity) * sizeof(Owned) > SIZE_MAX
+            || uint64_t(slots) * sizeof(uint32_t) > SIZE_MAX) return false;
+
+        Owned* owned = new (std::nothrow) Owned[capacity];
+        uint32_t* hash = new (std::nothrow) uint32_t[slots]();
+        if (!owned || !hash)
+        {
+            delete[] owned;
+            delete[] hash;
+            Write(Warn, "vulkan: texture: cannot grow the image table from %u to %u entries", s.ownedCapacity, capacity);
+            return false;
+        }
+        for (uint32_t i = 0; i < s.ownedCount; ++i)
+        {
+            owned[i] = s.owned[i];
+            uint32_t p = HashOf(owned[i].handle) & (slots - 1);
+            while (hash[p] != 0) p = (p + 1) & (slots - 1);
+            hash[p] = i + 1;
+        }
+        const uint32_t previous = s.ownedCapacity;
+        delete[] s.owned;
+        delete[] s.hash;
+        s.owned = owned;
+        s.hash = hash;
+        s.ownedCapacity = capacity;
+        s.hashSlots = slots;
+        if (previous)
+            Write(Debug, "vulkan: texture: image table grew from %u to %u entries (%u live)", previous, capacity, s.ownedCount);
+        return true;
+    }
+
+    /// The dense index of an image, or kNotOwned when it is not in the table.
     uint32_t FindOwned(VkImage handle)
     {
         if (!s.hash || handle == VK_NULL_HANDLE)
         {
             for (uint32_t i = 0; i < s.ownedCount; ++i)
                 if (s.owned[i].handle == handle) return i;
-            return kMaxImages;
+            return kNotOwned;
         }
-        for (uint32_t p = HashOf(handle);; p = (p + 1) & (kHashSlots - 1))
+        for (uint32_t p = HashOf(handle) & (s.hashSlots - 1);; p = (p + 1) & (s.hashSlots - 1))
         {
             const uint32_t v = s.hash[p];
-            if (v == 0) return kMaxImages;
+            if (v == 0) return kNotOwned;
             if (s.owned[v - 1].handle == handle) return v - 1;
         }
     }
@@ -133,7 +173,7 @@ namespace gxvk::vk::texture::detail
     /// The hash slot holding dense index `index`.
     static uint32_t HashSlotOf(uint32_t index)
     {
-        for (uint32_t p = HashOf(s.owned[index].handle);; p = (p + 1) & (kHashSlots - 1))
+        for (uint32_t p = HashOf(s.owned[index].handle) & (s.hashSlots - 1);; p = (p + 1) & (s.hashSlots - 1))
             if (s.hash[p] == index + 1 || s.hash[p] == 0) return p;
     }
 
@@ -141,8 +181,8 @@ namespace gxvk::vk::texture::detail
     void HashInsert(uint32_t index)
     {
         if (!s.hash) return;
-        uint32_t p = HashOf(s.owned[index].handle);
-        while (s.hash[p] != 0) p = (p + 1) & (kHashSlots - 1);
+        uint32_t p = HashOf(s.owned[index].handle) & (s.hashSlots - 1);
+        while (s.hash[p] != 0) p = (p + 1) & (s.hashSlots - 1);
         s.hash[p] = index + 1;
     }
 
@@ -158,9 +198,9 @@ namespace gxvk::vk::texture::detail
         {
             uint32_t hole = HashSlotOf(i);
             s.hash[hole] = 0;
-            for (uint32_t j = (hole + 1) & (kHashSlots - 1); s.hash[j] != 0; j = (j + 1) & (kHashSlots - 1))
+            for (uint32_t j = (hole + 1) & (s.hashSlots - 1); s.hash[j] != 0; j = (j + 1) & (s.hashSlots - 1))
             {
-                const uint32_t home = HashOf(s.owned[s.hash[j] - 1].handle);
+                const uint32_t home = HashOf(s.owned[s.hash[j] - 1].handle) & (s.hashSlots - 1);
                 // The entry at j may move into the hole unless its home lies cyclically in (hole, j].
                 const bool stays = hole <= j ? (home > hole && home <= j) : (home > hole || home <= j);
                 if (stays) continue;
@@ -181,6 +221,9 @@ namespace gxvk::vk::texture::detail
         delete[] s.hash;
         s.owned = nullptr;
         s.hash  = nullptr;
+        s.ownedCount = 0;
+        s.ownedCapacity = 0;
+        s.hashSlots = 0;
     }
 
     /**

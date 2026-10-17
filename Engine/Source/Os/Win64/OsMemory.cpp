@@ -10,67 +10,65 @@ void* OsAllocNear(const void* anchor, size_t size) {
     SYSTEM_INFO info;
     GetSystemInfo(&info);
     uintptr_t granularity = info.dwAllocationGranularity;
+    if (!size || size > UINTPTR_MAX - (granularity - 1)) {
+        return nullptr;
+    }
     uintptr_t bytes = (size + granularity - 1) & ~(granularity - 1);
     uintptr_t center = reinterpret_cast<uintptr_t>(anchor);
     uintptr_t minimum = reinterpret_cast<uintptr_t>(info.lpMinimumApplicationAddress);
     uintptr_t maximum = reinterpret_cast<uintptr_t>(info.lpMaximumApplicationAddress);
 
+    if (center < minimum || center >= maximum) {
+        return nullptr;
+    }
+
     if (center > minimum + s_nearRange) {
         minimum = center - s_nearRange;
     }
 
-    if (center + s_nearRange < maximum) {
+    if (maximum - center > s_nearRange) {
         maximum = center + s_nearRange;
     }
 
-    MEMORY_BASIC_INFORMATION region;
-    uintptr_t address = center;
+    // VirtualQuery reports the region from the queried page FORWARD, even when that page
+    // is inside a larger free/reserved region. Querying address - 1 and stepping to BaseAddress
+    // therefore walks backward one page at a time and misses free holes wider than one page.
+    // Walk both halves forward so each query skips the complete remaining region.
+    const auto allocateInRange = [bytes, granularity](uintptr_t address, uintptr_t limit) -> void* {
+        MEMORY_BASIC_INFORMATION region;
+        while (address < limit && VirtualQuery(reinterpret_cast<void*>(address), &region, sizeof(region))) {
+            const uintptr_t base = reinterpret_cast<uintptr_t>(region.BaseAddress);
+            if (region.RegionSize > UINTPTR_MAX - base) {
+                break;
+            }
+            const uintptr_t end = base + region.RegionSize;
+            if (end <= address) {
+                break;
+            }
 
-    while (address < maximum && VirtualQuery(reinterpret_cast<void*>(address), &region, sizeof(region))) {
-        uintptr_t base = reinterpret_cast<uintptr_t>(region.BaseAddress);
-        uintptr_t end = base + region.RegionSize;
-
-        if (region.State == MEM_FREE) {
-            uintptr_t candidate = ((base > address ? base : address) + granularity - 1) & ~(granularity - 1);
-
-            if (candidate + bytes <= end && candidate + bytes <= maximum) {
-                void* ptr = VirtualAlloc(reinterpret_cast<void*>(candidate), bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-
-                if (ptr) {
-                    return ptr;
+            if (region.State == MEM_FREE) {
+                const uintptr_t first = base > address ? base : address;
+                if (first > UINTPTR_MAX - (granularity - 1)) {
+                    break;
+                }
+                const uintptr_t candidate = (first + granularity - 1) & ~(granularity - 1);
+                const uintptr_t availableEnd = end < limit ? end : limit;
+                if (candidate < availableEnd && bytes <= availableEnd - candidate) {
+                    void* ptr = VirtualAlloc(reinterpret_cast<void*>(candidate), bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+                    if (ptr) {
+                        return ptr;
+                    }
                 }
             }
+            address = end;
         }
+        return nullptr;
+    };
 
-        address = end;
+    if (void* ptr = allocateInRange(center, maximum)) {
+        return ptr;
     }
-
-    address = center;
-
-    while (address > minimum && VirtualQuery(reinterpret_cast<void*>(address - 1), &region, sizeof(region))) {
-        uintptr_t base = reinterpret_cast<uintptr_t>(region.BaseAddress);
-        uintptr_t end = base + region.RegionSize;
-
-        if (end > address) {
-            end = address;
-        }
-
-        if (region.State == MEM_FREE && end - base >= bytes) {
-            uintptr_t candidate = (end - bytes) & ~(granularity - 1);
-
-            if (candidate >= base && candidate >= minimum) {
-                void* ptr = VirtualAlloc(reinterpret_cast<void*>(candidate), bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-
-                if (ptr) {
-                    return ptr;
-                }
-            }
-        }
-
-        address = base;
-    }
-
-    return nullptr;
+    return allocateInRange(minimum, center);
 }
 
 void OsFreeNear(void* ptr) {

@@ -58,9 +58,9 @@ namespace gxvk::vk::texture::detail
             }
         }
 
-        if (s.ownedCount >= kMaxImages)
+        if (!EnsureOwnedCapacity())
         {
-            Write(Warn, "vulkan: texture: refusing a new image: %u are already tracked (kMaxImages)", s.ownedCount);
+            Write(Warn, "vulkan: texture: cannot reserve a new image table entry (%u live)", s.ownedCount);
             ++s.stats.refused;
             return false;
         }

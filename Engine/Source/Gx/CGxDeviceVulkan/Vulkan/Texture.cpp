@@ -36,10 +36,7 @@ namespace gxvk::vk::texture
 
         if (!HaveEntryPoints(*h->dapi, *h->iapi)) return false;
 
-        s.owned = new (std::nothrow) Owned[kMaxImages];
-        s.hash  = new (std::nothrow) uint32_t[kHashSlots];   // without it FindOwned() scans
-        if (s.hash) std::memset(s.hash, 0, sizeof(uint32_t) * kHashSlots);
-        if (!s.owned)
+        if (!EnsureOwnedCapacity())
         {
             Write(Error, "vulkan: texture: cannot allocate the image table");
             FreeTables();
@@ -58,8 +55,8 @@ namespace gxvk::vk::texture
         s.transferBits     = props.apiVersion >= VK_MAKE_API_VERSION(0, 1, 1, 0);
 
         s.ready = true;
-        Write(Debug, "vulkan: texture: ready (images up to %ux%u, cubes up to %u, at most %u tracked at once)",
-              s.maxDimension, s.maxDimension, s.maxDimensionCube, kMaxImages);
+        Write(Debug, "vulkan: texture: ready (images up to %ux%u, cubes up to %u, image table starts at %u and grows on demand)",
+              s.maxDimension, s.maxDimension, s.maxDimensionCube, s.ownedCapacity);
         return true;
     }
 
@@ -124,7 +121,7 @@ namespace gxvk::vk::texture
             return;
         }
         const uint32_t i = FindOwned(img.handle);
-        if (i == kMaxImages || !s.dapi || !s.device)
+        if (i == kNotOwned || !s.dapi || !s.device)
         {
             img = Image();   // not one of ours: forgetting is the only safe answer
             return;

@@ -32,14 +32,10 @@ namespace gxvk::vk::texture::detail
     using gxvk::vk::ResultName;
     using Image = gxvk::vk::texture::Image;
 
-    /// The most images tracked at once: a fixed table, so a full table is a logged refusal rather
-    /// than silent growth. A zone holds a few thousand. Heap-allocated at Init().
-    constexpr uint32_t kMaxImages = 16384;
-
-    /// The index over the table, twice its size (a load factor of at most one half keeps linear
-    /// probing short), a power of two for the mask.
-    constexpr uint32_t kHashSlots = 2 * kMaxImages;
-    static_assert((kHashSlots & (kHashSlots - 1)) == 0, "the probe masks with kHashSlots - 1");
+    /// Starting capacity, doubled on demand: extended view distances can exceed 16K live images.
+    /// The hash has twice as many slots, always a power of two, keeping its load at most one half.
+    constexpr uint32_t kInitialImages = 16384;
+    constexpr uint32_t kNotOwned = UINT32_MAX;
 
     /// A VkImage handle mixed down to a slot: the finaliser of MurmurHash3's 64-bit variant.
     inline uint32_t HashOf(VkImage handle)
@@ -48,7 +44,7 @@ namespace gxvk::vk::texture::detail
         v ^= v >> 33;
         v *= 0xFF51AFD7ED558CCDull;
         v ^= v >> 33;
-        return static_cast<uint32_t>(v) & (kHashSlots - 1);
+        return static_cast<uint32_t>(v);
     }
 
     /// One image this module created and has not yet destroyed.
@@ -70,12 +66,14 @@ namespace gxvk::vk::texture::detail
         uint32_t maxDimensionCube = 0;     ///< VkPhysicalDeviceLimits::maxImageDimensionCube
         bool     transferBits     = false; ///< the driver is 1.1+, so FORMAT_FEATURE_TRANSFER_* are meaningful
 
-        Owned*    owned      = nullptr;    ///< kMaxImages entries, dense
+        Owned*    owned      = nullptr;    ///< ownedCapacity entries, dense
         uint32_t  ownedCount = 0;
+        uint32_t  ownedCapacity = 0;
         uint32_t  nextId     = 0;          ///< Image::id of the last image made; never reused
-        /// An open-addressed index over `owned` (kHashSlots entries, dense index + 1, 0 empty), so
+        /// An open-addressed index over `owned` (hashSlots entries, dense index + 1, 0 empty), so
         /// FindOwned() is a probe and not a scan: a zone change destroys thousands of images.
         uint32_t* hash       = nullptr;
+        uint32_t  hashSlots  = 0;
 
         bool ready = false;
         gxvk::vk::texture::Stats stats;
@@ -103,6 +101,7 @@ namespace gxvk::vk::texture::detail
     uint32_t RowCount(const FormatInfo& info, uint32_t height);
     uint64_t RowBytes(const FormatInfo& info, uint32_t width);
     bool HaveEntryPoints(const loader::Device& d, const loader::Instance& i);
+    bool EnsureOwnedCapacity();
     uint32_t FindOwned(VkImage handle);
     void HashInsert(uint32_t index);
     void RemoveOwned(uint32_t i);
