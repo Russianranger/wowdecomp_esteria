@@ -390,7 +390,7 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
     } else if (ext == ".skin") {
         success = ref.owner ? PrepareSkin(bytes, ref.owner->bytes, error) : Failure(error, "Open the Retail model before its skin");
     } else if (ext == ".anim") {
-        success = ref.owner ? ValidateAnimation(bytes, ref.owner->bytes, ref.animation, ref.variation, error) :
+        success = ref.owner ? (StripAnimationChunk(bytes, error) && ValidateAnimation(bytes, ref.owner->bytes, ref.animation, ref.variation, error)) :
             Failure(error, "Open the Retail model before its animation");
     } else if (ext == ".blp") {
         // BLP2 format version 1 is the existing client's native texture format.

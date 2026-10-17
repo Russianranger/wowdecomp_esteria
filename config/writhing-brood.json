@@ -1,0 +1,23 @@
+{
+  "slug": "writhing-brood",
+  "name": "The Writhing Brood",
+  "product": "wow",
+  "build": "88d5e8ef05ec5a8446cdec93d142d7c6",
+  "retail_mount_id": 3058,
+  "retail_spell_id": 1300776,
+  "retail_item_id": null,
+  "retail_display_id": 145412,
+  "retail_model_id": 17139,
+  "model_file_id": 7551444,
+  "texture_file_ids": [7551451, 7551456],
+  "icon_file_id": 7551432,
+  "display_scale": 1.60000002384,
+  "collision_width": 1.4,
+  "collision_height": 3.85,
+  "mount_height": 1.7474,
+  "bounds": [-1.96198034286, -0.80046057701, -0.09647956491, 1.52651524544, 0.81090819836, 2.40702962875],
+  "metadata_build": "12.1.5.70448",
+  "metadata_tables": ["Mount:3058", "MountXDisplay:3701", "CreatureDisplayInfo:145412", "CreatureModelData:17139"],
+  "metadata_provider": "https://wago.tools/db2",
+  "summon_donor": 16056
+}

@@ -78,3 +78,20 @@ diagnosis must use the current launch's `gx.log`, not a stale `d3d11.log`.
 A screen preview is diagnostic and does not
 substitute for a server mount. Existing learned items/spells must be considered
 before removing a pack; IDs are never recycled automatically.
+
+## The Writhing Brood (Midnight 12.1)
+
+`config/writhing-brood.json` (Retail mount 3058, display 145412, model 7551444) is the first
+ground mount and the first model using chunked `.anim` files. Additions it required:
+
+- Chunked animation files: an `AFM2` chunk wraps the legacy `.anim` payload; the 8-byte header
+  is dropped when the file is opened (originals stay untouched on disk). Offsets in the model
+  are relative to the payload.
+- Particle emitters use a newer layout and are **omitted** (count cleared); mesh, skinning,
+  ribbons and animation are unaffected.
+- Explicit shader 0x15 (`Diffuse_EdgeFade_T1_T2` / `Combiners_Mod_Mod`) maps to
+  `Diffuse_T1_T2` / `Combiners_Mod_Mod` without the edge fade (no EdgeFade vertex shader in 3.3.5).
+- The batch geoset index is not used by the legacy renderer and is no longer range-checked.
+- Fly/Swim animation swap and the plain mount spell visual (rider seated) apply as for the Gravewing.
+- The mount is a ground mount: its donor spell is a +100% ground mount, and the creature
+  display scale is 1.6 as in Retail.

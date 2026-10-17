@@ -100,7 +100,7 @@ def stage(args):
     model = [model_id, 1027, 0, 0, f32(1), 11, 4, f32(18), f32(12), f32(1), 0, 0, 0, 0,
              f32(recipe["collision_width"]), f32(recipe["collision_height"]), f32(recipe["mount_height"]),
              *(f32(v) for v in recipe["bounds"]), f32(1), f32(1), 0, 0, 0]
-    creature_row = [creature_display, model_id, 0, 0, f32(1), 255, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]
+    creature_row = [creature_display, model_id, 0, 0, f32(recipe.get("display_scale", 1)), 255, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0]
     icon_name = "INV_Esteria_Retail_" + slug.replace("-", "_")
     icon_path = "Interface\\Icons\\" + icon_name
     item_row = [item, 15, 5, 0xffffffff, 4, display, 0, 0]
@@ -158,8 +158,8 @@ def stage(args):
         "target": {"kind": "mount", "name": name, "item_id": item, "display_id": display, "ids": ids, "records": records},
         "baselines": {"client_providers": providers, "server_providers": server_providers,
                       "server_schema": {table: value["columns"] for table, value in schema.items()}},
-        "limitations": ["D3D11 required for the original large bone palette and three-texture saddle material.",
-                        "WotLK summon mechanics use a flying-carpet donor: +100% ground / +280% flight.",
+        "limitations": ["Original large bone palettes need the D3D11 or Vulkan retail shader set (see retail-native-mounts.md).",
+                        f"WotLK summon mechanics use donor spell {donor}; its speed auras apply, not Retail mount speeds.",
                         "Level-one learning item for testing; no Retail covenant restriction.",
                         "Retail original art bytes retained; only runtime memory views and target metadata are authored.",
                         "Summon, riding, flight, collection persistence await live acceptance."]}

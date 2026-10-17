@@ -137,7 +137,15 @@ int main(int argc, char** argv) {
     Put(corruptBody, 0x3c, 0xffffffff);
     Check(!Retail::PrepareModel(Model(corruptBody), prepared, files, error), "reject overflowing array count");
     corruptBody = body; Put(corruptBody, 0x128, 1);
-    Check(!Retail::PrepareModel(Model(corruptBody), prepared, files, error), "reject unsupported effects");
+    Check(Retail::PrepareModel(Model(corruptBody), prepared, files, error) && Get(prepared, 0x128) == 0, "omit unsupported particles");
+    {
+        std::vector<uint8_t> chunked = {'A', 'F', 'M', '2', 3, 0, 0, 0, 7, 8, 9}, legacy = {7, 8, 9};
+        std::string chunkError;
+        Check(Retail::StripAnimationChunk(chunked, chunkError) && chunked == legacy, "strip AFM2 animation chunk header");
+        Check(Retail::StripAnimationChunk(legacy, chunkError) && legacy.size() == 3, "leave legacy animation files alone");
+        std::vector<uint8_t> truncated = {'A', 'F', 'M', '2', 9, 0, 0, 0, 7};
+        Check(!Retail::StripAnimationChunk(truncated, chunkError), "reject truncated AFM2 chunk");
+    }
     corruptBody = body; Put(corruptBody, Get(body, 0x30) + 8, 0);
     Check(!Retail::PrepareModel(Model(corruptBody), prepared, files, error), "reject bone parent cycle");
     corruptBody = body;

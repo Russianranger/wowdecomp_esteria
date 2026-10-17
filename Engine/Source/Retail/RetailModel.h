@@ -30,6 +30,8 @@ bool ValidateSkin(const std::vector<uint8_t>& bytes, const std::vector<uint8_t>&
     std::string& error);
 bool PrepareSkin(std::vector<uint8_t>& bytes, const std::vector<uint8_t>& model,
     std::string& error);
+// Legion+ chunked .anim files wrap the legacy payload in an AFM2 chunk; drop that 8-byte header in place.
+bool StripAnimationChunk(std::vector<uint8_t>& bytes, std::string& error);
 bool ValidateAnimation(const std::vector<uint8_t>& bytes, const std::vector<uint8_t>& model,
     uint16_t id, uint16_t variation, std::string& error);
 std::string FileName(uint32_t fileId, const char* extension);

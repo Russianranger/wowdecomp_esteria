@@ -54,7 +54,9 @@ int main(int argc, char** argv) {
             if (i < prepared[0x44] && !Retail::PrepareSkin(copy, prepared, error)) throw std::runtime_error(error);
         }
         for (const auto& anim : graph.animations) {
-            if (anim.fileId && !Retail::ValidateAnimation(fetch(anim.fileId, ".anim"), prepared, anim.id, anim.variation, error))
+            if (!anim.fileId) continue;
+            auto copy = fetch(anim.fileId, ".anim"); // validate a copy; the stored original keeps its AFM2 chunk header
+            if (!Retail::StripAnimationChunk(copy, error) || !Retail::ValidateAnimation(copy, prepared, anim.id, anim.variation, error))
                 throw std::runtime_error(error);
         }
         graph.textures.insert(graph.textures.end(), textureIds.begin(), textureIds.end());

@@ -488,6 +488,14 @@ CShaderEffect* CM2Shared::GetEffect(uint32_t textureCount, uint16_t shader, uint
         } else {
             vertexShader = "Diffuse_T2";
 
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+            // Retail batches carry no coordinate combo (0xFFFF); their 0x4000 bit selects the second UV set.
+            if (Retail::Source().Handles(this->m_fileName)) {
+                if (!(shader & 0x4000)) {
+                    vertexShader = "Diffuse_T1";
+                }
+            } else
+#endif
             if (!SafeCoordCombo(this->m_data, textureCoordComboIndex)) {
                 vertexShader = "Diffuse_T1";
             }
@@ -755,6 +763,13 @@ CShaderEffect* CM2Shared::GetEffect(M2Batch* batch) {
             g_theGxDevicePtr->ShaderDestroy(effect->m_pixelShaders[i]);
             effect->m_pixelShaders[i] = shader;
         }
+        return effect;
+    }
+    if (Retail::Source().Handles(this->m_fileName) && batch->m_shader == 0x8012) {
+        const char* name = "Retail_Mod_Mod_T1_T2";
+        if (auto* existing = CShaderEffectManager::GetEffect(name)) return existing;
+        effect = CShaderEffectManager::CreateEffect(name);
+        effect->InitEffect("Diffuse_T1_T2", "Combiners_Mod_Mod");
         return effect;
     }
     if (Retail::Source().Handles(this->m_fileName) && batch->m_shader == 0x8011) {

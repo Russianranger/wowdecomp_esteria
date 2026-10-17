@@ -1,5 +1,7 @@
 #include "Engine/Source/Retail/RetailModel.h"
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <cmath>
@@ -92,30 +94,36 @@ bool Parse(const std::vector<uint8_t>& b, Chunks& out, std::string& error) {
 
 // Validate tracks before handing bytes to the legacy relocation code, including the
 // distinction between model-relative and external-animation-relative offsets.
+thread_local std::string s_trackFailure;
+
+bool TF(int tag) { s_trackFailure = "check " + std::to_string(tag); return false; }
+
 bool Track(const std::vector<uint8_t>& b, size_t p, size_t keySize,
     const std::vector<uint8_t>* animation = nullptr, uint32_t sequence = 0) {
-    if (!Range(b, p, keySize ? 20 : 12) || U16(b, p) > 3) return false;
+    if (!Range(b, p, keySize ? 20 : 12) || U16(b, p) > 3) return TF(1);
     const uint32_t loop = U16(b, p + 2), sequences = U32(b, 0x1c);
-    if (loop != 0xffff && loop >= U32(b, 0x14)) return false;
-    if (!Array(b, p + 4, 8) || (keySize && !Array(b, p + 12, 8))) return false;
+    if (loop != 0xffff && loop >= U32(b, 0x14)) return TF(2);
+    if (!Array(b, p + 4, 8) || (keySize && !Array(b, p + 12, 8))) return TF(3);
     const uint32_t n = U32(b, p + 4);
-    if (keySize && U32(b, p + 12) != n) return false;
-    if (loop == 0xffff && n > sequences) return false;
+    if (keySize && U32(b, p + 12) != n) return TF(4);
+    if (loop == 0xffff && n > sequences) return TF(5);
     for (uint32_t i = 0; i < n; ++i) {
         size_t times = U32(b, p + 8) + size_t(i) * 8;
         size_t keys = keySize ? U32(b, p + 16) + size_t(i) * 8 : 0;
-        if (keySize && U32(b, times) != U32(b, keys)) return false;
+        if (keySize && U32(b, times) != U32(b, keys)) return TF(6);
         const bool external = loop == 0xffff && !(U32(b, U32(b, 0x20) + size_t(i) * 64 + 12) & 0x20);
         const auto* source = external ? (animation && i == sequence ? animation : nullptr) : &b;
         if (!source) continue;
         auto valid = [&](size_t pair, size_t stride) {
             const size_t offset = U32(b, pair + 4), count = U32(b, pair);
-            return offset <= source->size() && count <= (source->size() - offset) / stride;
+            const bool ok = offset <= source->size() && count <= (source->size() - offset) / stride;
+            if (!ok) s_trackFailure = "offset " + std::to_string(offset) + " count " + std::to_string(count) + " stride " + std::to_string(stride) + " in " + std::to_string(source->size()) + " bytes";
+            return ok;
         };
-        if (!valid(times, 4) || (keySize && !valid(keys, keySize))) return false;
+        if (!valid(times, 4) || (keySize && !valid(keys, keySize))) return TF(7);
         for (uint32_t j = 1; j < U32(b, times); ++j) {
             const size_t start = U32(b, times + 4);
-            if (U32(*source, start + size_t(j - 1) * 4) > U32(*source, start + size_t(j) * 4)) return false;
+            if (U32(*source, start + size_t(j - 1) * 4) > U32(*source, start + size_t(j) * 4)) { s_trackFailure = "order p=" + std::to_string(p) + " seq=" + std::to_string(i) + " j=" + std::to_string(j) + " start=" + std::to_string(start) + " n=" + std::to_string(U32(b, times)) + " a=" + std::to_string(U32(*source, start + size_t(j - 1) * 4)) + " b=" + std::to_string(U32(*source, start + size_t(j) * 4)); return false; }
         }
     }
     return true;
@@ -286,12 +294,10 @@ bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepa
     if (files.version < 272 || files.version > 274) return Fail(error, "Supported Retail M2 versions are 272-274");
     if (files.skeleton) return Fail(error, "Shared SKEL skeletons are not implemented yet");
     if (!Array(b, 0x1c, 64)) return Fail(error, "Invalid sequence array");
-    if (U32(b, 0x10) & 0x200000) {
-        for (uint32_t i = 0; i < U32(b, 0x1c); ++i)
-            if (!(U32(b, U32(b, 0x20) + size_t(i) * 64 + 12) & (0x20 | 0x40)))
-                return Fail(error, "Chunked external animation tracks are not implemented yet");
-    }
-    if (U32(b, 0x128)) return Fail(error, "Retail particles are not implemented yet");
+    // 0x200000 only marks chunked .anim files (AFM2 wraps the legacy payload); see StripAnimationChunk.
+    // Retail particle emitters use a newer layout the legacy emitter cannot read. Omit them; the mesh,
+    // skinning, ribbons and animation are unaffected. Documented limitation in retail-native-mounts.md.
+    Put(b, 0x128, 0);
     if (!Cameras(b, error)) return false;
     if ((U32(b, 0x10) & 8) && !Array(b, 0x130, 2)) return Fail(error, "Invalid texture combiner array");
     if (!Validate(b, files, error)) return false;
@@ -413,16 +419,33 @@ bool ValidateSkin(const std::vector<uint8_t>& b, const std::vector<uint8_t>& m, 
         uint16_t shader = U16(b, p + 2);
         if (!n || n > 3 || (n == 3 && shader != 0x8010) ||
             ((shader & 0x8000) && !((shader >= 0x8001 && shader <= 0x8003 && n == 2) ||
-                (shader == 0x8010 && n == 3) || (shader == 0x8011 && n == 2))))
+                (shader == 0x8010 && n == 3) || ((shader == 0x8011 || shader == 0x8012) && n == 2))))
             return Fail(error, "Retail shader or texture count is not supported yet");
-        if (U16(b, p + 4) >= U32(b, 28) || U16(b, p + 6) >= U32(b, 28) ||
-            U16(b, p + 10) >= U32(m, 0x70) ||
-            (U16(b, p + 8) != 0xffff && U16(b, p + 8) >= U32(m, 0x48)) ||
-            !Index(m, 0x80, U16(b, p + 16), n) ||
-            (U32(m, 0x88) && !Index(m, 0x88, U16(b, p + 18), n)) ||
-            !Index(m, 0x90, U16(b, p + 20), 1) || !Index(m, 0x98, U16(b, p + 22), n))
-            return Fail(error, "SKIN batch references an invalid model table");
+        // The batch geoset index (+6) is unused by the legacy renderer and may exceed the section count in newer models.
+        const bool section = U16(b, p + 4) < U32(b, 28);
+        const bool material = U16(b, p + 10) < U32(m, 0x70);
+        const bool color = U16(b, p + 8) == 0xffff || U16(b, p + 8) < U32(m, 0x48);
+        const bool textures = Index(m, 0x80, U16(b, p + 16), n);
+        const bool coords = !U32(m, 0x88) || Index(m, 0x88, U16(b, p + 18), n);
+        const bool weights = Index(m, 0x90, U16(b, p + 20), 1);
+        const bool transforms = Index(m, 0x98, U16(b, p + 22), n);
+        if (!(section && material && color && textures && coords && weights && transforms)) {
+            char text[160];
+            std::snprintf(text, sizeof(text), "SKIN batch %u references an invalid model table (section %d material %d color %d textures %d coords %d weights %d transforms %d)",
+                i, section, material, color, textures, coords, weights, transforms);
+            return Fail(error, text);
+        }
     }
+    return true;
+}
+
+bool StripAnimationChunk(std::vector<uint8_t>& bytes, std::string& error) {
+    if (bytes.size() < 8 || std::memcmp(bytes.data(), "AFM2", 4) != 0) return true;  // already a legacy .anim
+    uint32_t size;
+    std::memcpy(&size, bytes.data() + 4, 4);
+    if (size > bytes.size() - 8) return Fail(error, "Truncated AFM2 animation chunk");
+    bytes.erase(bytes.begin(), bytes.begin() + 8);
+    bytes.resize(size);
     return true;
 }
 
@@ -432,11 +455,17 @@ bool ValidateAnimation(const std::vector<uint8_t>& b, const std::vector<uint8_t>
     for (uint32_t i = 0; i < U32(m, 0x1c); ++i) {
         size_t p = U32(m, 0x20) + size_t(i) * 64;
         if (U16(m, p) == id && U16(m, p + 2) == variation) {
-            if (!Tracks(m, &b, i)) return Fail(error, "External animation track exceeds file size");
+            if (!Tracks(m, &b, i)) return Fail(error, ("External animation track exceeds file size: " + s_trackFailure).c_str());
             return true;
         }
     }
     return Fail(error, "Animation is not referenced by model");
+}
+
+std::string HexWord(uint16_t v) {
+    char text[8];
+    std::snprintf(text, sizeof(text), "%04x", v);
+    return text;
 }
 
 bool PrepareSkin(std::vector<uint8_t>& b, const std::vector<uint8_t>& m, std::string& error) {
@@ -472,9 +501,28 @@ bool PrepareSkin(std::vector<uint8_t>& b, const std::vector<uint8_t>& m, std::st
         } else if (shader == 0x8003 || shader == 0x4014) {
             shader = shader == 0x8003 ? 0x8010 : 0x8011;
             b[p] = uint8_t(shader); b[p + 1] = uint8_t(shader >> 8);
+        } else if (shader == 0x8015) {
+            // Diffuse_EdgeFade_T1_T2 / Combiners_Mod_Mod: the 3.3.5 client has no edge-fade vertex shader, so draw it without the fade.
+            b[p] = 0x12; b[p + 1] = 0x80;
         } else if (shader & 0x8000) {
-            return Fail(error, "Retail explicit shader is not implemented yet");
+            return Fail(error, ("Retail explicit shader is not implemented yet: 0x" + HexWord(shader) + " in batch " + std::to_string(i) + " (textures " + std::to_string(U16(b, U32(b, 40) + size_t(i) * 24 + 14)) + ")").c_str());
         }
+    }
+    // Diagnostic: WOW_RETAIL_HIDE_BATCHES=1,5 drops those batch indices (of the original skin) from every Retail model.
+    if (const char* hide = std::getenv("WOW_RETAIL_HIDE_BATCHES")) {
+        std::vector<uint32_t> drop;
+        for (const char* c = hide; *c;) {
+            drop.push_back(uint32_t(std::strtoul(c, const_cast<char**>(&c), 10)));
+            if (*c == ',') ++c; else if (*c) break;
+        }
+        const size_t base = U32(b, 40);
+        uint32_t kept = 0;
+        for (uint32_t i = 0; i < U32(b, 36); ++i) {
+            if (std::find(drop.begin(), drop.end(), i) != drop.end()) continue;
+            if (kept != i) std::memmove(b.data() + base + size_t(kept) * 24, b.data() + base + size_t(i) * 24, 24);
+            ++kept;
+        }
+        Put(b, 36, kept);
     }
     return ValidateSkin(b, m, error);
 }
