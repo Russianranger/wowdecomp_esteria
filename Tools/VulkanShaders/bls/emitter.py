@@ -127,7 +127,10 @@ class Emitter(object):
                 idx = '%d + a0.%s' % (o.index, SWZ[comp])
             else:
                 raise Refused('relative addressing through register type %d' % rt)
-            return 'regs.v[%s]' % idx
+            # DEF constants override the API register file even under relative addressing.
+            # Procedural water indexes its literal basis vectors c58..c60 in wave loops.
+            self.helpers.add('relative_const')
+            return 'dx_const(%s)' % idx
         if o.index in self.defs:
             return 'c%d' % o.index
         self.cmax = max(self.cmax, o.index)
@@ -634,6 +637,15 @@ class Emitter(object):
                 P('const ivec4 i%d = ivec4(%s);' % (idx, ', '.join('%d' % x for x in self.defi[idx])))
         if self.helpers:
             P('')
+            if 'relative_const' in self.helpers:
+                P('// Immediate constants take precedence for indexed reads too.')
+                P('vec4 dx_const(int index) {')
+                P('    switch (index) {')
+                for idx in sorted(self.defs):
+                    P('        case %d: return c%d;' % (idx, idx))
+                P('        default: return index >= 0 && index < %d ? regs.v[index] : vec4(0.0);' % self.vconst)
+                P('    }')
+                P('}')
             P('// D3D9 semantics of the scalar ops.')
             if 'rsq' in self.helpers:
                 P('float dx_rsq(float x) { return inversesqrt(abs(x)); }')

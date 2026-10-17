@@ -131,6 +131,7 @@ const std::vector<Selection>& RaceSelections(uint32_t race) {
     static const std::vector<Selection> saberon = ReadSelections(L"EsteriaSaberon.bin");
     static const std::vector<Selection> tarasek = ReadSelections(L"EsteriaTarasek.bin");
     static const std::vector<Selection> drakonid = ReadSelections(L"EsteriaDrakonid.bin");
+    static const std::vector<Selection> darkfallen = ReadSelections(L"EsteriaDarkfallen.bin");
     static const std::vector<Selection> vulpera = ReadSelections(L"EsteriaVulpera.bin");
     static const std::vector<Selection> highmountain = ReadSelections(L"EsteriaHighmountain.bin");
     static const std::vector<Selection> earthen = ReadSelections(L"EsteriaEarthen.bin");
@@ -153,6 +154,8 @@ const std::vector<Selection>& RaceSelections(uint32_t race) {
         case 62: return sethrak;
         case 63: return gnoll;
         case 64: return saberon;
+        case 43:
+        case 44: return darkfallen;
         case 66: return tarasek;
         case 69:
         case 70: return drakonid;
@@ -298,6 +301,7 @@ void ApplyCatalog(CCharacterComponent* character, const Options& options, const 
         }
     }
 
+
     uint64_t helmetGroups = 0;
     if (race == 20 || race == 54 || (race == 66 && gender == 0) || race == 69 || race == 70) {
         for (const Selection& record : records) {
@@ -349,6 +353,7 @@ void ApplyCatalog(CCharacterComponent* character, const Options& options, const 
         if (!selected) {
             continue;
         }
+
 
         if (record.kind == 2) {
             if (nativeClothingCovered && record.value >= 21000 && record.value < 22000) {
@@ -408,7 +413,7 @@ void ApplyCatalog(CCharacterComponent* character, const Options& options, const 
             }
 
             // Native equipment slot 7 (feet) maps to component slot 6: boots replace the authored foot geoset.
-            if (record.target == 20 && (race == 48 || race == 49 || race == 50 || race == 51 || race == 56 || race == 57)) {
+            if (record.target == 20 && (race == 43 || race == 44 || race == 48 || race == 49 || race == 50 || race == 51 || race == 56 || race == 57)) {
                 value = character->m_itemDisplayID[6] ? 2002 : (race == 50 || race == 51 ? record.value : 2001);
             }
 
@@ -479,6 +484,8 @@ const char* CacheFamily(uint32_t race) {
         case 63: return "Gnoll";
         case 64: return "Saberon";
         case 66: return "Tarasek";
+        case 43:
+        case 44: return "Darkfallen";
         default: return "Drakonid";
     }
 }
@@ -962,6 +969,236 @@ void SetClothingMaterial(CCharacterComponent* character) {
     character->m_data.m_model->ReplaceTexture(14, reinterpret_cast<CTexture*>(entry.second));
 }
 
+// Decodes level 0 of a DXT1/DXT3/DXT5 BLP2 into RGBA8; false for any other encoding.
+bool DecodeDxtBlp(const BLPHeader* blp, uint32_t size, std::vector<uint8_t>& rgba) {
+    if (size < 1172 || blp->m_magic != 0x32504C42 || blp->m_colorEncoding != 2 || !blp->m_width || !blp->m_height) {
+        return false;
+    }
+
+    uint32_t width = blp->m_width;
+    uint32_t height = blp->m_height;
+    uint32_t format = blp->m_preferredFormat;
+    bool explicitAlpha = format != 0;
+    uint32_t blockBytes = explicitAlpha ? 16 : 8;
+    uint32_t offset = blp->m_mipOffsets[0];
+    uint32_t length = blp->m_mipSizes[0];
+    uint32_t blocksX = (width + 3) / 4;
+    uint32_t blocksY = (height + 3) / 4;
+    if (offset > size || length > size - offset || length < blocksX * blocksY * blockBytes) {
+        return false;
+    }
+
+    const uint8_t* data = reinterpret_cast<const uint8_t*>(blp) + offset;
+    rgba.assign(static_cast<size_t>(width) * height * 4, 255);
+    for (uint32_t by = 0; by < blocksY; by++) {
+        for (uint32_t bx = 0; bx < blocksX; bx++) {
+            const uint8_t* block = data + (static_cast<size_t>(by) * blocksX + bx) * blockBytes;
+            const uint8_t* color = block + (explicitAlpha ? 8 : 0);
+            uint32_t c0 = color[0] | color[1] << 8;
+            uint32_t c1 = color[2] | color[3] << 8;
+            uint8_t palette[4][3];
+            auto expand = [](uint32_t value, uint8_t* out) {
+                out[0] = static_cast<uint8_t>(((value >> 11) & 31) * 255 / 31);
+                out[1] = static_cast<uint8_t>(((value >> 5) & 63) * 255 / 63);
+                out[2] = static_cast<uint8_t>((value & 31) * 255 / 31);
+            };
+            expand(c0, palette[0]);
+            expand(c1, palette[1]);
+            for (uint32_t k = 0; k < 3; k++) {
+                if (c0 > c1 || explicitAlpha) {
+                    palette[2][k] = static_cast<uint8_t>((2 * palette[0][k] + palette[1][k]) / 3);
+                    palette[3][k] = static_cast<uint8_t>((palette[0][k] + 2 * palette[1][k]) / 3);
+                } else {
+                    palette[2][k] = static_cast<uint8_t>((palette[0][k] + palette[1][k]) / 2);
+                    palette[3][k] = 0;
+                }
+            }
+
+            uint8_t alpha[8] = {};
+            uint64_t alphaBits = 0;
+            if (format == 7) {
+                alpha[0] = block[0];
+                alpha[1] = block[1];
+                for (uint32_t k = 2; k < 8; k++) {
+                    if (alpha[0] > alpha[1]) {
+                        alpha[k] = static_cast<uint8_t>(((8 - k) * alpha[0] + (k - 1) * alpha[1]) / 7);
+                    } else if (k < 6) {
+                        alpha[k] = static_cast<uint8_t>(((6 - k) * alpha[0] + (k - 1) * alpha[1]) / 5);
+                    } else {
+                        alpha[k] = k == 6 ? 0 : 255;
+                    }
+                }
+
+                for (uint32_t k = 0; k < 6; k++) {
+                    alphaBits |= static_cast<uint64_t>(block[2 + k]) << (8 * k);
+                }
+            }
+
+            uint32_t indices = color[4] | color[5] << 8 | color[6] << 16 | static_cast<uint32_t>(color[7]) << 24;
+            for (uint32_t py = 0; py < 4; py++) {
+                for (uint32_t px = 0; px < 4; px++) {
+                    uint32_t x = bx * 4 + px;
+                    uint32_t y = by * 4 + py;
+                    if (x >= width || y >= height) {
+                        continue;
+                    }
+
+                    uint32_t pixel = py * 4 + px;
+                    uint32_t index = (indices >> (pixel * 2)) & 3;
+                    uint8_t* out = rgba.data() + (static_cast<size_t>(y) * width + x) * 4;
+                    out[0] = palette[index][0];
+                    out[1] = palette[index][1];
+                    out[2] = palette[index][2];
+                    if (format == 1) {
+                        out[3] = static_cast<uint8_t>(((block[pixel / 2] >> ((pixel & 1) * 4)) & 15) * 17);
+                    } else if (format == 7) {
+                        out[3] = alpha[(alphaBits >> (pixel * 3)) & 7];
+                    } else {
+                        out[3] = (c0 <= c1 && index == 3) ? 0 : 255;
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+// Retail HD player atlases (layout 103) hold the classic component regions at exactly twice their Wrath position and size
+// in the left 1024x1024 of the 2048x1024 skin, so equipped item layers are pasted into a copy of the chosen skin.
+void ComposeHdBody(CCharacterComponent* character) {
+    static const uint32_t counts[] = { 2, 7, 1, 5, 7, 3, 6, 1 };
+    static const uint32_t rectangles[][4] = { { 0, 0, 256, 128 }, { 0, 128, 256, 128 }, { 0, 256, 256, 64 }, { 256, 0, 256, 128 },
+        { 256, 128, 256, 64 }, { 256, 192, 256, 128 }, { 256, 320, 256, 128 }, { 256, 448, 256, 64 } };
+
+    CharacterPreferences& prefs = character->m_data.m_preferences;
+    Fields13 fields = FieldsOf(character);
+    uint32_t skin = fields[0] % 5;
+
+    uint32_t dirty = character->m_dirtySections;
+    character->m_dirtySections = dirty | 0xFF;
+    character->ItemsLoaded(1);
+    character->m_dirtySections = dirty;
+
+    struct Layer {
+        uint32_t region;
+        uint32_t size;
+        const BLPHeader* blp;
+    };
+    std::vector<Layer> layers;
+    uint64_t hash = 14695981039346656037ull ^ (skin + 1) ^ (static_cast<uint64_t>(prefs.m_sexID) << 8);
+    bool robe = (character->m_flags & 0x20) != 0;
+    for (uint32_t region = 0; region < 8; region++) {
+        CharacterSection& section = character->m_section[region];
+        uint32_t first = 0;
+        uint32_t count = counts[region];
+        if (region == 5 && robe) {
+            first = 1;
+            count = 2;
+        }
+        if (region == 6 && robe) {
+            first = 1;
+            count = 4;
+        }
+
+        for (uint32_t slot = first; slot < count; slot++) {
+            CACHEENTRY* layer = static_cast<CACHEENTRY*>(section.m_layerTex[slot]);
+            if (!(section.m_layerMask & (1u << slot)) || !layer) {
+                continue;
+            }
+
+            if (!layer->m_data || !layer->m_info.m_width) {
+                TCTEXTUREINFO info;
+                TextureCacheGetInfo(layer, info, 1);
+            }
+
+            uint8_t pixel[4];
+            if (!layer->m_data || !ClothingPixel(layer->m_data, layer->m_size, 0, 0, pixel)) {
+                continue;
+            }
+
+            hash = (hash ^ region) * 1099511628211ull;
+            const uint8_t* bytes = reinterpret_cast<const uint8_t*>(layer->m_data);
+            for (uint32_t i = 0; i < layer->m_size; i++) {
+                hash = (hash ^ bytes[i]) * 1099511628211ull;
+            }
+
+            layers.push_back({ region, layer->m_size, layer->m_data });
+        }
+    }
+
+    if (layers.empty()) {
+        return;
+    }
+
+    static std::unordered_map<CCharacterComponent*, std::pair<uint64_t, HOBJECT>> cache;
+    auto& entry = cache[character];
+    if (!entry.second || entry.first != hash) {
+        char path[128];
+        sprintf_s(path, "Character\\DarkfallenHD\\%s\\DarkfallenSkin%02u.blp", prefs.m_sexID ? "Female" : "Male", skin);
+        static std::unordered_map<std::string, std::vector<uint8_t>> bases;
+        std::vector<uint8_t>& base = bases[path];
+        if (base.empty()) {
+            void* file = nullptr;
+            uint32_t size = 0;
+            if (!SFile::LoadFile(path, &file, &size, 0, nullptr) || !file) {
+                return;
+            }
+
+            bool decoded = DecodeDxtBlp(static_cast<const BLPHeader*>(file), size, base);
+            SFile::Unload(file);
+            if (!decoded || base.size() != 2048u * 1024u * 4u) {
+                base.clear();
+                return;
+            }
+        }
+
+        std::vector<uint8_t> pixels = base;
+        for (const Layer& layer : layers) {
+            const uint32_t* rect = rectangles[layer.region];
+            uint32_t width = layer.blp->m_width;
+            uint32_t height = layer.blp->m_height;
+            uint32_t rectW = rect[2] * 2;
+            uint32_t rectH = rect[3] * 2;
+            for (uint32_t y = 0; y < rectH; y++) {
+                for (uint32_t x = 0; x < rectW; x++) {
+                    uint8_t source[4];
+                    if (!ClothingPixel(layer.blp, layer.size, x * width / rectW, y * height / rectH, source)) {
+                        return;
+                    }
+
+                    uint8_t* target = pixels.data() + ((rect[1] * 2 + y) * 2048 + rect[0] * 2 + x) * 4;
+                    uint32_t alpha = source[3];
+                    for (uint32_t channel = 0; channel < 3; channel++) {
+                        target[channel] = static_cast<uint8_t>((source[channel] * alpha + target[channel] * (255 - alpha) + 127) / 255);
+                    }
+                }
+            }
+        }
+
+        std::vector<uint8_t> blp;
+        if (!BuildBlp(pixels, 2048, 1024, false, false, blp)) {
+            return;
+        }
+
+        char name[96];
+        sprintf_s(name, "Esteria\\darkfallen-body-%016llx", static_cast<unsigned long long>(hash));
+        CGxTexFlags flags(GxTex_LinearMipNearest, 0, 0, 0, 0, 0, 1);
+        CTexture* texture = TextureCreateFromBlpData(name, flags, blp.data());
+        if (!texture) {
+            return;
+        }
+
+        if (entry.second) {
+            HandleClose(entry.second);
+        }
+
+        entry = { hash, reinterpret_cast<HOBJECT>(texture) };
+    }
+
+    character->m_data.m_model->ReplaceTexture(12, reinterpret_cast<CTexture*>(entry.second));
+}
+
 } // namespace
 
 static bool Disabled();
@@ -1037,6 +1274,9 @@ bool EsteriaGeometry(CCharacterComponent* character) {
         }
 
         ApplyCatalog(character, options, records);
+        if (race == 43 || race == 44) {
+            ComposeHdBody(character);
+        }
 
         // The model's own hardcoded textures (type 0) can come back as the solid placeholder; load them again by name.
         {

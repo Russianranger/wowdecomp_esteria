@@ -28,7 +28,7 @@
 // read-back off the scene image (CGxDeviceVulkanTarget.cpp); occlusion queries on a query pool
 // (CGxDeviceVulkanQuery.cpp); the gamma ramp applied by the present pass; the hardware cursor as a
 // Win32 cursor built from the engine's cursor image (CGxDeviceVulkanCursor.cpp). Fixed-function
-// lighting and fog, user clip planes, multisampling and stereo are not offered (the caps say so),
+// lighting, user clip planes, multisampling and stereo are not offered (the caps say so),
 // and their virtuals keep the engine's bookkeeping only (CGxDeviceVulkanStubs.cpp).
 class CGxDeviceVulkan : public CGxDevice {
     public:

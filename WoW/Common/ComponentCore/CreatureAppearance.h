@@ -142,6 +142,22 @@ namespace CreatureAppearance
         {4, 1, 1},
     }};
 
+    inline constexpr std::array<Option, 5> DarkfallenMale = {{
+        {0, 5, 1},
+        {1, 1, 1},
+        {2, 21, 1},
+        {3, 4, 1},
+        {4, 1, 1},
+    }};
+
+    inline constexpr std::array<Option, 5> DarkfallenFemale = {{
+        {0, 4, 1},
+        {1, 1, 1},
+        {2, 25, 1},
+        {3, 5, 1},
+        {4, 1, 1},
+    }};
+
     inline constexpr std::array<Option, 15> GnollControls = {{
         {0, 10, 1},
         {1, 6, 1},
@@ -196,13 +212,13 @@ namespace CreatureAppearance
 
     constexpr bool Uses(unsigned race)
     {
-        return (((((((race >= 54 && race <= 59) || race == 62) || race == 63) || race == 64) || race == 66) || race == 67) || race == 69) || race == 70;
+        return (((((((((race >= 54 && race <= 59) || race == 62) || race == 63) || race == 64) || race == 66) || race == 67) || race == 69) || race == 70) || race == 43) || race == 44;
     }
 
     constexpr bool GenderAllowed(unsigned race, unsigned gender)
     {
         return Uses(race) && (gender == 0
-            || ((race == 54 || race == 56 || race == 57 || race == 62 || race == 66 || race == 67) && gender == 1));
+            || ((race == 54 || race == 56 || race == 57 || race == 62 || race == 66 || race == 67 || race == 43 || race == 44) && gender == 1));
     }
 
     constexpr bool UsesPlayerVrykul(unsigned race, unsigned gender)
@@ -239,6 +255,9 @@ namespace CreatureAppearance
                 return gender ? Drakkin_AllianceFemale : Drakkin_AllianceMale;
             case 67:
                 return gender ? Drakkin_HordeFemale : Drakkin_HordeMale;
+            case 43:
+            case 44:
+                return gender ? DarkfallenFemale : DarkfallenMale;
             case 69:
                 return Drakonid_AllianceMale;
             case 70:

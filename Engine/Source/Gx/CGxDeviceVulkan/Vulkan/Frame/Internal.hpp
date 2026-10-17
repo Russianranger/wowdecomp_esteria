@@ -49,7 +49,6 @@ namespace gxvk::vk::frame::detail
     /// past them, or larger than a chunk, gets a buffer of its own for the frame.
     constexpr VkDeviceSize kStagingChunk     = 8u * 1024u * 1024u;
     constexpr uint32_t     kMaxStagingChunks = 64;
-    constexpr uint32_t     kMaxDedicated     = 256;
     constexpr VkDeviceSize kStagingAlign     = 16;
 
     /// A ring chunk kept past the frame's need for this many frames is given back.
@@ -81,8 +80,10 @@ namespace gxvk::vk::frame::detail
         uint32_t       chunkUsed  = 0;
         VkDeviceSize   cursor     = 0;
         uint32_t       idleFrames = 0;
-        memory::Buffer dedicated[kMaxDedicated];
+        memory::Buffer* dedicated = nullptr;
+        uint32_t       dedicatedCapacity = 0;
         uint32_t       dedicatedCount = 0;
+        VkDeviceSize   dedicatedCursor = 0;
     };
 
     /// One resource waiting for its frame to complete before it is destroyed.

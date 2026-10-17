@@ -9,10 +9,12 @@
 #include "Push.glsl"
 #include "Stage.glsl"
 #include "AlphaTest.glsl"
+#include "Fog.glsl"
 
 layout(location = 0) in vec4 vColor;
 layout(location = 1) in vec2 vTexCoord0;
 layout(location = 2) in vec2 vTexCoord1;
+layout(location = 3) in float vFog;
 
 layout(location = 0) out vec4 outColor;
 
@@ -24,5 +26,6 @@ void main()
     // A stage without a texture binds the backend's 1x1 white, which Stages() does not read.
     vec4 cur = Stages(vColor, texture(tex0, vTexCoord0), texture(tex1, vTexCoord1));
     AlphaTest(cur.a);
+    if (ff.p[15].w > 0.5) cur.rgb = mix(ff.p[15].rgb, cur.rgb, clamp(vFog, 0.0, 1.0));
     outColor = cur;
 }

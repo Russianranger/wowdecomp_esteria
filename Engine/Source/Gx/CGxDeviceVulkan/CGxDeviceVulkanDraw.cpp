@@ -9,6 +9,8 @@
 #include "Engine/Source/Gx/CGxDeviceVulkan/CGxDeviceVulkan.h"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Frame.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Pipelines.hpp"
+#include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Log.hpp"
+#include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Manifest.hpp"
 #include "Engine/Source/Gx/CGxBuf.h"
 #include "Engine/Source/Gx/CGxPool.h"
 #include "Engine/Source/Gx/CGxTex.h"
@@ -160,6 +162,12 @@ void CGxDeviceVulkan::Draw(CGxBatch* batch, int32_t count) {
         return;
     }
 
+    // A masked subset of an interleaved vertex still advances by the full vertex size.
+    // D3D's cached fixed-format declaration uses this stride as well.
+    if (this->m_primVertexFormat < GxVertexBufferFormats_Last && d.streamCount == 1) {
+        d.streams[0].stride = this->m_primVertexSize;
+    }
+
     CGxBuf* indexBuf = nullptr;
 
     if (count) {
@@ -207,13 +215,17 @@ void CGxDeviceVulkan::Draw(CGxBatch* batch, int32_t count) {
     d.misc[3] = static_cast<float>(alphaOp0);
     this->ITexTransforms(d);
 
-    // The register files of a translated draw. Pixel row 15, which no shipped pixel shader reads,
-    // carries the fixed-function fog colour and enable for the generated companion stages: the
+    // The shared register files. Pixel rows 14 and 15, which no shipped pixel shader reads,
+    // carry fixed-function fog distances, colour and enable for the built-in and companion stages: the
     // engine's GxRs_FogColor is a D3DCOLOR (0xAARRGGBB), GxRs_Fog under the fog master enable.
     float pixelRows[pipelines::kPixelRows * 4];
     memcpy(pixelRows, this->m_pixelRegs, sizeof(pixelRows));
     const uint32_t fogColour = this->m_appRenderStates[GxRs_FogColor].m_value.m_data.u[0];
     const bool fogOn = this->m_appRenderStates[GxRs_Fog].m_value.m_data.i[0] != 0 && (this->m_appMasterEnables & (1 << GxMasterEnable_Fog)) != 0;
+    const float fogStart = this->m_appRenderStates[GxRs_FogStart].m_value.m_data.f[0];
+    const float fogEnd = this->m_appRenderStates[GxRs_FogEnd].m_value.m_data.f[0];
+    pixelRows[14 * 4 + 0] = fogStart;
+    pixelRows[14 * 4 + 1] = fogEnd == fogStart ? fogStart + 1.0f : fogEnd;
     pixelRows[15 * 4 + 0] = ((fogColour >> 16) & 0xFF) / 255.0f;
     pixelRows[15 * 4 + 1] = ((fogColour >> 8) & 0xFF) / 255.0f;
     pixelRows[15 * 4 + 2] = (fogColour & 0xFF) / 255.0f;
@@ -235,7 +247,15 @@ void CGxDeviceVulkan::Draw(CGxBatch* batch, int32_t count) {
         return;
     }
 
-    if (!pipelines::Record(cmd, frame::RenderPass(), frame::PassGeneration(), frame::Serial(), frame::Slot(), d)) {
+    const bool recorded = pipelines::Record(cmd, frame::RenderPass(), frame::PassGeneration(), frame::Serial(), frame::Slot(), d);
+    static bool loggedLiquid = false;
+    if (!loggedLiquid && d.fragmentRecord && std::strstr(gxvk::vk::manifest::FirstName(*d.fragmentRecord), "Liquid")) {
+        loggedLiquid = true;
+        gxvk::log::Write(gxvk::log::Info, "vulkan: first liquid draw: %s, %s; %u indices, texture mask 0x%X, alpha ref %.0f",
+                         gxvk::vk::manifest::FirstName(*d.fragmentRecord), recorded ? "recorded" : "skipped",
+                         d.count, d.textureMask, d.params[0]);
+    }
+    if (!recorded) {
         return;
     }
 

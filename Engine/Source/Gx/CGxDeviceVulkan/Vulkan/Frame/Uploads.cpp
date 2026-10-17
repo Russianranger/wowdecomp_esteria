@@ -1,6 +1,7 @@
 // The frame's upload side: the pre-pass and outside-the-pass command buffers, and the staging ring
 // a frame's uploads are written into.
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Frame/Internal.hpp"
+#include <new>
 
 using namespace gxvk::vk::frame::detail;
 
@@ -39,6 +40,7 @@ namespace gxvk::vk::frame::detail
             RetireBuffer(slot.dedicated[i], s.serial);
         }
         slot.dedicatedCount = 0;
+        slot.dedicatedCursor = 0;
     }
 
     /// Everything the slot's ring holds; the caller has made the device idle.
@@ -46,10 +48,14 @@ namespace gxvk::vk::frame::detail
     {
         for (uint32_t i = 0; i < slot.chunkCount; ++i) memory::DestroyBuffer(slot.chunks[i]);
         for (uint32_t i = 0; i < slot.dedicatedCount; ++i) memory::DestroyBuffer(slot.dedicated[i]);
+        delete[] slot.dedicated;
+        slot.dedicated = nullptr;
+        slot.dedicatedCapacity = 0;
         slot.chunkCount     = 0;
         slot.chunkUsed      = 0;
         slot.cursor         = 0;
         slot.dedicatedCount = 0;
+        slot.dedicatedCursor = 0;
     }
 }
 
@@ -132,19 +138,35 @@ namespace gxvk::vk::frame
             }
         }
 
-        // Larger than a chunk, or the ring is full: a buffer for this request alone, retired with
-        // the frame.
-        if (slot.dedicatedCount == kMaxDedicated)
+        // Pack overflow uploads too: loading can exceed the retained ring, with thousands of
+        // small texture mip levels still to upload. A per-upload buffer limit dropped those
+        // levels permanently once the texture was marked updated.
+        if (slot.dedicatedCount)
         {
-            if (!s.loggedStagingFail)
+            memory::Buffer& last = slot.dedicated[slot.dedicatedCount - 1];
+            const VkDeviceSize at = (slot.dedicatedCursor + kStagingAlign - 1) / kStagingAlign * kStagingAlign;
+            if (at <= last.size && bytes <= last.size - at)
             {
-                s.loggedStagingFail = true;
-                Write(Error, "vulkan: frame: a frame asked for more than %u dedicated staging buffers; further uploads of the frame are refused (logged once)", kMaxDedicated);
+                buffer = last.handle;
+                offset = at;
+                mapped = static_cast<uint8_t*>(last.block.mapped) + at;
+                slot.dedicatedCursor = at + bytes;
+                s.stats.stagedBytes += bytes;
+                return true;
             }
-            return false;
+        }
+        if (slot.dedicatedCount == slot.dedicatedCapacity)
+        {
+            const uint32_t capacity = slot.dedicatedCapacity ? slot.dedicatedCapacity * 2u : 16u;
+            memory::Buffer* grown = new (std::nothrow) memory::Buffer[capacity];
+            if (!grown) return false;
+            for (uint32_t i = 0; i < slot.dedicatedCount; ++i) grown[i] = slot.dedicated[i];
+            delete[] slot.dedicated;
+            slot.dedicated = grown;
+            slot.dedicatedCapacity = capacity;
         }
         memory::Buffer& d = slot.dedicated[slot.dedicatedCount];
-        if (!CreateStaging(bytes, d))
+        if (!CreateStaging(bytes < kStagingChunk ? kStagingChunk : bytes, d))
         {
             if (!s.loggedStagingFail)
             {
@@ -154,6 +176,7 @@ namespace gxvk::vk::frame
             return false;
         }
         ++slot.dedicatedCount;
+        slot.dedicatedCursor = bytes;
         buffer = d.handle;
         offset = 0;
         mapped = d.block.mapped;

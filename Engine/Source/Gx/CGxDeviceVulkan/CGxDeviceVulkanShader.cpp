@@ -194,6 +194,11 @@ void CGxDeviceVulkan::IShaderCreate(CGxShader* shader) {
 
     shader->m_apiSpecific = program;
 
+    if (shader->m_key.m_str && std::strstr(shader->m_key.m_str, "Liquid")) {
+        Write(Info, "vulkan: liquid shader %s: %s (%u bytes)", shader->m_key.m_str,
+              program ? "ready" : "unavailable", shader->m_code.Count());
+    }
+
     if (program) {
         shader->m_valid = 1;
     }

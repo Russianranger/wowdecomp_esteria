@@ -22,6 +22,7 @@ namespace gxvk::vk::frame::detail
             // A new VkDevice: the old one is gone, so its objects are forgotten, never destroyed.
             Write(Warn, "vulkan: frame: the Vulkan device changed; the frame's old objects are forgotten, not destroyed");
             delete[] s.retired;
+            for (FrameSlot& slot : s.slots) delete[] slot.dedicated;
             s = State();
         }
         const loader::Device& d = *h.dapi;

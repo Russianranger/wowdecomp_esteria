@@ -523,6 +523,10 @@ namespace gxvk::vk::frame
             ReleaseSwapchain();
             DestroyDeviceObjects();
         }
+        else
+        {
+            for (FrameSlot& slot : s.slots) delete[] slot.dedicated;
+        }
         delete[] s.retired;
         s = State();
     }

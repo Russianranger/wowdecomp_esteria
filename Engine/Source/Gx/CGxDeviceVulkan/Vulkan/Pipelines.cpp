@@ -25,7 +25,14 @@ namespace
             const bool wantCube = (cubeMask & (1u << slot)) != 0;
             if ((draw.textureMask & (1u << slot)) && draw.textures[slot].view != VK_NULL_HANDLE)
             {
-                if (draw.textures[slot].cube != wantCube) return false;
+                if (draw.textures[slot].cube != wantCube)
+                {
+                    if (!s.stats.cubeMismatch)
+                        Write(Warn, "vulkan: pipelines: sampler %u of %s expects %s but the bound image is %s; draw skipped (first mismatch)",
+                              slot, draw.fragmentRecord ? manifest::FirstName(*draw.fragmentRecord) : "fixed function",
+                              wantCube ? "cube" : "2D", draw.textures[slot].cube ? "cube" : "2D");
+                    return false;
+                }
                 out[slot] = draw.textures[slot];
                 continue;
             }
@@ -157,6 +164,7 @@ namespace gxvk::vk::pipelines
         // The sampler-slot set: the pixel record's for a translated module, slots 0 and 1 for the
         // fixed-function stages, slot 0 alone otherwise.
         const bool translated = TranslatedFamily(draw.vertex) || TranslatedFamily(draw.fragment);
+        const bool needsRegs = translated || draw.vertex == VertexProgram::FixedFunction || draw.fragment == FragmentProgram::FixedFunction;
         uint32_t samplerMask = 1u;
         uint32_t cubeMask    = 0;
         if (draw.fragment == FragmentProgram::Translated && draw.fragmentRecord)
@@ -223,7 +231,7 @@ namespace gxvk::vk::pipelines
         // Set 1: the constant slice, for the translated family.
         VkDescriptorSet set1    = VK_NULL_HANDLE;
         uint32_t        offset1 = 0;
-        if (translated && !RegsSlice(slot, serial, draw, set1, offset1))
+        if (needsRegs && !RegsSlice(slot, serial, draw, set1, offset1))
         {
             ++s.stats.skipped;
             return false;
@@ -258,7 +266,7 @@ namespace gxvk::vk::pipelines
             d.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout.layout, 0, 1, &set0, 0, nullptr);
             b.set0 = set0;
         }
-        if (translated && (!b.have1 || b.set1 != set1 || b.offset1 != offset1))
+        if (needsRegs && (!b.have1 || b.set1 != set1 || b.offset1 != offset1))
         {
             d.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout.layout, 1, 1, &set1, 1, &offset1);
             b.set1    = set1;
