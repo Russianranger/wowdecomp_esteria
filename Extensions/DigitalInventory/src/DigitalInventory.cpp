@@ -15,13 +15,13 @@
 namespace {
 constexpr uint32_t CMSG_ESTERIA_INVENTORY = 0x521;
 constexpr uint32_t SMSG_ESTERIA_INVENTORY = 0x522;
-constexpr uint8_t ProtocolVersion = 1;
+constexpr uint8_t ProtocolVersion = 2;
 constexpr uint32_t MaximumSlots = 10000;
 
 struct Row {
     uint32_t guid = 0, entry = 0, count = 0, durability = 0, maxDurability = 0;
-    uint8_t digital = 0, bag = 0, slot = 0, quality = 0, favorite = 0, category = 0, inventoryType = 0, bound = 0;
-    std::string link, name, icon;
+    uint8_t digital = 0, bag = 0, slot = 0, quality = 0, favorite = 0, category = 0, inventoryType = 0, bound = 0, split = 0;
+    std::string link, name, icon, tag;
 };
 
 struct Snapshot {
@@ -87,7 +87,7 @@ int32_t Receive(void*, NETMESSAGE, uint32_t, CDataStore* message) {
             || !reader.Get(row.inventoryType) || !reader.Get(row.bound)
             || !reader.Get(row.durability) || !reader.Get(row.maxDurability)
             || !reader.String(row.link, 256) || !reader.String(row.name, 512) || !reader.String(row.icon, 256)
-            || row.digital > 1 || row.quality > 7 || row.category > 4 || row.inventoryType > 28) return 0;
+            || !reader.Get(row.split) || !reader.String(row.tag, 64) || row.digital > 1 || row.quality > 7 || row.category > 4 || row.inventoryType > 28) return 0;
         if (!row.digital && !((row.bag == 255 && row.slot >= 23 && row.slot < 39)
             || (row.bag >= 19 && row.bag < 23 && row.slot < 254))) return 0;
         next.rows.push_back(std::move(row));
@@ -129,9 +129,9 @@ bool Number(lua_State* L, int index, uint32_t maximum, uint32_t& out) {
 
 int32_t Request(lua_State* L) {
     uint32_t action, revision, guid, count, argument, category, sort;
-    if (!Number(L, 1, 11, action) || !Number(L, 2, UINT32_MAX, revision)
+    if (!Number(L, 1, 12, action) || !Number(L, 2, UINT32_MAX, revision)
         || !Number(L, 3, UINT32_MAX, guid) || !Number(L, 4, UINT32_MAX, count)
-        || !Number(L, 5, MaximumSlots + 1100, argument) || !Number(L, 6, 5, category) || !Number(L, 7, 3, sort))
+        || !Number(L, 5, MaximumSlots + 1100, argument) || !Number(L, 6, 5, category) || !Number(L, 7, 4, sort))
         return luaL_error(L, "Invalid Esteria inventory request");
     size_t length = 0;
     char const* search = lua_tolstring(L, 8, &length);
@@ -176,16 +176,17 @@ int32_t GetSnapshot(lua_State* L) {
     lua_createtable(L, int(s_snapshot.rows.size()), 0);
     int i = 0;
     for (Row const& row : s_snapshot.rows) {
-        lua_createtable(L, 0, 15);
+        lua_createtable(L, 0, 17);
         NumberField(L, "guid", row.guid); NumberField(L, "entry", row.entry); NumberField(L, "count", row.count);
         NumberField(L, "bag", row.bag == 255 ? 0 : row.bag - 18);
         NumberField(L, "slot", row.bag == 255 ? row.slot - 22 : row.slot + 1);
         NumberField(L, "quality", row.quality); NumberField(L, "category", row.category);
         NumberField(L, "inventoryType", row.inventoryType); NumberField(L, "durability", row.durability);
         NumberField(L, "maxDurability", row.maxDurability); BoolField(L, "digital", row.digital != 0);
-        BoolField(L, "favorite", row.favorite != 0); BoolField(L, "bound", row.bound != 0);
+        BoolField(L, "favorite", row.favorite != 0); BoolField(L, "bound", row.bound != 0); BoolField(L, "split", row.split != 0);
         StringField(L, "link", row.link);
         StringField(L, "name", row.name); StringField(L, "icon", row.icon);
+        StringField(L, "tag", row.tag);
         lua_rawseti(L, -2, ++i);
     }
     lua_setfield(L, -2, "rows");
