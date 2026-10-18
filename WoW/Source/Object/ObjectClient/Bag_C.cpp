@@ -11,6 +11,10 @@
 #include "WoW/Source/Ui/MailInfo.h"
 #include "WoW/Source/Ui/TradeFrame.h"
 #include "WoW/Source/UIUtil/Tooltip.h"
+#include "WoW/Source/Ui/DigitalInventoryCounts.h"
+#include "WoW/Source/Object/ObjectClient/Player_C.h"
+#include <algorithm>
+#include <limits>
 
 // STATIC: 0x00A37B10
 static const BAGSLOTRANGE s_bagSlotRanges[8] = { { 23, 38 }, { 19, 22 }, { 86, 117 }, { 39, 66 }, { 67, 73 }, { 118, 149 }, { 0, 18 }, { 74, 85 } };
@@ -585,6 +589,14 @@ bool CGBag_C::FindTotemCategory(int32_t category, uint32_t flags) {
     }
 
     int32_t mask = rec->m_totemCategoryMask;
+    CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
+    if (player && this == &player->m_bag && (!(flags & 7) || (flags & 6))) {
+        for (auto const& entry : EsteriaInventoryClient::counts) {
+            TotemCategoryRec* stored = g_totemCategoryDB.GetRecord(entry.second.totemCategory);
+            if (stored && stored->m_totemCategoryType == rec->m_totemCategoryType
+                && (stored->m_totemCategoryMask & mask) == mask) return true;
+        }
+    }
     return this->FindTotemCategory(rec->m_totemCategoryType, mask, true, flags);
 }
 
@@ -615,6 +627,17 @@ int32_t CGBag_C::GetItemTypeCount(int32_t itemId, uint32_t flags) {
     WOWGUID container;
     uint32_t slot;
     this->FindItem(GetItemTypeCountCallback, &param, container, slot, flags);
+    CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
+    if (player && this == &player->m_bag && (!(flags & 7) || (flags & 6))) {
+        uint64_t digital = 0;
+        if (itemId == -1) {
+            for (auto const& entry : EsteriaInventoryClient::counts) digital += entry.second.count;
+        } else if (itemId > 0) {
+            digital = EsteriaInventoryClient::Count(uint32_t(itemId));
+        }
+        return int32_t(std::min(uint64_t(std::max(0, param.m_count)) + digital,
+            uint64_t(std::numeric_limits<int32_t>::max())));
+    }
     return param.m_count;
 }
 

@@ -1,4 +1,5 @@
 #include "Spell_C.h"
+#include "WoW/Source/Ui/DigitalInventoryCounts.h"
 #include "WoW/Source/Magic/Types.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -6875,7 +6876,8 @@ bool Spell_C_HaveSpellTokens(CGUnit_C* unit, const SpellRec* spell, bool report,
     CGPlayer_C* player = static_cast<CGPlayer_C*>(unit);
 
     for (uint32_t i = 0; i < sizeof(spell->m_totem) / sizeof(spell->m_totem[0]); i++) {
-        if (spell->m_totem[i] && !player->m_bag.FindItemOfType(spell->m_totem[i], 0)) {
+        if (spell->m_totem[i] && !player->m_bag.FindItemOfType(spell->m_totem[i], 0)
+            && !EsteriaInventoryClient::Count(spell->m_totem[i])) {
             if (report) {
                 Spell_C_SpellFailed(cast, spell, 131, spell->m_totem[i], -1, false);
             }
