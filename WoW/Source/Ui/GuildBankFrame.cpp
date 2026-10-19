@@ -266,7 +266,7 @@ void CGGuildBankInfo::SwapBankItems(uint8_t tab, uint32_t slot, int32_t itemId, 
     if (!stats || !(stackable = stats->m_stackable)) {
         if (itemId == bankItemId) {
             CGGameUI::ClearCursor(1, 1);
-            CGGameUI::UnlockVirtualItem(bankItemId, slot + 98 * sourceTab, 0);
+            CGGameUI::UnlockVirtualItem(bankItemId, slot + GUILD_BANK_SLOTS_PER_TAB * sourceTab, 0);
             return;
         }
     } else if (!bankItemId) {
@@ -289,7 +289,7 @@ void CGGuildBankInfo::SwapBankItems(uint8_t tab, uint32_t slot, int32_t itemId, 
         }
     }
 
-    uint32_t otherTab = virtualSlot / 98;
+    uint32_t otherTab = virtualSlot / GUILD_BANK_SLOTS_PER_TAB;
 
     if (otherTab != sourceTab && ((bankItemId && !CGGuildInfo::GetNumGuildBankTabItemWithdrawalsByRankID(tab, player->m_player->m_playerGuildrank)) || !CGGuildInfo::GetNumGuildBankTabItemWithdrawalsByRankID(otherTab, player->m_player->m_playerGuildrank))) {
         CGGameUI::DisplayError(ERR_GUILD_PERMISSIONS);
@@ -297,7 +297,7 @@ void CGGuildBankInfo::SwapBankItems(uint8_t tab, uint32_t slot, int32_t itemId, 
     }
 
     msg.Put(static_cast<uint8_t>(otherTab));
-    msg.Put(static_cast<uint8_t>(virtualSlot % 98));
+    msg.Put(static_cast<uint8_t>(virtualSlot % GUILD_BANK_SLOTS_PER_TAB));
     msg.Put(static_cast<uint32_t>(itemId));
     msg.Put(static_cast<uint8_t>(0));
     msg.Put(static_cast<uint32_t>(count));
@@ -346,8 +346,8 @@ void CGGuildBankInfo::EnterWorld() {
 // VERIFY: be4957f6 auto
 // OFFSET: 0x005A42E0
 void CGGuildBankInfo::GetTabAndSlotFromVirtual(uint32_t virtualSlot, uint32_t* tab, uint32_t* slot) {
-    *tab = virtualSlot / 98;
-    *slot = virtualSlot % 98;
+    *tab = virtualSlot / GUILD_BANK_SLOTS_PER_TAB;
+    *slot = virtualSlot % GUILD_BANK_SLOTS_PER_TAB;
 }
 
 // VERIFY: 0087723a manual
@@ -364,8 +364,8 @@ GuildBankSlotInfo* CGGuildBankInfo::GetGuildBankItem(uint32_t tab, uint32_t slot
 // VERIFY: 1ed0b08f auto
 // OFFSET: 0x005A4C40
 int32_t CGGuildBankInfo::IsLocked(int32_t itemId, uint32_t virtualSlot) {
-    uint32_t tab = virtualSlot / 98;
-    uint32_t slot = virtualSlot % 98;
+    uint32_t tab = virtualSlot / GUILD_BANK_SLOTS_PER_TAB;
+    uint32_t slot = virtualSlot % GUILD_BANK_SLOTS_PER_TAB;
 
     if (tab >= 6 || slot >= CGGuildBankInfo::m_tabSlots[tab].m_count) {
         return 0;
@@ -383,8 +383,8 @@ int32_t CGGuildBankInfo::IsLocked(int32_t itemId, uint32_t virtualSlot) {
 // VERIFY: 801e1127 auto
 // OFFSET: 0x005A4C90
 void CGGuildBankInfo::Lock(int32_t itemId, uint32_t virtualSlot) {
-    uint32_t tab = virtualSlot / 98;
-    uint32_t slot = virtualSlot % 98;
+    uint32_t tab = virtualSlot / GUILD_BANK_SLOTS_PER_TAB;
+    uint32_t slot = virtualSlot % GUILD_BANK_SLOTS_PER_TAB;
 
     if (tab < 6 && slot < CGGuildBankInfo::m_tabSlots[tab].m_count) {
         GuildBankSlotInfo* info = &CGGuildBankInfo::m_tabSlots[tab].m_data[slot];
@@ -398,8 +398,8 @@ void CGGuildBankInfo::Lock(int32_t itemId, uint32_t virtualSlot) {
 // VERIFY: 95bfeaf2 auto
 // OFFSET: 0x005A4CE0
 void CGGuildBankInfo::Unlock(int32_t itemId, uint32_t virtualSlot) {
-    uint32_t tab = virtualSlot / 98;
-    uint32_t slot = virtualSlot % 98;
+    uint32_t tab = virtualSlot / GUILD_BANK_SLOTS_PER_TAB;
+    uint32_t slot = virtualSlot % GUILD_BANK_SLOTS_PER_TAB;
 
     if (tab < 6 && slot < CGGuildBankInfo::m_tabSlots[tab].m_count) {
         GuildBankSlotInfo* info = &CGGuildBankInfo::m_tabSlots[tab].m_data[slot];
@@ -703,7 +703,7 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
     CGGuildBankInfo::m_money = money;
 
     if (!CGGuildBankInfo::m_tabSlots[tab].m_count) {
-        CGGuildBankInfo::m_tabSlots[tab].SetCount(98);
+        CGGuildBankInfo::m_tabSlots[tab].SetCount(GUILD_BANK_SLOTS_PER_TAB);
         CGGuildBankInfo::ClearGuildTabList(tab);
     }
 
@@ -744,7 +744,7 @@ int32_t Packet_SMSG_GUILD_BANK_LIST(void* param, NETMESSAGE msgId, uint32_t time
         uint8_t slotIndex;
         msg->Get(slotIndex);
 
-        if (cursorId && tab == static_cast<uint32_t>(cursorSlot) / 98 && slotIndex == static_cast<uint32_t>(cursorSlot) % 98) {
+        if (cursorId && tab == static_cast<uint32_t>(cursorSlot) / GUILD_BANK_SLOTS_PER_TAB && slotIndex == static_cast<uint32_t>(cursorSlot) % GUILD_BANK_SLOTS_PER_TAB) {
             CGGameUI::ClearCursor(1, 1);
             CGGameUI::UnlockVirtualItem(cursorId, cursorSlot, 0);
         }

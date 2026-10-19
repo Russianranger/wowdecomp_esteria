@@ -2,6 +2,7 @@
 #include <cstdint>
 #include "WoW/Common/ComponentCore/ComponentUtils.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/CharSectionsRec.h"
@@ -78,6 +79,12 @@ COMPONENT_CONTEXT GetContextFromSelection(COMPONENT_SELECTION selection) {
 // VERIFY: 28ddfb49 manual
 // OFFSET: 0x004F3AE0
 int32_t ComponentGetNumVariations(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation) {
+    const int32_t retail = RetailRaceSectionCount(raceID, sexID, variation, false);
+
+    if (retail >= 0) {
+        return retail;
+    }
+
     CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
 
     if (!list.m_variation) {
@@ -90,6 +97,12 @@ int32_t ComponentGetNumVariations(st_race* lookup, int32_t raceID, int32_t sexID
 // VERIFY: 725a4a25 auto
 // OFFSET: 0x004F3B10
 int32_t ComponentGetNumColors(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation, int32_t variationIndex) {
+    const int32_t retail = RetailRaceSectionCount(raceID, sexID, variation, true);
+
+    if (retail >= 0) {
+        return retail;
+    }
+
     // Esteria: custom races store sparse CharSections rows; report their authored capacity instead.
     int32_t capacity = EsteriaSectionCount(raceID, sexID, variation);
 
@@ -110,6 +123,7 @@ int32_t ComponentGetNumColors(st_race* lookup, int32_t raceID, int32_t sexID, CO
 // OFFSET: 0x004F3B50
 bool ComponentValidateBase(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation, int32_t variationIndex, int32_t colorIndex) {
     EsteriaSectionArguments(raceID, sexID, variation, &variationIndex, &colorIndex);
+    RetailRaceSectionArguments(raceID, sexID, &variationIndex, &colorIndex);
 
     if (static_cast<uint32_t>(variation) >= NUM_COMPONENT_VARIATIONS || variationIndex < 0) {
         return false;
@@ -130,6 +144,7 @@ bool ComponentValidateBase(st_race* lookup, int32_t raceID, int32_t sexID, COMPO
 // OFFSET: 0x004F3BA0
 CharSectionsRec* ComponentGetSectionsRecord(st_race* lookup, int32_t raceID, int32_t sexID, COMPONENT_VARIATIONS variation, int32_t variationIndex, int32_t colorIndex, bool* found) {
     EsteriaSectionArguments(raceID, sexID, variation, &variationIndex, &colorIndex);
+    RetailRaceSectionArguments(raceID, sexID, &variationIndex, &colorIndex);
 
     if (static_cast<uint32_t>(variation) < NUM_COMPONENT_VARIATIONS && variationIndex >= 0) {
         CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[variation];
@@ -157,6 +172,12 @@ CharSectionsRec* ComponentGetSectionsRecord(st_race* lookup, int32_t raceID, int
 // VERIFY: e6e73c05 manual
 // OFFSET: 0x004F3C10
 bool ComponentValidateSkin(st_race* lookup, int32_t raceID, int32_t sexID, int32_t classID, int32_t colorIndex, COMPONENT_CONTEXT context) {
+    const int32_t retail = RetailRaceSectionCount(raceID, sexID, VARIATION_SKIN, true);
+
+    if (retail >= 0) {
+        return colorIndex >= 0 && colorIndex < retail;
+    }
+
     CharVariationList& list = lookup[raceID * 2 + sexID].m_variation[VARIATION_SKIN];
 
     if (list.m_numVariations <= 0 || colorIndex < 0) {

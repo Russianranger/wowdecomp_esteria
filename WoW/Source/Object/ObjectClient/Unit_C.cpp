@@ -1,3 +1,4 @@
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Unit_C.h"
 #include <cmath>
@@ -7913,6 +7914,16 @@ float CGUnit_C::GetStandHeight() const {
 // VERIFY: 566bccef manual
 // OFFSET: 0x00717B20
 int32_t CGUnit_C::GetModelFileName(const char** name) const {
+    // Players of a race mapped to Retail data use the Retail character model.
+    if ((this->m_obj->m_type & TYPEMASK_PLAYER) && this->m_displayId == this->m_unit->m_unitFieldNativedisplayid) {
+        static thread_local char retailPath[260];
+
+        if (RetailRaceModelPath(this->m_unit->m_unitFieldBytes0[0], this->m_unit->m_unitFieldBytes0[2], retailPath, sizeof(retailPath))) {
+            *name = retailPath;
+            return 1;
+        }
+    }
+
     CreatureModelDataRec* modelData = this->GetModelData();
 
     if (modelData) {
@@ -13890,7 +13901,9 @@ int32_t CGUnit_C::InitializeExtendedDisplay(CGPlayer_C* player, int32_t hasDispl
 
     // Esteria: custom races keep the server's packed appearance bytes; stock validation would clamp them against
     // the sparse CharSections rows.
-    if (EsteriaKeepsAppearance(data.m_preferences.m_raceID)) {
+    if (player && RetailRaceMapped(data.m_preferences.m_raceID)) {
+        // Retail options go beyond the stock CharSections ranges; keep the server's values.
+    } else if (EsteriaKeepsAppearance(data.m_preferences.m_raceID)) {
         EsteriaCaptureUnit(this->m_characterComponent, this->m_unit->m_unitFieldPadding, this->m_obj->m_pad, player != nullptr);
     } else if (player) {
         CCharacterComponent::ValidateComponentData(&data, COMPONENT_CONTEXT_1);

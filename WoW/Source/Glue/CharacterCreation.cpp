@@ -1,3 +1,4 @@
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Common/ClassMask.h"
 #include "CharacterCreation.h"
 #include <cstring>
@@ -574,7 +575,9 @@ void CCharacterCreation::InitCharacterComponents(ComponentData* data, bool rando
     }
 
     CCharacterCreation::m_character = CCharacterComponent::AllocComponent();
-    data->m_model = CCharacterCreation::m_charCustomizeFrame->GetScene()->CreateModel(modelRec->m_modelName, 0);
+    char retailPath[260];
+    const bool retailModel = RetailRaceModelPath(data->m_preferences.m_raceID, data->m_preferences.m_sexID, retailPath, sizeof(retailPath));
+    data->m_model = CCharacterCreation::m_charCustomizeFrame->GetScene()->CreateModel(retailModel ? retailPath : modelRec->m_modelName, 0);
 
     if (!data->m_model) {
         return;

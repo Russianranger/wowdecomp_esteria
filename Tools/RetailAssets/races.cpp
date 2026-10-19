@@ -1,0 +1,118 @@
+// Lists retail race customization from the pinned build's DB2 tables.
+// Usage: RetailRaceProbe <RetailCasc.ini> [chrRaceId sex]
+#include "Engine/Source/Retail/Appearance.h"
+#include "Engine/Source/Retail/Db2.h"
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+
+namespace app = Retail::Db2::appearance;
+
+int main(int argc, char** argv) {
+    if (argc == 5 && std::string(argv[2]) == "audit") {
+        _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+        if (!app::Status().loaded) return 1;
+        const uint32_t race = uint32_t(std::strtoul(argv[3], nullptr, 10));
+        const uint32_t sex = uint32_t(std::strtoul(argv[4], nullptr, 10));
+        const uint32_t model = app::ChrModelForRace(race, sex);
+        if (!model) return 1;
+        std::vector<app::ChrOption> options;
+        std::vector<uint32_t> defaults;
+        for (uint32_t i = 0; i < app::OptionCount(model); ++i) {
+            app::ChrOption option{};
+            app::ChrChoice choice{};
+            if (!app::OptionAt(model, i, option) || !app::ChoiceAt(option.id, 0, choice)) return 1;
+            options.push_back(option);
+            defaults.push_back(choice.id);
+        }
+        uint32_t total = 0, failures = 0, attached = 0, missingMaterials = 0;
+        for (size_t i = 0; i < options.size(); ++i) {
+            uint32_t withAttached = 0;
+            for (uint32_t j = 0; j < app::ChoiceCount(options[i].id); ++j) {
+                app::ChrChoice choice{};
+                if (!app::ChoiceAt(options[i].id, j, choice)) return 1;
+                auto picks = defaults;
+                picks[i] = choice.id;
+                app::Recipe recipe;
+                if (!app::BuildForCharacter(race, sex, picks.data(), uint32_t(picks.size()), recipe)
+                    || !recipe.modelFileDataId || !recipe.textureLayoutId) ++failures;
+                if (!recipe.attached.empty()) { ++withAttached; ++attached; }
+                for (const auto& layer : recipe.layers)
+                    if (!app::MaterialFileDataId(layer.materialResourcesId, 0)) ++missingMaterials;
+                ++total;
+            }
+            std::printf("option %u %s: %u choices, %u recipes with attached models\n", options[i].id,
+                app::OptionName(options[i].id).c_str(), app::ChoiceCount(options[i].id), withAttached);
+        }
+        std::printf("race %u sex %u: %u individual-choice recipes, %u failures, %u with attached models, %u unresolved materials\n",
+            race, sex, total, failures, attached, missingMaterials);
+        return failures || missingMaterials ? 1 : 0;
+    }
+    if (argc >= 4 && std::string(argv[2]) == "dump") {
+        // RetailRaceProbe <ini> dump <table> [field value]: prints rows, optionally those with field == value.
+        _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+        app::Status();
+        const Retail::Db2::Table* table = app::Get(argv[3]);
+        if (!table) { std::fprintf(stderr, "unknown table\n"); return 1; }
+        const auto names = table->FieldNames();
+        int shown = 0;
+        for (const auto& row : table->Rows()) {
+            if (argc >= 6) {
+                const std::string field = argv[4];
+                const std::string want = argv[5];
+                const uint32_t have = field == "@parent" ? row.parentId : field == "@id" ? row.id : table->Value(row, field);
+                if (have != uint32_t(std::strtoul(want.c_str(), nullptr, 10))) continue;
+            }
+            std::printf("id %u parent %u:", row.id, row.parentId);
+            for (const auto& name : names) {
+                std::printf(" %s=", name.c_str());
+                for (size_t e = 0; e < table->ElementCount(name); ++e) std::printf("%s%d", e ? "," : "", int(table->Value(row, name, e)));
+            }
+            std::printf("\n");
+            if (++shown >= 200) break;
+        }
+        return 0;
+    }
+    if (argc != 2 && argc != 4) {
+        std::fprintf(stderr, "Usage: RetailRaceProbe <RetailCasc.ini> [chrRaceId sex|audit chrRaceId sex]\n");
+        return 2;
+    }
+    _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+    const app::StoreStatus& status = app::Status();
+    std::printf("loaded=%d failed=%d models=%u options=%u choices=%u elements=%u layouts=%u\n",
+        status.loaded, status.failed, status.chrModels, status.options, status.choices,
+        status.elements, status.textureLayouts);
+    if (!status.error.empty()) std::printf("note: %s\n", status.error.c_str());
+    if (!status.loaded) return 1;
+    for (unsigned race = 1; race < 120; ++race) {
+        for (unsigned sex = 0; sex < 2; ++sex) {
+            if (argc == 4 && (race != unsigned(std::atoi(argv[2])) || sex != unsigned(std::atoi(argv[3])))) continue;
+            const uint32_t model = app::ChrModelForRace(race, sex);
+            if (!model) continue;
+            const uint32_t options = app::OptionCount(model);
+            std::printf("race %u sex %u -> ChrModel %u layout %u, %u options\n", race, sex, model,
+                app::LayoutForModel(model), options);
+            if (argc != 4) continue;
+            std::vector<uint32_t> first;
+            for (uint32_t i = 0; i < options; ++i) {
+                app::ChrOption option{};
+                if (!app::OptionAt(model, i, option)) continue;
+                const uint32_t choices = app::ChoiceCount(option.id);
+                std::printf("  option %u \"%s\" type %u: %u choices\n", option.id, app::OptionName(option.id).c_str(), option.optionType, choices);
+                app::ChrChoice choice{};
+                if (choices && app::ChoiceAt(option.id, 0, choice)) first.push_back(choice.id);
+            }
+            app::Recipe recipe;
+            const bool ok = app::BuildForCharacter(race, sex, first.data(), uint32_t(first.size()), recipe);
+            std::printf("recipe(first choices) ok=%d model=%u skeleton=%u layout=%u geosets=%zu layers=%zu attached=%zu\n",
+                ok, recipe.modelFileDataId, recipe.skeletonFileDataId, recipe.textureLayoutId, recipe.geosets.size(),
+                recipe.layers.size(), recipe.attached.size());
+            for (const auto& layer : recipe.layers)
+                std::printf("  layer type %u order %u blend %u mask %d material %u -> file %u (usage0) %u (usage1)\n",
+                    layer.textureType, layer.layer, layer.blendMode, int(layer.sectionMask), layer.materialResourcesId,
+                    app::MaterialFileDataId(layer.materialResourcesId, 0), app::MaterialFileDataId(layer.materialResourcesId, 1));
+            for (uint16_t geoset : recipe.geosets) std::printf("  geoset %u\n", geoset);
+        }
+    }
+    return 0;
+}

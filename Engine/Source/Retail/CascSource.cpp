@@ -1,4 +1,5 @@
 #include "Engine/Source/Retail/CascSource.h"
+#include "Engine/Source/Retail/BusyNotice.h"
 #include "Engine/Source/Retail/RetailModel.h"
 #include "Engine/Source/Retail/ClientTables.h"
 #include <CascLib.h>
@@ -121,15 +122,15 @@ struct CascSource::Impl {
         return true;
     }
 
-    bool OpenFile(const Reference& ref, const std::string& internal, File& file, std::string& error) {
+    bool OpenFile(const Reference& ref, const std::string& internal, File& file, std::string& error, bool lenient = false) {
         if (!Open(error)) return false;
         const void* name = ref.id ? CASC_FILE_DATA_ID(ref.id) : internal.c_str();
-        DWORD flags = (ref.id ? CASC_OPEN_BY_FILEID : CASC_OPEN_BY_NAME) | CASC_STRICT_DATA_CHECK;
+        DWORD flags = (ref.id ? CASC_OPEN_BY_FILEID : CASC_OPEN_BY_NAME) | (lenient ? CASC_OVERCOME_ENCRYPTED : CASC_STRICT_DATA_CHECK);
         if (!CascOpenFile(storage, name, locale, flags, &file.handle)) return CascFailure(error, "Cannot open Retail file");
         return true;
     }
 
-    bool Fetch(const Reference& ref, const std::string& internal, std::vector<uint8_t>& bytes, std::string& error) {
+    bool Fetch(const Reference& ref, const std::string& internal, std::vector<uint8_t>& bytes, std::string& error, bool lenient = false) {
         if (files) {
             if (!configured || !ref.id) return Failure(error, "Offline Retail packs require configured FileDataID references");
             std::ifstream input(std::filesystem::path(path) / (std::to_string(ref.id) + ".bin"), std::ios::binary | std::ios::ate);
@@ -141,8 +142,9 @@ struct CascSource::Impl {
             if (!input.read(reinterpret_cast<char*>(bytes.data()), bytes.size())) return Failure(error, "Cannot read offline Retail asset");
             return true;
         }
+        BusyNotice busy("Downloading Retail data from the Blizzard CDN");
         File file;
-        if (!OpenFile(ref, internal, file, error)) return false;
+        if (!OpenFile(ref, internal, file, error, lenient)) return false;
         ULONGLONG size = 0;
         if (!CascGetFileSize64(file.handle, &size)) return CascFailure(error, "Cannot get Retail file size");
         if (size > 128 * 1024 * 1024) return Failure(error, "Retail file exceeds 128 MiB limit");
@@ -323,6 +325,16 @@ bool CascSource::MergeTable(const char* name, const std::vector<uint8_t>& base,
     return MergeClientTable(table, base, additions, merged, error);
 }
 
+// DB2 tables hold sections encrypted for unreleased content; stock clients skip those, so a
+// missing key must not fail the table. Unreadable blocks come back zero-filled.
+bool CascSource::ReadTable(const char* name, std::vector<uint8_t>& bytes, std::string& error) {
+    error.clear();
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    Reference ref;
+    std::string internal;
+    return m_impl->Resolve(Normalize(name ? name : ""), ref, internal, error) && m_impl->Fetch(ref, internal, bytes, error, true);
+}
+
 bool CascSource::Exists(const char* name, std::string& error) {
     error.clear();
     std::lock_guard<std::mutex> lock(m_impl->mutex);
@@ -356,7 +368,14 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
     bool success = true;
     if (ext == ".m2" || ext == ".mdx") {
         auto model = std::make_shared<Model>();
-        success = PrepareModel(bytes, model->bytes, model->files, error);
+        // A shared skeleton lives in its own file; fetch it before the model is prepared.
+        ModelFiles inspected;
+        std::vector<uint8_t> skeleton;
+        if (InspectModel(bytes, inspected, error) && inspected.skeleton) {
+            Reference skel{inspected.skeleton};
+            success = s.Fetch(skel, "", skeleton, error);
+        }
+        success = success && PrepareModel(bytes, model->bytes, model->files, error, skeleton.empty() ? nullptr : &skeleton);
         std::map<std::string, Reference> pending;
         const auto base = key.substr(0, key.find_last_of('.'));
         // Check every advertised profile before exposing the model to the renderer.
@@ -364,7 +383,7 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
             if (i >= 4 || i >= (model->bytes.size() > 0x44 ? model->bytes[0x44] : 0)) break;
             Reference skin{model->files.skins[i], model};
             std::vector<uint8_t> raw;
-            success = s.Fetch(skin, "", raw, error) && PrepareSkin(raw, model->bytes, error);
+            success = s.Fetch(skin, "", raw, error) && PrepareSkin(raw, model->bytes, error, model->files.skeleton != 0);
             char suffix[16];
             std::snprintf(suffix, sizeof(suffix), "%02u.skin", static_cast<unsigned>(i));
             pending.emplace(base + suffix, std::move(skin));
@@ -388,7 +407,7 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
             bytes = model->bytes;
         }
     } else if (ext == ".skin") {
-        success = ref.owner ? PrepareSkin(bytes, ref.owner->bytes, error) : Failure(error, "Open the Retail model before its skin");
+        success = ref.owner ? PrepareSkin(bytes, ref.owner->bytes, error, ref.owner->files.skeleton != 0) : Failure(error, "Open the Retail model before its skin");
     } else if (ext == ".anim") {
         success = ref.owner ? (StripAnimationChunk(bytes, error) && ValidateAnimation(bytes, ref.owner->bytes, ref.animation, ref.variation, error)) :
             Failure(error, "Open the Retail model before its animation");

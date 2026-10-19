@@ -2,6 +2,7 @@
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Common/ComponentCore/CreatureAppearance.h"
 #include "WoW/Common/ComponentCore/EarthenAppearance.h"
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Common/ComponentCore/HaranirAppearance.h"
 #include "WoW/Common/ComponentCore/HighmountainAppearance.h"
 #include "WoW/Common/ComponentCore/VulperaAppearance.h"
@@ -1627,6 +1628,11 @@ int OptionControl(lua_State* L, const char* command, CCharacterComponent* charac
 }  // namespace
 
 int EsteriaCycleCommand(lua_State* L, CCharacterComponent* character, const char* command) {
+    const int retail = RetailRaceCycleCommand(L, character, command);
+    if (retail >= 0) {
+        return retail;
+    }
+
     if (Disabled() || !character) {
         return -1;
     }

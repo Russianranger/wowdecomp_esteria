@@ -9919,8 +9919,8 @@ static void AutoEquipItemCallback(int32_t id, const WOWGUID& guid, void* param, 
 // OFFSET: 0x006DB880
 void CGPlayer_C::SwapGuildBankItem(int32_t itemId, uint32_t virtualSlot, uint8_t bag, uint8_t slot, uint32_t count) {
     WOWGUID banker = CGGuildBankInfo::m_banker;
-    uint8_t tab = virtualSlot / 98;
-    uint8_t tabSlot = virtualSlot % 98;
+    uint8_t tab = virtualSlot / GUILD_BANK_SLOTS_PER_TAB;
+    uint8_t tabSlot = virtualSlot % GUILD_BANK_SLOTS_PER_TAB;
     CDataStore msg;
 
     if (tab < 6 && CGGuildInfo::m_rankInfo[this->m_player->m_playerGuildrank].m_bankTabStacksPerDay[tab]) {

@@ -129,7 +129,8 @@ bool Track(const std::vector<uint8_t>& b, size_t p, size_t keySize,
     return true;
 }
 
-bool Tracks(const std::vector<uint8_t>& b, const std::vector<uint8_t>* anim = nullptr, uint32_t seq = 0) {
+bool Tracks(const std::vector<uint8_t>& b, const std::vector<uint8_t>* anim = nullptr, uint32_t seq = 0,
+    const std::vector<uint8_t>* bones = nullptr, const std::vector<uint8_t>* attachments = nullptr) {
     struct Group { size_t array, stride, track, key; };
     const Group groups[] = {
         {0x2c, 88, 16, 12}, {0x2c, 88, 36, 8}, {0x2c, 88, 56, 12},
@@ -147,7 +148,9 @@ bool Tracks(const std::vector<uint8_t>& b, const std::vector<uint8_t>* anim = nu
             // Hermite/Bezier values store value, in-tangent and out-tangent.
             size_t key = group.key;
             if (key && U16(b, p) >= 2) key *= 3;
-            if (!Track(b, p, key, anim, seq)) return false;
+            const auto* source = group.array == 0x2c && bones ? bones
+                : group.array == 0xf0 && attachments ? attachments : anim;
+            if (!Track(b, p, key, source, seq)) return false;
         }
     }
     return true;
@@ -185,6 +188,108 @@ bool Cameras(std::vector<uint8_t>& b, std::string& error) {
         while (b.size() % 4) b.push_back(0);
         Put(b, 0x114, uint32_t(b.size()));
         b.insert(b.end(), cameras.begin(), cameras.end());
+    }
+    return true;
+}
+
+// Shared skeletons (SKEL). The .skel chunks (SKS1 sequences, SKB1 bones, SKA1 attachments) hold the arrays an
+// ordinary model keeps in its own body, with offsets relative to each chunk. Append each chunk to the body
+// and rebase its offsets, so the rest of the pipeline sees an ordinary self-contained model.
+struct SkelArray { uint32_t count, offset; };
+
+bool SkelArrayAt(const uint8_t* chunk, size_t size, size_t at, size_t stride, SkelArray& out) {
+    if (at + 8 > size) return false;
+    std::memcpy(&out.count, chunk + at, 4);
+    std::memcpy(&out.offset, chunk + at + 4, 4);
+    return out.offset <= size && out.count <= (size - out.offset) / stride;
+}
+
+void SetHeaderArray(std::vector<uint8_t>& b, size_t field, uint32_t count, uint32_t offset) {
+    Put(b, field, count);
+    Put(b, field + 4, count ? offset : 0);
+}
+
+// Moves the offsets of one animation track (20 bytes) that lives in a skeleton chunk. Per-sequence arrays of
+// sequences stored in external .anim files keep their anim-relative offsets.
+bool RebaseTrack(std::vector<uint8_t>& b, size_t track, uint32_t base, size_t chunkEnd) {
+    const uint32_t loop = U16(b, track + 2), count = U32(b, track + 4);
+    if (loop == 0xffff && count > U32(b, 0x1c)) return false;
+    if (!count) return true;
+    for (const size_t field : {size_t(8), size_t(16)}) {
+        const size_t pairs = size_t(base) + U32(b, track + field);
+        if (pairs > chunkEnd || size_t(count) * 8 > chunkEnd - pairs) return false;
+        for (uint32_t i = 0; i < count; ++i) {
+            const size_t pair = pairs + size_t(i) * 8;
+            const bool external = loop == 0xffff && i < U32(b, 0x1c) &&
+                !(U32(b, U32(b, 0x20) + size_t(i) * 64 + 12) & 0x20);
+            if (!external && U32(b, pair)) Put(b, pair + 4, U32(b, pair + 4) + base);
+        }
+        Put(b, track + field, uint32_t(pairs));
+    }
+    return true;
+}
+
+bool SpliceSkeleton(std::vector<uint8_t>& b, ModelFiles& files, const std::vector<uint8_t>& skel, std::string& error) {
+    if (U32(b, 0x1c) || U32(b, 0x2c)) return Fail(error, "Model with a skeleton file also has its own bones or sequences");
+    struct Chunk { const uint8_t* data = nullptr; size_t size = 0; };
+    Chunk sks, skb, ska;
+    for (size_t p = 0; p < skel.size();) {
+        if (!Range(skel, p, 8)) return Fail(error, "Truncated SKEL chunk header");
+        const uint32_t tag = U32(skel, p), size = U32(skel, p + 4);
+        p += 8;
+        if (!Range(skel, p, size)) return Fail(error, "SKEL chunk exceeds file size");
+        switch (tag) {
+            case 0x31534b53: sks = {skel.data() + p, size}; break; // SKS1
+            case 0x31424b53: skb = {skel.data() + p, size}; break; // SKB1
+            case 0x31414b53: ska = {skel.data() + p, size}; break; // SKA1
+            case 0x44494641:                                       // AFID
+                if (size % 8) return Fail(error, "Invalid SKEL AFID chunk");
+                for (size_t i = 0; i < size; i += 8)
+                    files.animations.push_back({U16(skel, p + i), U16(skel, p + i + 2), U32(skel, p + i + 4)});
+                break;
+            default: break;
+        }
+        p += size;
+    }
+    if (!sks.data || !skb.data) return Fail(error, "SKEL has no sequence or bone chunk");
+    auto append = [&](const Chunk& chunk, uint32_t& base) {
+        while (b.size() % 4) b.push_back(0);
+        if (b.size() + chunk.size > 128 * 1024 * 1024) return false;
+        base = uint32_t(b.size());
+        b.insert(b.end(), chunk.data, chunk.data + chunk.size);
+        return true;
+    };
+    uint32_t base = 0;
+    SkelArray loops, sequences, lookups, bones, keys;
+    if (!SkelArrayAt(sks.data, sks.size, 0, 4, loops) || !SkelArrayAt(sks.data, sks.size, 8, 64, sequences) ||
+        !SkelArrayAt(sks.data, sks.size, 16, 2, lookups))
+        return Fail(error, "Invalid SKEL sequence arrays");
+    if (!append(sks, base)) return Fail(error, "Prepared model exceeds 128 MiB");
+    SetHeaderArray(b, 0x14, loops.count, base + loops.offset);
+    SetHeaderArray(b, 0x1c, sequences.count, base + sequences.offset);
+    SetHeaderArray(b, 0x24, lookups.count, base + lookups.offset);
+
+    if (!SkelArrayAt(skb.data, skb.size, 0, 88, bones) || !SkelArrayAt(skb.data, skb.size, 8, 2, keys))
+        return Fail(error, "Invalid SKEL bone arrays");
+    if (!append(skb, base)) return Fail(error, "Prepared model exceeds 128 MiB");
+    for (uint32_t i = 0; i < bones.count; ++i) {
+        const size_t bone = size_t(base) + bones.offset + size_t(i) * 88;
+        for (const size_t track : {size_t(16), size_t(36), size_t(56)})
+            if (!RebaseTrack(b, bone + track, base, size_t(base) + skb.size)) return Fail(error, "Invalid SKEL bone track");
+    }
+    SetHeaderArray(b, 0x2c, bones.count, base + bones.offset);
+    SetHeaderArray(b, 0x34, keys.count, base + keys.offset);
+
+    if (ska.data) {
+        SkelArray attachments, attachmentLookup;
+        if (!SkelArrayAt(ska.data, ska.size, 0, 40, attachments) || !SkelArrayAt(ska.data, ska.size, 8, 2, attachmentLookup))
+            return Fail(error, "Invalid SKEL attachment arrays");
+        if (!append(ska, base)) return Fail(error, "Prepared model exceeds 128 MiB");
+        for (uint32_t i = 0; i < attachments.count; ++i)
+            if (!RebaseTrack(b, size_t(base) + attachments.offset + size_t(i) * 40 + 20, base, size_t(base) + ska.size))
+                return Fail(error, "Invalid SKEL attachment track");
+        SetHeaderArray(b, 0xf0, attachments.count, base + attachments.offset);
+        SetHeaderArray(b, 0xf8, attachmentLookup.count, base + attachmentLookup.offset);
     }
     return true;
 }
@@ -276,6 +381,40 @@ std::string FileName(uint32_t id, const char* extension) {
     return "retail/" + std::to_string(id) + extension;
 }
 
+bool ReadHelmetAnchor(const std::vector<uint8_t>& b, HelmetAnchor& anchor, std::string& error) {
+    anchor = {};
+    error.clear();
+    if (!Range(b, 0, 0x100) || U32(b, 0) != 0x3032444d || U32(b, 4) != 264)
+        return Fail(error, "Helmet donor must be an unrelocated legacy M2");
+    if (!Array(b, 0x2c, 88) || !Array(b, 0x34, 2) || !Array(b, 0xf0, 40) || !Array(b, 0xf8, 2)
+        || U32(b, 0x34) <= 6 || U32(b, 0xf8) <= 11)
+        return Fail(error, "Helmet donor has invalid bone or attachment arrays");
+    const uint32_t head = U16(b, U32(b, 0x38) + 6 * 2);
+    const uint32_t socket = U16(b, U32(b, 0xfc) + 11 * 2);
+    if (head >= U32(b, 0x2c) || socket >= U32(b, 0xf0))
+        return Fail(error, "Helmet donor is missing its head or helmet socket");
+    const size_t attachment = U32(b, 0xf4) + size_t(socket) * 40;
+    if (U32(b, attachment) != 11 || U16(b, attachment + 4) >= U32(b, 0x2c))
+        return Fail(error, "Helmet donor socket ID or bone is invalid");
+    const size_t pivot = U32(b, 0x30) + size_t(head) * 88 + 76;
+    for (size_t axis = 0; axis < 3; ++axis) {
+        std::memcpy(&anchor.head[axis], b.data() + pivot + axis * 4, 4);
+        std::memcpy(&anchor.socket[axis], b.data() + attachment + 8 + axis * 4, 4);
+        if (!std::isfinite(anchor.head[axis]) || !std::isfinite(anchor.socket[axis])) {
+            anchor = {};
+            return Fail(error, "Helmet donor contains a nonfinite anchor");
+        }
+    }
+    return true;
+}
+
+std::array<float, 3> HelmetTranslation(const HelmetAnchor& donor, const HelmetAnchor& target) {
+    std::array<float, 3> translation{};
+    for (size_t axis = 0; axis < 3; ++axis)
+        translation[axis] = target.head[axis] + donor.socket[axis] - donor.head[axis] - target.socket[axis];
+    return translation;
+}
+
 bool InspectModel(const std::vector<uint8_t>& bytes, ModelFiles& files, std::string& error) {
     error.clear();
     Chunks chunks;
@@ -284,7 +423,8 @@ bool InspectModel(const std::vector<uint8_t>& bytes, ModelFiles& files, std::str
     return true;
 }
 
-bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepared, ModelFiles& files, std::string& error) {
+bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepared, ModelFiles& files, std::string& error,
+    const std::vector<uint8_t>* skeleton) {
     error.clear();
     prepared.clear();
     Chunks chunks;
@@ -292,7 +432,10 @@ bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepa
     files = chunks.files;
     auto& b = chunks.body;
     if (files.version < 272 || files.version > 274) return Fail(error, "Supported Retail M2 versions are 272-274");
-    if (files.skeleton) return Fail(error, "Shared SKEL skeletons are not implemented yet");
+    if (files.skeleton) {
+        if (!skeleton) return Fail(error, "Model needs its SKEL skeleton file");
+        if (!SpliceSkeleton(b, files, *skeleton, error)) return false;
+    }
     if (!Array(b, 0x1c, 64)) return Fail(error, "Invalid sequence array");
     // 0x200000 only marks chunked .anim files (AFM2 wraps the legacy payload); see StripAnimationChunk.
     // Retail particle emitters use a newer layout the legacy emitter cannot read. Omit them; the mesh,
@@ -300,6 +443,17 @@ bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepa
     Put(b, 0x128, 0);
     if (!Cameras(b, error)) return false;
     if ((U32(b, 0x10) & 8) && !Array(b, 0x130, 2)) return Fail(error, "Invalid texture combiner array");
+    // Retail added blend modes 7-14 beyond the legacy 7-entry table. Map each onto the closest legacy mode
+    // and drop render flags the legacy renderer does not define.
+    if (Array(b, 0x70, 4)) {
+        static const uint8_t kBlend[] = {0, 1, 2, 3, 4, 5, 6, 4, 4, 2, 2, 3, 2, 4, 4};
+        for (uint32_t i = 0; i < U32(b, 0x70); ++i) {
+            const size_t m = U32(b, 0x74) + size_t(i) * 4;
+            const uint16_t blend = U16(b, m + 2);
+            if (blend < sizeof(kBlend)) { b[m + 2] = kBlend[blend]; b[m + 3] = 0; }
+            b[m] &= 0x1f; b[m + 1] = 0;
+        }
+    }
     if (!Validate(b, files, error)) return false;
     if (U32(b, 0x50) > 256 || U32(b, 0x60) > 255) return Fail(error, "Retail texture/transform count exceeds legacy renderer limits");
     // Retail split the old 32-bit blend duration into two 16-bit durations.
@@ -439,23 +593,67 @@ bool ValidateSkin(const std::vector<uint8_t>& b, const std::vector<uint8_t>& m, 
     return true;
 }
 
+bool InspectAnimation(const uint8_t* bytes, size_t size, AnimationLayout& layout, std::string& error) {
+    layout = {};
+    error.clear();
+    auto tagAt = [&](size_t at) {
+        uint32_t tag;
+        std::memcpy(&tag, bytes + at, 4);
+        return tag;
+    };
+    const uint32_t first = size >= 4 ? tagAt(0) : 0;
+    if (first != 0x324d4641 && first != 0x42534641 && first != 0x41534641) {
+        layout.model = layout.bones = layout.attachments = {0, size, true};
+        return true;
+    }
+    layout.chunked = true;
+    for (size_t p = 0; p < size;) {
+        if (size - p < 8) return Fail(error, "Truncated animation chunk header");
+        const uint32_t tag = tagAt(p), count = tagAt(p + 4);
+        p += 8;
+        if (count > size - p) return Fail(error, "Animation chunk exceeds file size");
+        AnimationSpan* span = tag == 0x324d4641 ? &layout.model
+            : tag == 0x42534641 ? &layout.bones : tag == 0x41534641 ? &layout.attachments : nullptr;
+        if (span) {
+            if (span->present) return Fail(error, "Duplicate animation payload chunk");
+            *span = {p, count, true};
+        }
+        p += count;
+    }
+    return true;
+}
+
 bool StripAnimationChunk(std::vector<uint8_t>& bytes, std::string& error) {
-    if (bytes.size() < 8 || std::memcmp(bytes.data(), "AFM2", 4) != 0) return true;  // already a legacy .anim
-    uint32_t size;
-    std::memcpy(&size, bytes.data() + 4, 4);
-    if (size > bytes.size() - 8) return Fail(error, "Truncated AFM2 animation chunk");
-    bytes.erase(bytes.begin(), bytes.begin() + 8);
-    bytes.resize(size);
+    AnimationLayout layout;
+    if (!InspectAnimation(bytes.data(), bytes.size(), layout, error)) return false;
+    if (!layout.chunked || layout.bones.present || layout.attachments.present) return true;
+    const auto model = layout.model;
+    bytes = std::vector<uint8_t>(bytes.begin() + model.offset, bytes.begin() + model.offset + model.size);
     return true;
 }
 
 bool ValidateAnimation(const std::vector<uint8_t>& b, const std::vector<uint8_t>& m,
     uint16_t id, uint16_t variation, std::string& error) {
     if (!Range(m, 0, 0x130) || !Array(m, 0x1c, 64)) return Fail(error, "Invalid animation owner");
+    AnimationLayout layout;
+    if (!InspectAnimation(b.data(), b.size(), layout, error)) return false;
+    auto payload = [&](const AnimationSpan& span) {
+        return std::vector<uint8_t>(b.begin() + span.offset, b.begin() + span.offset + span.size);
+    };
+    // The engine relocates the same spans below by track category. In particular, a short AFM2
+    // material payload is not the address space of the much larger AFSB skeletal keyframes.
+    std::vector<uint8_t> model, bones, attachments;
+    if (layout.chunked) {
+        model = payload(layout.model);
+        bones = payload(layout.bones.present ? layout.bones : layout.model);
+        attachments = payload(layout.attachments.present ? layout.attachments : layout.model);
+    }
     for (uint32_t i = 0; i < U32(m, 0x1c); ++i) {
         size_t p = U32(m, 0x20) + size_t(i) * 64;
         if (U16(m, p) == id && U16(m, p + 2) == variation) {
-            if (!Tracks(m, &b, i)) return Fail(error, ("External animation track exceeds file size: " + s_trackFailure).c_str());
+            if (!Tracks(m, layout.chunked ? &model : &b, i,
+                layout.chunked ? &bones : nullptr, layout.chunked ? &attachments : nullptr))
+                return Fail(error, ("External animation track exceeds file size: " + s_trackFailure).c_str());
             return true;
         }
     }
@@ -468,7 +666,7 @@ std::string HexWord(uint16_t v) {
     return text;
 }
 
-bool PrepareSkin(std::vector<uint8_t>& b, const std::vector<uint8_t>& m, std::string& error) {
+bool PrepareSkin(std::vector<uint8_t>& b, const std::vector<uint8_t>& m, std::string& error, bool degradeShaders) {
     if (!Range(b, 0, 48) || !Range(m, 0, 0x130) || !Array(b, 4, 2) || !Array(b, 28, 48) || !Array(m, 0x3c, 48))
         return Fail(error, "Invalid SKIN arrays");
     // Retail leaves the old per-section influence count unused (zero). The legacy
@@ -504,6 +702,11 @@ bool PrepareSkin(std::vector<uint8_t>& b, const std::vector<uint8_t>& m, std::st
         } else if (shader == 0x8015) {
             // Diffuse_EdgeFade_T1_T2 / Combiners_Mod_Mod: the 3.3.5 client has no edge-fade vertex shader, so draw it without the fade.
             b[p] = 0x12; b[p + 1] = 0x80;
+        } else if ((shader & 0x8000) && degradeShaders) {
+            // Character layers (tabards, armor effects) use multi-texture shaders the legacy renderer lacks.
+            // Draw them with their first texture and the plain opaque combiner instead of failing the model.
+            b[p] = b[p + 1] = 0;
+            b[p + 12] = 1; b[p + 13] = 0;
         } else if (shader & 0x8000) {
             return Fail(error, ("Retail explicit shader is not implemented yet: 0x" + HexWord(shader) + " in batch " + std::to_string(i) + " (textures " + std::to_string(U16(b, U32(b, 40) + size_t(i) * 24 + 14)) + ")").c_str());
         }

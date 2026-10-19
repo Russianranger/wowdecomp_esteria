@@ -12,6 +12,7 @@
 #endif
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/Base/Prop.h"
@@ -1728,6 +1729,10 @@ static int32_t GetConditionalGeoset(CharacterPreferences* prefs) {
 // OFFSET: 0x004EA0B0
 void CCharacterComponent::ReplaceExtraSkinTexture(const char* debug) {
     EsteriaSetContext(this);
+    if (RetailRaceActive(this)) {
+        return;
+    }
+
     if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_SKIN, 0, this->m_data.m_preferences.m_skinID)) {
         return;
     }
@@ -1757,6 +1762,10 @@ void CCharacterComponent::ReplaceExtraSkinTexture(const char* debug) {
 // OFFSET: 0x004EA150
 void CCharacterComponent::ReplaceHairTexture(int32_t hairStyleID, const char* debug) {
     EsteriaSetContext(this);
+    if (RetailRaceActive(this)) {
+        return;
+    }
+
     if (!ComponentValidateBase(CCharacterComponent::s_chrVarArray, this->m_data.m_preferences.m_raceID, this->m_data.m_preferences.m_sexID, VARIATION_HAIR, hairStyleID, this->m_data.m_preferences.m_hairColorId)) {
         return;
     }
@@ -1791,6 +1800,12 @@ void CCharacterComponent::LoadBaseVariation(COMPONENT_VARIATIONS variation, int3
     if (texture) {
         TextureCacheDestroyTexture(texture);
         texture = nullptr;
+    }
+
+    // Retail races compose their skin from Retail data, not CharSections.dbc.
+    if (RetailRaceActive(this)) {
+        this->SetDirtySections(1 << section);
+        return;
     }
 
     // Esteria: custom races take their skin/face layers from the catalog (stock hook at 0x004F3B10 and neighbours).
@@ -3492,6 +3507,7 @@ void CCharacterComponent::GeosRenderPrep() {
 
     // Esteria: custom-race geosets and replaceable textures (stock hook at 0x004ED945).
     EsteriaGeometry(this);
+    RetailRaceGeometry(this);
 
     for (int32_t i = 0; i < 19; i++) {
         if (i == 17 && eyeGlow) {
@@ -3590,6 +3606,7 @@ void CCharacterComponent::GeosRenderPrep() {
         this->m_data.m_model->SetGeometryVisible(rec.m_geosetGroup[0] + 1801, rec.m_geosetGroup[0] + 1801, 1);
     }
 
+    RetailRaceEquipment(this);
     this->m_data.m_model->OptimizeVisibleGeometry();
     this->m_flags &= ~0x4;
 }
@@ -3672,6 +3689,7 @@ void CCharacterComponent::RenderPrepAll() {
 
     this->m_flags &= ~0x1;
     this->m_dirtySections = 0;
+    RetailRaceBody(this);
     this->DestroyRenderTextures();
     this->m_link.Unlink();
 }
@@ -4370,7 +4388,10 @@ void CCharacterComponent::CreateBaseTexture() {
     }
 
     this->m_baseSkinTexture = TextureCreate(s_textureSize, s_textureSize, this->m_gxTexFormat, dataFormat, flags, this, &CCharacterComponent::UpdateBaseTexture, "CharacterBaseSkin", 1);
-    this->m_data.m_model->ReplaceTexture(1, this->m_baseSkinTexture);
+
+    if (!RetailRaceActive(this)) {
+        this->m_data.m_model->ReplaceTexture(1, this->m_baseSkinTexture);
+    }
 }
 
 // VERIFY: 51c5a21d manual
@@ -4974,6 +4995,7 @@ void CCharacterComponent::ProcessFinishedRequest() {
     }
 
     this->UpdateSections();
+    RetailRaceBody(this);
     this->m_request->m_flags &= ~0x1;
     this->m_flags &= ~0x1;
     this->m_request = nullptr;
@@ -5150,6 +5172,7 @@ void CCharacterComponent::RenderPrepSections() {
     }
 
     this->PrepSections();
+    RetailRaceBody(this);
     this->m_flags &= ~0x1;
     this->m_dirtySections = 0;
     this->DestroyRenderTextures();
@@ -5210,6 +5233,7 @@ bool CCharacterComponent::RenderPrep(int32_t wait) {
 // OFFSET: 0x004F16C0
 void CCharacterComponent::FreeComponent(CCharacterComponent* component) {
     EsteriaForgetCharacter(component);
+    RetailRaceForget(component);
     uint32_t* heap = s_componentHeap;
     component->~CCharacterComponent();
     ObjectFree(*heap, component->m_heapIndex);
@@ -5272,6 +5296,8 @@ void CCharacterComponent::DestroyComponentFreeLists() {
 // VERIFY: 0f866952 manual
 // OFFSET: 0x004F18F0
 int32_t CCharacterComponent::Update(const void* data, void* param) {
+    RetailRaceTick();
+
     int32_t hasContext = g_theGxDevicePtr ? g_theGxDevicePtr->CapsHasContext(-1) : 0;
 
     for (CCharacterComponent* component = CCharacterComponent::s_queue.Head(); component;) {

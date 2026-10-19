@@ -176,6 +176,21 @@ executable alongside the development client's `Data` folder, then run:
 ./Tools/RetailAssets/Preview.ps1 -ClientDirectory 'C:/WoW-Dev' -Executable WowClient64.exe -Config 'C:/config/RetailCasc.ini' -Equipped
 ```
 
+## Race customization tables
+
+`Engine/Source/Retail/Db2.*` reads WDC5 tables straight from the pinned CDN build
+(by FileDataID; DB2s carry no CASC names), and `Appearance.*` resolves a retail
+race/sex plus a list of `ChrCustomizationChoice` IDs into geosets, texture layers
+and attached models. Both are adapted from WarcraftXL's GPL-3.0 wxl-db2; keep that
+licence in mind when distributing. Table layouts are checked by layout hash, and all
+tables used match build 12.1.5.70448. `ReadTable` zero-fills sections encrypted for
+unreleased content, as the stock client does.
+
+`RetailRaceProbe <RetailCasc.ini> [raceId sex]` lists every race/sex model and, with a
+race, its options, choice counts and the recipe for the first choice of each option.
+Not yet implemented: applying a recipe in `CharacterComponent`, SKEL/chunked ANIM,
+the creation UI, and server-side storage of choices.
+
 ## Current boundary
 
 | Area | Supported in this implementation |

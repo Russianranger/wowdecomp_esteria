@@ -15,8 +15,10 @@
 namespace {
 constexpr uint32_t CMSG_ESTERIA_INVENTORY = 0x521;
 constexpr uint32_t SMSG_ESTERIA_INVENTORY = 0x522;
-constexpr uint8_t ProtocolVersion = 2;
+constexpr uint8_t ProtocolVersion = 3;
+// Carried storage tops out at 10000 stacks; the account bank may hold far more.
 constexpr uint32_t MaximumSlots = 10000;
+constexpr uint32_t MaximumStored = 1000000;
 
 struct Row {
     uint32_t guid = 0, entry = 0, count = 0, durability = 0, maxDurability = 0;
@@ -25,13 +27,13 @@ struct Row {
 };
 
 struct Snapshot {
-    uint32_t request = 0, revision = 0, capacity = 0, used = 0, total = 0, offset = 0, price = 0, upgrade = 0;
-    uint8_t active = 0, status = 0;
+    uint32_t request = 0, revision = 0, capacity = 0, used = 0, total = 0, offset = 0, price = 0, upgrade = 0, unlockCost = 0;
+    uint8_t scope = 0, active = 0, status = 0, flags = 0;
     std::string message;
     std::vector<Row> rows;
 };
 
-Snapshot s_snapshot;
+Snapshot s_snapshots[3];  // 0 carried, 1 account bank, 2 guild bank tab descriptors
 uint32_t s_request = 0;
 
 // Parse into temporary state; an invalid/truncated packet never changes the last valid snapshot.
@@ -65,19 +67,20 @@ private:
 int32_t Receive(void*, NETMESSAGE, uint32_t, CDataStore* message) {
     if (!message || message->m_read > message->m_size) return 0;
     uint32_t size = message->m_size - message->m_read;
-    if (size < 39 || size > (1u << 20) || !message->FetchRead(message->m_read, size)) return 0;
+    if (size < 45 || size > (1u << 20) || !message->FetchRead(message->m_read, size)) return 0;
     std::vector<uint8_t> bytes(size);
     message->GetData(bytes.data(), size);
     Reader reader(bytes);
     Snapshot next;
     uint8_t version = 0, rows = 0;
     if (!reader.Get(version) || version != ProtocolVersion
+        || !reader.Get(next.scope) || next.scope > 2
         || !reader.Get(next.request) || !reader.Get(next.revision) || !reader.Get(next.capacity)
         || !reader.Get(next.used) || !reader.Get(next.total) || !reader.Get(next.offset)
-        || !reader.Get(next.price) || !reader.Get(next.upgrade) || !reader.Get(next.active)
-        || !reader.Get(next.status) || !reader.String(next.message, 512) || !reader.Get(rows)
-        || next.capacity > MaximumSlots || next.used > MaximumSlots
-        || next.total > MaximumSlots + 1100 || next.offset > next.total || rows > next.total - next.offset
+        || !reader.Get(next.price) || !reader.Get(next.upgrade) || !reader.Get(next.unlockCost) || !reader.Get(next.active)
+        || !reader.Get(next.status) || !reader.Get(next.flags) || !reader.String(next.message, 512) || !reader.Get(rows)
+        || next.capacity > MaximumStored || next.used > MaximumStored
+        || next.total > MaximumStored + 1100 || next.offset > next.total || rows > next.total - next.offset
         || next.active > 1) return 0;
     for (uint8_t i = 0; i < rows; ++i) {
         Row row;
@@ -94,8 +97,11 @@ int32_t Receive(void*, NETMESSAGE, uint32_t, CDataStore* message) {
     }
     uint16_t count = 0;
     if (!reader.Get(count) || count > MaximumSlots) return 0;
+    Snapshot& current = s_snapshots[next.scope];
+    bool carried = next.scope == 0;
+    if (!carried && count) return 0;
     // Browse/page replies repeat the aggregate index; same revision and size means it is already cached.
-    bool reuse = next.active && s_snapshot.active && next.revision == s_snapshot.revision
+    bool reuse = carried && next.active && current.active && next.revision == current.revision
         && count == EsteriaInventoryClient::counts.size();
     std::unordered_map<uint32_t, EsteriaInventoryClient::CountEntry> counts;
     if (reuse) {
@@ -109,13 +115,16 @@ int32_t Receive(void*, NETMESSAGE, uint32_t, CDataStore* message) {
         }
     }
     if (!reader.Done()) return 0;
-    bool changed = next.revision != s_snapshot.revision;
-    s_snapshot = std::move(next);
-    if (!reuse) EsteriaInventoryClient::counts = std::move(counts);
-    if (!s_snapshot.active) EsteriaInventoryClient::counts.clear();
-    if (changed && CGTradeSkillInfo::m_skillLineID) CGTradeSkillInfo::RefreshList(0);
+    bool changed = next.revision != current.revision;
+    uint8_t scope = next.scope;
+    current = std::move(next);
+    if (carried) {
+        if (!reuse) EsteriaInventoryClient::counts = std::move(counts);
+        if (!current.active) EsteriaInventoryClient::counts.clear();
+        if (changed && CGTradeSkillInfo::m_skillLineID) CGTradeSkillInfo::RefreshList(0);
+    }
     uint32_t event = sExtensionMgr->GetFrameScriptEventIndex("ESTERIA_INVENTORY_UPDATE");
-    if (event != UINT32_MAX) FrameScript_SignalEvent(event, "%d", s_snapshot.revision);
+    if (event != UINT32_MAX) FrameScript_SignalEvent(event, "%d%d", scope, current.revision);
     return 1;
 }
 
@@ -128,10 +137,10 @@ bool Number(lua_State* L, int index, uint32_t maximum, uint32_t& out) {
 }
 
 int32_t Request(lua_State* L) {
-    uint32_t action, revision, guid, count, argument, category, sort;
-    if (!Number(L, 1, 12, action) || !Number(L, 2, UINT32_MAX, revision)
+    uint32_t action, revision, guid, count, argument, category, sort, scope = 0;
+    if (!Number(L, 1, 13, action) || !Number(L, 2, UINT32_MAX, revision)
         || !Number(L, 3, UINT32_MAX, guid) || !Number(L, 4, UINT32_MAX, count)
-        || !Number(L, 5, MaximumSlots + 1100, argument) || !Number(L, 6, 5, category) || !Number(L, 7, 4, sort))
+        || !Number(L, 5, MaximumStored + 1100, argument) || !Number(L, 6, 5, category) || !Number(L, 7, 4, sort))
         return luaL_error(L, "Invalid Esteria inventory request");
     size_t length = 0;
     char const* search = lua_tolstring(L, 8, &length);
@@ -145,9 +154,10 @@ int32_t Request(lua_State* L) {
         auto result = std::from_chars(text, text + size, target, 16);
         if (result.ec != std::errc() || result.ptr != text + size) return luaL_error(L, "Invalid vendor GUID");
     }
+    if (lua_isnumber(L, 10) && !Number(L, 10, 2, scope)) return luaL_error(L, "Invalid inventory scope");
     if (++s_request == 0) ++s_request;
     CDataStore payload;
-    payload.Put(ProtocolVersion).Put(uint8_t(action)).Put(s_request).Put(revision).Put(guid).Put(count)
+    payload.Put(ProtocolVersion).Put(uint8_t(action)).Put(uint8_t(scope)).Put(s_request).Put(revision).Put(guid).Put(count)
         .Put(argument).Put(target).Put(uint8_t(category)).Put(uint8_t(sort)).PutString(search);
     payload.Finalize();
     if (sExtensionMgr->SendClientMessage(CMSG_ESTERIA_INVENTORY, payload)) lua_pushnumber(L, s_request);
@@ -166,7 +176,12 @@ void StringField(lua_State* L, char const* key, std::string const& value) {
 }
 
 int32_t GetSnapshot(lua_State* L) {
-    lua_createtable(L, 0, 14);
+    uint32_t which = 0;
+    if (lua_isnumber(L, 1) && !Number(L, 1, 2, which)) return luaL_error(L, "Invalid inventory scope");
+    Snapshot const& s_snapshot = s_snapshots[which];
+    lua_createtable(L, 0, 18);
+    NumberField(L, "scope", s_snapshot.scope); NumberField(L, "unlockCost", s_snapshot.unlockCost);
+    BoolField(L, "bankUnlocked", (s_snapshot.flags & 1) != 0); BoolField(L, "atBanker", (s_snapshot.flags & 2) != 0);
     NumberField(L, "request", s_snapshot.request); NumberField(L, "revision", s_snapshot.revision);
     NumberField(L, "capacity", s_snapshot.capacity); NumberField(L, "used", s_snapshot.used);
     NumberField(L, "total", s_snapshot.total); NumberField(L, "offset", s_snapshot.offset);
@@ -197,7 +212,9 @@ class Lifecycle : public ClientScript {
 public:
     Lifecycle() : ClientScript("DigitalInventoryLifecycle") { }
     void OnLeaveWorld() override {
-        s_snapshot = Snapshot{};
+        s_snapshots[0] = Snapshot{};
+        s_snapshots[1] = Snapshot{};
+        s_snapshots[2] = Snapshot{};
         s_request = 0;
         EsteriaInventoryClient::counts.clear();
     }

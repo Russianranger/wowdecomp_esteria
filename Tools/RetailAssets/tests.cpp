@@ -2,10 +2,14 @@
 #include "Engine/Source/Retail/RetailModel.h"
 #include "Engine/Source/Retail/ClientTables.h"
 #include "Engine/Source/Retail/RetailShader.h"
+#include "Engine/Source/Retail/Equipment.h"
+#include "Engine/Source/Retail/RaceGeometry.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -70,6 +74,138 @@ std::vector<uint8_t> Skin() {
 }
 
 int main(int argc, char** argv) {
+    {
+        struct FootModel {
+            bool visible[100];
+            FootModel() { std::fill(std::begin(visible), std::end(visible), true); }
+            void SetGeometryVisible(uint32_t first, uint32_t last, int visibleValue) {
+                for (uint32_t id = first; id <= last; ++id) visible[id - 2000] = visibleValue != 0;
+            }
+            bool Only(uint16_t id) const {
+                for (uint16_t i = 1; i < 100; ++i) if (visible[i] != (i + 2000 == id)) return false;
+                return true;
+            }
+        } model;
+        Retail::ApplyLegacyFootGeometry(model, 10141, true); // Actual style-zero starter boots.
+        Check(model.Only(2002), "style-zero starter boots hide bare toes and all alternate foot meshes");
+        Retail::ApplyLegacyFootGeometry(model, 64789, true);
+        Check(model.Only(2002), "swapping to styled boots keeps the closed shoe independently of shin style");
+        Retail::ApplyLegacyFootGeometry(model, 64789, true); // A robe refresh retains equipped boots.
+        Check(model.Only(2002), "a geometry refresh does not restore bare toes under equipped boots");
+        Retail::ApplyLegacyFootGeometry(model, 0, true);
+        Check(model.Only(2001), "removing boots hides the shoe and restores the original bare foot");
+        Retail::ApplyLegacyFootGeometry(model, 10141, true);
+        Check(model.Only(2002), "re-equipping boots restores the closed shoe without leftover bare feet");
+        Retail::ApplyLegacyFootGeometry(model, 10141, false);
+        Check(model.Only(2001), "models lacking a closed-foot mesh retain a visible foot fallback");
+    }
+    {
+        // Real pinned Dwarf recipes omit group 32; the shared visibility reset used to hide both heads.
+        const std::vector<uint16_t> dwarfMale{0, 300, 102, 3500, 1600, 3401};
+        const std::vector<uint16_t> dwarfFemale{2, 3500, 1600};
+        auto has = [](const std::vector<uint16_t>& ids, uint16_t id) {
+            return std::find(ids.begin(), ids.end(), id) != ids.end();
+        };
+        for (const auto& recipe : {dwarfMale, dwarfFemale}) {
+            const auto defaults = Retail::DefaultRaceGeosets(recipe);
+            Check(has(defaults, 3202) && !has(defaults, 3201),
+                "Dwarf recipe restores the full face/head instead of the neck-only variant");
+            Check(has(defaults, 2001) && has(defaults, 2201) && has(defaults, 3301) && has(defaults, 5101),
+                "head fallback preserves the existing feet, torso and eyes");
+        }
+        for (const uint16_t shape : {3200, 3202, 3203, 3204}) {
+            const auto defaults = Retail::DefaultRaceGeosets({0, 300, 100, 200, shape, 3400, 702});
+            Check(!has(defaults, 3202), "explicit Human face shapes and hidden-head choices suppress the fallback");
+        }
+        Check(!has(Retail::DefaultRaceGeosets({2004, 2202, 3302, 5103}), 2001),
+            "anatomy defaults do not override selected equipment/body variants");
+    }
+    // Reproduce world rendering: item identity survives temporary texture cleanup, and an update
+    // of one section must retain the other equipped sections in the next complete retail sheet.
+    struct Section {
+        void* m_layerTex[7]{};
+        uint32_t m_layerItemDisplayId[7]{};
+        uint32_t m_layerMask = 0;
+    } equipment[8];
+    int loadedTexture = 0;
+    equipment[3].m_layerItemDisplayId[1] = 100; // chest
+    equipment[3].m_layerMask = 2;
+    equipment[3].m_layerTex[1] = &loadedTexture;
+    equipment[7].m_layerItemDisplayId[0] = 200; // boots
+    equipment[7].m_layerMask = 1;
+    equipment[7].m_layerTex[0] = &loadedTexture;
+    auto beforeCleanup = Retail::CollectEquipmentLayers(equipment, false);
+    equipment[3].m_layerTex[1] = equipment[7].m_layerTex[0] = nullptr;
+    auto afterCleanup = Retail::CollectEquipmentLayers(equipment, false);
+    Check(beforeCleanup.size() == 2 && afterCleanup.size() == 2
+        && afterCleanup[0].displayId == 100 && afterCleanup[1].displayId == 200,
+        "temporary texture cleanup preserves the equipped body layers");
+    equipment[7].m_layerItemDisplayId[0] = 201;
+    equipment[7].m_layerTex[0] = &loadedTexture;
+    auto partialUpdate = Retail::CollectEquipmentLayers(equipment, false);
+    Check(partialUpdate.size() == 2 && partialUpdate[0].displayId == 100
+        && !partialUpdate[0].texture && partialUpdate[1].displayId == 201,
+        "changing boots retains the chest even when its texture handle was released");
+    equipment[7] = {};
+    auto removedBoots = Retail::CollectEquipmentLayers(equipment, false);
+    Check(removedBoots.size() == 1 && removedBoots[0].displayId == 100,
+        "unequipping boots removes only their body layer");
+    equipment[5].m_layerItemDisplayId[0] = 300; // pants hidden below robe
+    equipment[5].m_layerMask = 1;
+    auto robeLayers = Retail::CollectEquipmentLayers(equipment, true);
+    auto pantsLayers = Retail::CollectEquipmentLayers(equipment, false);
+    Check(robeLayers.size() == 1 && pantsLayers.size() == 2,
+        "robe removal restores trousers without changing saved equipment");
+    {
+        // A legacy helmet is authored relative to the crown socket, while the retail socket is
+        // at the head pivot. Test a different head position on all axes rather than a fixed lift.
+        const uint16_t dwarfSocket[] = {32767, 32767, 32767, 65535};
+        const uint16_t oppositeIdentity[] = {32768, 32768, 32768, 0};
+        const uint16_t rotatedSocket[] = {32767, 55938, 32767, 55938};
+        const uint16_t invalidSocket[] = {32767, 32767, 32767, 32767};
+        Check(Retail::IsIdentityHelmetRotation(dwarfSocket) && Retail::IsIdentityHelmetRotation(oppositeIdentity),
+            "accept quantized global identity socket rotations on Dwarf helmets");
+        Check(!Retail::IsIdentityHelmetRotation(rotatedSocket) && !Retail::IsIdentityHelmetRotation(invalidSocket),
+            "do not apply a translation-only helmet fit to a rotated or invalid socket");
+        auto donor = Body();
+        Put(donor, 4, 264);
+        auto array = [&](size_t field, uint32_t count, size_t stride) {
+            const size_t offset = donor.size();
+            Put(donor, field, count); Put(donor, field + 4, uint32_t(offset));
+            donor.resize(offset + count * stride);
+            return offset;
+        };
+        auto point = [&](size_t offset, float x, float y, float z) {
+            const float xyz[] = {x, y, z};
+            for (size_t i = 0; i < 3; ++i) {
+                uint32_t bits;
+                std::memcpy(&bits, &xyz[i], 4);
+                Put(donor, offset + i * 4, bits);
+            }
+        };
+        const size_t keys = array(0x34, 7, 2);
+        const size_t attachments = array(0xf0, 1, 40);
+        const size_t lookup = array(0xf8, 12, 2);
+        point(Get(donor, 0x30) + 76, 1, 2, 3);
+        Put(donor, attachments, 11);
+        point(attachments + 8, 2, 4, 6);
+        Retail::HelmetAnchor anchor;
+        std::string anchorError;
+        Check(Retail::ReadHelmetAnchor(donor, anchor, anchorError), "read installed legacy helmet anchor");
+        const auto original = donor;
+        const Retail::HelmetAnchor target{{10, 20, 30}, {9, 18, 27}};
+        const auto correction = Retail::HelmetTranslation(anchor, target);
+        Check(correction == std::array<float, 3>{2, 4, 6}, "retarget crown origin to a different retail head/socket");
+        Check(donor == original, "helmet fitting never changes source model bytes");
+        Check(Retail::HelmetTranslation(anchor, anchor) == std::array<float, 3>{0, 0, 0},
+            "matching skeletons retain the original helmet placement");
+        donor[lookup + 22] = donor[lookup + 23] = 0xff;
+        Check(!Retail::ReadHelmetAnchor(donor, anchor, anchorError), "reject a missing helmet socket");
+        donor = original; donor[keys + 12] = donor[keys + 13] = 0xff;
+        Check(!Retail::ReadHelmetAnchor(donor, anchor, anchorError), "reject a missing head key bone");
+        donor = original; Put(donor, attachments + 8, 0x7fc00000);
+        Check(!Retail::ReadHelmetAnchor(donor, anchor, anchorError), "reject a nonfinite helmet origin");
+    }
     std::string error;
     Retail::ModelFiles files;
     std::vector<uint8_t> prepared;
@@ -145,6 +281,59 @@ int main(int argc, char** argv) {
         Check(Retail::StripAnimationChunk(legacy, chunkError) && legacy.size() == 3, "leave legacy animation files alone");
         std::vector<uint8_t> truncated = {'A', 'F', 'M', '2', 9, 0, 0, 0, 7};
         Check(!Retail::StripAnimationChunk(truncated, chunkError), "reject truncated AFM2 chunk");
+    }
+    {
+        // Same external offsets intentionally address different values in each payload. The old
+        // adapter either discarded AFSB after AFM2 or read an AFSB chunk header as timestamps.
+        auto owner = Body();
+        Put(owner, Get(owner, 0x20) + 12, 0); // sequence zero is external
+        auto array = [&](size_t field, uint32_t count, size_t stride) {
+            const size_t offset = owner.size();
+            Put(owner, field, count); Put(owner, field + 4, uint32_t(offset));
+            owner.resize(offset + count * stride);
+            return offset;
+        };
+        auto track = [&](size_t at) {
+            Put(owner, at, 0xffff0001); // linear, no global sequence
+            size_t times = array(at + 4, 1, 8);
+            Put(owner, times, 2); Put(owner, times + 4, 0);
+            size_t keys = array(at + 12, 1, 8);
+            Put(owner, keys, 2); Put(owner, keys + 4, 8);
+        };
+        track(Get(owner, 0x30) + 16);
+        size_t weight = array(0x58, 1, 20);
+        track(weight);
+        size_t attachment = array(0xf0, 1, 40);
+        Put(owner, attachment, 11);
+        track(attachment + 20);
+        std::vector<uint8_t> model(12), bones(32), attachments(10), split;
+        for (auto* payload : {&model, &bones, &attachments}) Put(*payload, 4, 100);
+        Put(model, 8, 32767);
+        Put(bones, 20, 0x3f800000); // translation x changes from zero to one
+        attachments[8] = 1;
+        Chunk(split, "AFM2", model); Chunk(split, "AFSB", bones); Chunk(split, "AFSA", attachments);
+        const auto original = split;
+        Check(Retail::StripAnimationChunk(split, error) && split == original,
+            "retain every payload in a shared-skeleton animation");
+        Retail::AnimationLayout layout;
+        Check(Retail::InspectAnimation(split.data(), split.size(), layout, error)
+            && layout.chunked && layout.model.size == 12 && layout.bones.size == 32
+            && layout.attachments.size == 10 && layout.model.offset != layout.bones.offset,
+            "separate model, skeleton-bone and skeleton-attachment address spaces");
+        Check(Retail::ValidateAnimation(split, owner, 0, 0, error), error.c_str());
+        auto missingBones = std::vector<uint8_t>{};
+        Chunk(missingBones, "AFM2", model);
+        Check(!Retail::ValidateAnimation(missingBones, owner, 0, 0, error),
+            "do not validate skeletal keyframes against the short model payload");
+        auto corrupt = split; Put(corrupt, layout.bones.offset, 101);
+        Check(!Retail::ValidateAnimation(corrupt, owner, 0, 0, error), "check skeletal timestamp ordering inside AFSB");
+        corrupt = split; corrupt.pop_back();
+        Check(!Retail::InspectAnimation(corrupt.data(), corrupt.size(), layout, error), "reject truncated skeleton attachment chunks");
+        corrupt = split; Chunk(corrupt, "AFSB", bones);
+        Check(!Retail::InspectAnimation(corrupt.data(), corrupt.size(), layout, error), "reject ambiguous duplicate skeleton payloads");
+        Put(owner, 0x58, 0); Put(owner, 0xf0, 0); // body needs only skeletal data
+        std::vector<uint8_t> boneOnly; Chunk(boneOnly, "AFSB", bones);
+        Check(Retail::ValidateAnimation(boneOnly, owner, 0, 0, error), "support AFSB-only talk/laugh files");
     }
     corruptBody = body; Put(corruptBody, Get(body, 0x30) + 8, 0);
     Check(!Retail::PrepareModel(Model(corruptBody), prepared, files, error), "reject bone parent cycle");

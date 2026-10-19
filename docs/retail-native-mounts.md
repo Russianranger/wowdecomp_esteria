@@ -84,9 +84,10 @@ before removing a pack; IDs are never recycled automatically.
 `config/writhing-brood.json` (Retail mount 3058, display 145412, model 7551444) is the first
 ground mount and the first model using chunked `.anim` files. Additions it required:
 
-- Chunked animation files: an `AFM2` chunk wraps the legacy `.anim` payload; the 8-byte header
-  is dropped when the file is opened (originals stay untouched on disk). Offsets in the model
-  are relative to the payload.
+- Model-only chunked animation files: an `AFM2` chunk wraps the legacy `.anim` payload; the header
+  is dropped when the file is opened (originals stay untouched on disk). Shared-skeleton animations
+  can also contain `AFSB` bone and `AFSA` attachment payloads. Those files retain their chunks, and
+  validation/runtime relocation select the corresponding payload base for each track category.
 - Particle emitters use a newer layout and are **omitted** (count cleared); mesh, skinning,
   ribbons and animation are unaffected.
 - Explicit shader 0x15 (`Diffuse_EdgeFade_T1_T2` / `Combiners_Mod_Mod`) maps to

@@ -27,6 +27,8 @@ public:
     bool Exists(const char* name, std::string& error);
     bool Read(const char* name, std::vector<uint8_t>& bytes, std::string& error);
     bool Inspect(const char* name, std::vector<uint8_t>& bytes, std::string& error);
+    // Like Inspect, but encrypted blocks without a key are zero-filled instead of failing.
+    bool ReadTable(const char* name, std::vector<uint8_t>& bytes, std::string& error);
     void ReleaseModel(const char* name);
     bool CachedSize(const char* name, uint32_t& size);
     bool HandItem(uint32_t displayId, HandItemAppearance& appearance, bool mainHand = false);

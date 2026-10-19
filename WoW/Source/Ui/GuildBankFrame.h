@@ -6,6 +6,9 @@
 #include "WoW/Source/Net/Types.h"
 #include "WoW/Source/Object/WGUID.h"
 
+// Matches the server: tabs hold up to 250 slots (base 128, purchasable growth); also the virtual-slot stride.
+constexpr uint32_t GUILD_BANK_SLOTS_PER_TAB = 250;
+
 class CDataStore;
 struct lua_State;
 

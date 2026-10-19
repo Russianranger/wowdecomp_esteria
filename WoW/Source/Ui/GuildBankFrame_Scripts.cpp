@@ -353,7 +353,7 @@ static int32_t Script_GetGuildBankItemInfo(lua_State* L) {
         lua_pushstring(L, texture);
         lua_pushnumber(L, info->m_count);
 
-        if (CGGameUI::VirtualItemIsLocked(info->m_itemID, slot + 98 * tab, 0)) {
+        if (CGGameUI::VirtualItemIsLocked(info->m_itemID, slot + GUILD_BANK_SLOTS_PER_TAB * tab, 0)) {
             lua_pushnumber(L, 1.0);
         } else {
             lua_pushnil(L);
@@ -383,7 +383,7 @@ static int32_t Script_PickupGuildBankItem(lua_State* L) {
     uint8_t tab = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     uint8_t slot = static_cast<int32_t>(lua_tonumber(L, 2)) - 1;
 
-    if (tab >= 6 || slot >= 98) {
+    if (tab >= 6 || slot >= GUILD_BANK_SLOTS_PER_TAB) {
         return 0;
     }
 
@@ -421,7 +421,7 @@ static int32_t Script_PickupGuildBankItem(lua_State* L) {
     ItemRec* rec = g_itemDB.GetRecord(info->m_itemID);
 
     if (rec) {
-        uint32_t bankSlot = slot + 98 * tab;
+        uint32_t bankSlot = slot + GUILD_BANK_SLOTS_PER_TAB * tab;
 
         if (!CGGameUI::VirtualItemIsLocked(info->m_itemID, bankSlot, 0)) {
             CGGameUI::SetCursorVirtualItem(info->m_itemID, rec->m_displayInfoID, bankSlot, UICURSOR_GUILDBANK_ITEM, 0);
@@ -456,7 +456,7 @@ static int32_t Script_AutoStoreGuildBankItem(lua_State* L) {
     int32_t value = static_cast<int32_t>(lua_tonumber(L, 2));
     uint8_t slot = value - 1;
 
-    if (tab >= 6 || static_cast<uint8_t>(value - 1) >= 98) {
+    if (tab >= 6 || static_cast<uint8_t>(value - 1) >= GUILD_BANK_SLOTS_PER_TAB) {
         return 0;
     }
 
@@ -512,13 +512,13 @@ static int32_t Script_SplitGuildBankItem(lua_State* L) {
     uint8_t tab = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
     uint8_t slot = static_cast<int32_t>(lua_tonumber(L, 2)) - 1;
 
-    if (tab >= 6 || slot >= 98) {
+    if (tab >= 6 || slot >= GUILD_BANK_SLOTS_PER_TAB) {
         return 0;
     }
 
     int32_t virtualId = 0;
     int32_t virtualSlot = 0;
-    uint32_t bankSlot = slot + 98 * tab;
+    uint32_t bankSlot = slot + GUILD_BANK_SLOTS_PER_TAB * tab;
 
     if (CGGameUI::m_cursorItemType == UICURSOR_GUILDBANK_ITEM) {
         CGGameUI::GetCursorVirtualItem(virtualId, virtualSlot);

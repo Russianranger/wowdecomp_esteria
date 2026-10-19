@@ -1,3 +1,4 @@
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "CharacterSelection.h"
 #include <cstring>
@@ -452,7 +453,9 @@ void CCharacterSelection::ShowCharacter() {
         data.m_preferences.m_hairStyleId = info.m_hairStyleID;
         data.m_preferences.m_hairColorId = info.m_hairColorID;
         data.m_preferences.m_facialHairId = info.m_facialHairStyleID;
-        data.m_model = CCharacterSelection::m_modelFrame->GetScene()->CreateModel(playerRec->m_modelName, 0);
+        char retailPath[260];
+        const bool retailModel = RetailRaceModelPath(info.m_raceID, info.m_sexID, retailPath, sizeof(retailPath));
+        data.m_model = CCharacterSelection::m_modelFrame->GetScene()->CreateModel(retailModel ? retailPath : playerRec->m_modelName, 0);
         data.m_flags |= 0x2;
 
         CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component->Init(&data, nullptr);

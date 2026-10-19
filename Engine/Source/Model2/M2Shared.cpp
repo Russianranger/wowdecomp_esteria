@@ -29,6 +29,7 @@
 #if defined(WOWDECOMP_RETAIL_ASSETS)
 #include "Engine/Source/Retail/CascSource.h"
 #include "Engine/Source/Retail/RetailShader.h"
+#include "Engine/Source/Retail/RetailModel.h"
 #endif
 
 // Out of range / 0xFFFF coordinate combo indices (newer or converted models) read as coordinate set 0.
@@ -54,6 +55,20 @@ static uint8_t* s_sequenceData;
 
 // STATIC: 0x00D4125C
 static uint32_t s_sequenceSize;
+
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+static uint8_t* s_sequenceBoneData;
+static uint8_t* s_sequenceAttachmentData;
+
+class SequenceDataScope {
+    uint8_t* saved;
+public:
+    explicit SequenceDataScope(uint8_t* payload) : saved(s_sequenceData) {
+        if (payload) s_sequenceData = payload;
+    }
+    ~SequenceDataScope() { s_sequenceData = saved; }
+};
+#endif
 
 // VERIFY: eb5cb8e9 auto
 // OFFSET: 0x00835950
@@ -1432,6 +1447,9 @@ int32_t CM2Shared::FinishLoadingSkinProfile(uint32_t size) {
 // OFFSET: 0x008385A0
 template <>
 int32_t M2Init<M2CompBone>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2CompBone>& array) {
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    SequenceDataScope source(s_sequenceBoneData);
+#endif
     if (s_sequenceIndex == 0xFFFFFFFF) {
         if (array.m_offset > size || array.m_offset + sizeof(M2CompBone) * array.m_count > size) {
             return 0;
@@ -1478,6 +1496,9 @@ int32_t M2Init<M2TextureTransform>(uint8_t* base, uint32_t size, const M2Data& d
 // OFFSET: 0x00839080
 template <>
 int32_t M2Init<M2Attachment>(uint8_t* base, uint32_t size, const M2Data& data, M2Array<M2Attachment>& array) {
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    SequenceDataScope source(s_sequenceAttachmentData);
+#endif
     if (s_sequenceIndex == 0xFFFFFFFF) {
         if (array.m_offset > size || array.m_offset + sizeof(M2Attachment) * array.m_count > size) {
             return 0;
@@ -1646,8 +1667,27 @@ int32_t M2Init(uint8_t* base, uint32_t size, M2Data& data) {
 // VERIFY: 8000b812 manual
 // OFFSET: 0x0083C6E0
 int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, uint8_t* buffer, uint32_t size) {
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    Retail::AnimationLayout layout;
+    const bool retail = !_strnicmp(this->m_fileName, "retail/", 7) || !_strnicmp(this->m_fileName, "retail\\", 7);
+    if (retail) {
+        std::string error;
+        if (!Retail::InspectAnimation(buffer, size, layout, error)) {
+            DebugLog("Invalid Retail sequence chunks: %s (%d): %s", this->m_fileName, sequenceIndex, error.c_str());
+            return 0;
+        }
+    }
+#endif
     s_sequenceIndex = sequenceIndex;
     s_sequenceData = buffer;
+    s_sequenceSize = size;
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    if (retail && layout.chunked) {
+        if (layout.model.present) s_sequenceData = buffer + layout.model.offset;
+        if (layout.bones.present) s_sequenceBoneData = buffer + layout.bones.offset;
+        if (layout.attachments.present) s_sequenceAttachmentData = buffer + layout.attachments.offset;
+    }
+#endif
 
     int32_t result = M2Init(reinterpret_cast<uint8_t*>(this->m_data), this->m_fileSize, *this->m_data);
     M2Sequence* sequence = &this->m_data->m_sequences[sequenceIndex];
@@ -1655,6 +1695,10 @@ int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, uint
     s_sequenceIndex = 0xFFFFFFFF;
     s_sequenceData = nullptr;
     s_sequenceSize = 0;
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    s_sequenceBoneData = nullptr;
+    s_sequenceAttachmentData = nullptr;
+#endif
 
     if (!result) {
         DebugLog("Corrupt model sequence data: %s (%d)", this->m_fileName, sequenceIndex);

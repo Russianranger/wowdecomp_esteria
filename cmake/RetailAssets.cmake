@@ -32,6 +32,10 @@ add_library(RetailAssets STATIC
     "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/RetailModel.cpp"
     "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/RetailShader.cpp"
     "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/ClientTables.cpp"
+    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/Db2.cpp"
+    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/Appearance.cpp"
+    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/Compose.cpp"
+    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/BusyNotice.cpp"
 )
 target_include_directories(RetailAssets PUBLIC "${CMAKE_SOURCE_DIR}")
 target_compile_definitions(RetailAssets PUBLIC WOWDECOMP_RETAIL_ASSETS=1)
@@ -39,6 +43,10 @@ target_link_libraries(RetailAssets PRIVATE casc_static)
 
 add_executable(RetailAssetProbe "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/probe.cpp")
 target_link_libraries(RetailAssetProbe PRIVATE RetailAssets)
+add_executable(RetailRaceProbe "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/races.cpp")
+target_link_libraries(RetailRaceProbe PRIVATE RetailAssets)
+add_executable(RetailComposeProbe "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/compose.cpp")
+target_link_libraries(RetailComposeProbe PRIVATE RetailAssets)
 add_executable(RetailAssetTests "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/tests.cpp")
 target_link_libraries(RetailAssetTests PRIVATE RetailAssets)
 add_executable(RetailAssetAcquire "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/acquire.cpp")
