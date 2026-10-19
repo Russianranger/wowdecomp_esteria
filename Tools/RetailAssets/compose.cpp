@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <fstream>
+#include <sstream>
 #include <vector>
 
 namespace app = Retail::Db2::appearance;
@@ -67,7 +69,19 @@ bool Fetch(uint32_t fileDataId, std::vector<uint8_t>& bytes, void*) {
 
 }
 
-int main(int argc, char** argv) {
+int ComposeCase(int argc, char** argv) {
+    if (argc == 5 && std::string(argv[2]) == "texture") {
+        _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+        std::vector<uint8_t> bytes;
+        Retail::Image image;
+        std::string error;
+        if (!Fetch(uint32_t(std::strtoul(argv[3], nullptr, 10)), bytes, nullptr)
+            || !Retail::DecodeBlp(bytes, image, error) || !WritePng(argv[4], image)) {
+            std::fprintf(stderr, "Texture decode: %s\n", error.c_str()); return 1;
+        }
+        std::printf("Decoded texture %s: %ux%u -> %s\n", argv[3], image.width, image.height, argv[4]);
+        return 0;
+    }
     if (argc < 5) {
         std::fprintf(stderr, "Usage: RetailComposeProbe <RetailCasc.ini> <chrRaceId> <sex> <outputPrefix> [choiceId ...]\n");
         return 2;
@@ -99,6 +113,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "No model for race %u sex %u\n", race, sex);
         return 1;
     }
+    std::printf("recipe model %u layout %u\n", recipe.modelFileDataId, recipe.textureLayoutId);
     for (const auto& layer : recipe.layers)
         std::printf("layer type %u order %u blend %u mask %d material %u file %u\n", layer.textureType, layer.layer, layer.blendMode,
             int(layer.sectionMask), layer.materialResourcesId, app::MaterialFileDataId(layer.materialResourcesId, 0));
@@ -112,4 +127,25 @@ int main(int argc, char** argv) {
             WritePng(path.c_str(), texture.image) ? "written" : "FAILED");
     }
     return ok ? 0 : 1;
+}
+
+int main(int argc, char** argv) {
+    if (argc != 4 || std::string(argv[2]) != "batch") return ComposeCase(argc, argv);
+    std::ifstream cases(argv[3]);
+    if (!cases) return 2;
+    std::string line;
+    uint32_t total = 0, failures = 0;
+    while (std::getline(cases, line)) {
+        if (line.empty() || line[0] == '#') continue;
+        std::vector<std::string> args{argv[0], argv[1]};
+        std::istringstream words(line);
+        std::string word;
+        while (words >> word) args.push_back(word);
+        std::vector<char*> pointers;
+        for (auto& arg : args) pointers.push_back(arg.data());
+        if (ComposeCase(int(pointers.size()), pointers.data())) ++failures;
+        ++total;
+    }
+    std::printf("Batch: %u cases, %u failures\n", total, failures);
+    return failures ? 1 : 0;
 }

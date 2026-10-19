@@ -325,7 +325,9 @@ bool Validate(const std::vector<uint8_t>& b, const ModelFiles& files, std::strin
                 return Fail(error, "Ribbon texture/material index out of range");
     }
     if (!String(b, 8)) return Fail(error, "Invalid model name");
-    if (!U32(b, 0x2c) || U32(b, 0x2c) > 256) return Fail(error, "Model requires between 1 and 256 embedded bones");
+    // Global bone indices and parents are uint16. Byte vertex indices address section-local
+    // palettes; the total rig can exceed 256 (Dracthyr). Skin validation bounds those separately.
+    if (!U32(b, 0x2c) || U32(b, 0x2c) > 65535) return Fail(error, "Model requires between 1 and 65535 embedded bones");
     if (!U32(b, 0x44) || U32(b, 0x44) > 4 || files.skins.size() < U32(b, 0x44))
         return Fail(error, "Missing SFID entries or unsupported skin profile count");
     for (uint32_t i = 0; i < U32(b, 0x44); ++i)
@@ -531,12 +533,19 @@ bool MergeOneTrack(const MergeTrack& originalChild, const MergeTrack* originalPa
     if (out.loop != 0xffff) return true;
     out.spans.resize(result.sequences.size());
     for (const uint32_t index : inherited) {
-        if (!originalParent || (donor.loop == 0xffff && index >= donor.spans.size())) continue;
+        if (!originalParent) continue;
         if (donor.loop != 0xffff) {
             if (donor.Populated()) return Fail(error, "Cannot mix global parent motion with child sequence track");
             continue;
         }
-        const auto span = donor.spans[index];
+        uint32_t sourceIndex = index;
+        for (uint32_t depth = 0; U32(parent.sequences[sourceIndex], 12) & 0x40; ++depth) {
+            if (depth >= parent.sequences.size()) return Fail(error, "Inherited SKEL alias cycle");
+            sourceIndex = U16(parent.sequences[sourceIndex], 62);
+            if (sourceIndex >= parent.sequences.size()) return Fail(error, "Invalid inherited SKEL alias target");
+        }
+        if (sourceIndex >= donor.spans.size()) continue;
+        const auto span = donor.spans[sourceIndex];
         if (!span.count) continue;
         if (!originalChild.Populated()) out.interpolation = donor.interpolation;
         if (out.interpolation != donor.interpolation) return Fail(error, "Inherited SKEL track interpolation differs");
@@ -659,14 +668,29 @@ bool MergeSkeleton(const std::vector<uint8_t>& childBytes, const std::vector<uin
     if (result.sequences.size() > 32767) return Fail(error, "Inherited SKEL exceeds signed variation index limit");
     for (const auto index : inherited) {
         auto& seq = result.sequences[parentMap[index]];
-        const uint16_t next = U16(seq, 60), alias = U16(seq, 62);
+        const uint16_t next = U16(seq, 60);
+        if (U32(seq, 12) & 0x40) {
+            // A parent alias can point at an action overridden by the child, whose .anim file is
+            // different. Materialize that inherited alias using its original parent's payload,
+            // instead of redirecting its tracks into the child's unrelated AFID address space.
+            uint32_t owner = index;
+            for (uint32_t depth = 0; U32(parent.sequences[owner], 12) & 0x40; ++depth) {
+                if (depth >= parent.sequences.size()) return Fail(error, "Inherited SKEL alias cycle");
+                owner = U16(parent.sequences[owner], 62);
+                if (owner >= parent.sequences.size()) return Fail(error, "Invalid inherited SKEL alias target");
+            }
+            const auto identity = SequenceIdentity(seq);
+            seq = parent.sequences[owner];
+            Put16(seq, 0, identity.first); Put16(seq, 2, identity.second);
+            Put16(seq, 60, next);
+            uint32_t file = 0;
+            if (!AnimationOwner(parent, owner, file)) return Fail(error, "Invalid inherited SKEL animation owner");
+            if (file) result.files[identity] = file;
+            else result.files.erase(identity);
+        }
         if (next != 0xffff) {
             if (next >= parentMap.size()) return Fail(error, "Invalid parent variation link");
             Put16(seq, 60, uint16_t(parentMap[next]));
-        }
-        if (U32(seq, 12) & 0x40) {
-            if (alias >= parentMap.size()) return Fail(error, "Invalid parent alias link");
-            Put16(seq, 62, uint16_t(parentMap[alias]));
         }
     }
     const auto& childBones = child.chunks.at(MergeSKB);

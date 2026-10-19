@@ -55,7 +55,7 @@ namespace Retail::Db2::appearance
         uint32_t    chrModels = 0, raceModels = 0, options = 0, choices = 0;
         uint32_t    elements = 0, geosets = 0;
         uint32_t    materials = 0, skinnedModels = 0, textureLayers = 0, textureLayouts = 0;
-        uint32_t    textureSections = 0;
+        uint32_t    textureSections = 0, conditionalModels = 0;
         uint32_t    displayInfos = 0, modelData = 0, creatureGeosets = 0;
     };
 

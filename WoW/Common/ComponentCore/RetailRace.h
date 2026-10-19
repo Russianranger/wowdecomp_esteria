@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class CCharacterComponent;
+class CGUnit_C;
 struct lua_State;
 
 // Races taken 1:1 from the Retail client data (DB2 customization tables, model and textures from CASC).
@@ -51,6 +52,9 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
 
 // Drops per-component retail state when the component is freed.
 void RetailRaceForget(CCharacterComponent* character);
+
+// Registers the world owner whose model reference must follow a per-character body change.
+void RetailRaceBindOwner(CCharacterComponent* character, CGUnit_C* owner);
 
 // Once per frame: keeps retail components moving through the stock section pipeline in the world. Stock drives that
 // pipeline from the dynamic base-skin texture, which retail components deliberately do not bind.

@@ -100,6 +100,14 @@ namespace Retail::Db2::appearance
             kChrCustomizationMaterialFields,
         };
 
+        constexpr Field kChrCustomizationCondModelFields[] = {
+            { "CreatureModelDataID" }, { "Field_9_0_1_34081_001", 4 },
+        };
+        constexpr Definition kChrCustomizationCondModel{
+            "chrcustomizationcondmodel", "DBFilesClient\\chrcustomizationcondmodel.db2",
+            0x601A4522u, kChrCustomizationCondModelFields,
+        };
+
         // Declared because kChrModelTextureLayer names it as a relation target, and a target that is
         // not declared fails validation for the WHOLE set: one missing table is the difference
         // between every appearance resolving and none of them resolving.
@@ -199,7 +207,7 @@ namespace Retail::Db2::appearance
             kChrCustomizationElement, kChrCustomizationGeoset, kChrCustomizationSkinnedModel,
             kChrCustomizationMaterial, kChrModelTextureLayer, kCreatureDisplayInfo,
             kCreatureModelData, kCreatureDisplayInfoGeosetData, kCharComponentTextureLayouts,
-            kCharComponentTextureSections,
+            kCharComponentTextureSections, kChrCustomizationCondModel,
         };
 
         // Loaded on first material lookup: 200k rows nobody needs until a texture is composed.
@@ -224,7 +232,7 @@ namespace Retail::Db2::appearance
         StoreStatus g_status;
         std::once_flag g_loadOnce;
 
-        Table g_raceModel, g_chrModel, g_option, g_choice, g_element, g_geoset, g_skinnedModel;
+        Table g_raceModel, g_chrModel, g_option, g_choice, g_element, g_geoset, g_skinnedModel, g_condModel;
         Table g_material, g_textureLayer, g_displayInfo, g_modelData, g_creatureGeoset;
         Table g_textureLayout, g_textureSection;
 
@@ -300,6 +308,7 @@ namespace Retail::Db2::appearance
                 { &g_creatureGeoset, &kDefinitions[11], &g_status.creatureGeosets },
                 { &g_textureLayout,  &kDefinitions[12], &g_status.textureLayouts  },
                 { &g_textureSection, &kDefinitions[13], &g_status.textureSections },
+                { &g_condModel,      &kDefinitions[14], &g_status.conditionalModels },
             };
 
             bool allOk = true;
@@ -409,10 +418,11 @@ namespace Retail::Db2::appearance
          * for one human hairstyle.
          */
         void AddChoice(uint32_t choiceId, uint32_t layoutId, const uint32_t* selected,
-                       uint32_t selectedCount, Recipe& out)
+                       uint32_t selectedCount, Recipe& out, bool allowModelSwap)
         {
             const auto elements = g_elementsByChoice.find(choiceId);
             if (elements == g_elementsByChoice.end()) return;
+            bool visibleCollection = false, blindfoldMaterial = false;
 
             for (const wdc5::Row* element : elements->second)
             {
@@ -433,15 +443,50 @@ namespace Retail::Db2::appearance
                 }
                 if (const uint32_t id = g_element.Value(*element, "ChrCustomizationSkinnedModelID"))
                 {
-                    if (const wdc5::Row* skinned = g_skinnedModel.Find(id))
+                    if (const wdc5::Row* skinned = g_skinnedModel.Find(id)) {
                         out.attached.push_back({
                             g_skinnedModel.Value(*skinned, "CollectionsFileDataID"),
                             GeosetId(g_skinnedModel.Value(*skinned, "GeosetType"),
                                      g_skinnedModel.Value(*skinned, "GeosetID")),
                         });
+                        visibleCollection = visibleCollection || (out.attached.back().fileDataId && out.attached.back().geoset % 100);
+                    }
                 }
-                if (const uint32_t id = g_element.Value(*element, "ChrCustomizationMaterialID"))
+                if (const uint32_t id = g_element.Value(*element, "ChrCustomizationMaterialID")) {
                     AddMaterialLayers(id, layoutId, out);
+                    const auto* material = g_material.Find(id);
+                    blindfoldMaterial = blindfoldMaterial || (material && g_material.Value(*material, "ChrModelTextureTargetID") == 40);
+                }
+                if (const uint32_t id = allowModelSwap ? g_element.Value(*element, "ChrCustomizationCondModelID") : 0) {
+                    if (const auto* conditional = g_condModel.Find(id)) {
+                        bool unconditional = true;
+                        for (uint32_t i = 0; i < 4; ++i)
+                            unconditional = unconditional && !g_condModel.Value(*conditional, "Field_9_0_1_34081_001", i);
+                        const auto* model = g_modelData.Find(g_condModel.Value(*conditional, "CreatureModelDataID"));
+                        if (unconditional && model && g_modelData.Value(*model, "FileDataID"))
+                            out.modelFileDataId = g_modelData.Value(*model, "FileDataID");
+                    }
+                }
+            }
+            // Shared Elf blindfolds are offered with ordinary eye colors, but the new palette
+            // materials are gated to Demon Hunter eye choices on a different ChrModel. If none
+            // matches, use the first authored blindfold palette without changing selected eyes.
+            // Limit this to target 40 on a visible selected collection.
+            if (visibleCollection && !blindfoldMaterial) {
+                uint32_t fallback = 0, option = 0, order = UINT32_MAX;
+                bool compatible = true;
+                for (const auto* element : elements->second) {
+                    const auto* related = g_choice.Find(g_element.Value(*element, "RelatedChrCustomizationChoiceID"));
+                    const uint32_t id = g_element.Value(*element, "ChrCustomizationMaterialID");
+                    const auto* material = g_material.Find(id);
+                    if (!related || !material || g_material.Value(*material, "ChrModelTextureTargetID") != 40) continue;
+                    const uint32_t current = g_choice.Value(*related, "ChrCustomizationOptionID");
+                    if (option && option != current) compatible = false;
+                    option = current;
+                    const uint32_t rank = g_choice.Value(*related, "OrderIndex");
+                    if (rank < order) { order = rank; fallback = id; }
+                }
+                if (compatible && fallback) AddMaterialLayers(fallback, layoutId, out);
             }
         }
     }
@@ -470,7 +515,8 @@ namespace Retail::Db2::appearance
         out.modelFileDataId    = ModelFileFromDisplay(g_chrModel.Value(*model, "DisplayID"));
 
         for (uint32_t i = 0; i < choiceCount; ++i)
-            AddChoice(choiceIds[i], out.textureLayoutId, choiceIds, choiceCount, out);
+            AddChoice(choiceIds[i], out.textureLayoutId, choiceIds, choiceCount, out,
+                sex == 0 && (chrRaceId == 2 || chrRaceId == 36)); // Orc posture; other conditional forms need separate integration.
 
         std::stable_sort(out.layers.begin(), out.layers.end(),
                          [](const TextureLayer& a, const TextureLayer& b) {
@@ -644,6 +690,7 @@ namespace Retail::Db2::appearance
             { "chrcustomizationgeoset",        &g_geoset         },
             { "chrcustomizationskinnedmodel",  &g_skinnedModel   },
             { "chrcustomizationmaterial",      &g_material       },
+            { "chrcustomizationcondmodel",     &g_condModel      },
             { "chrmodeltexturelayer",          &g_textureLayer   },
             { "creaturedisplayinfo",           &g_displayInfo    },
             { "creaturemodeldata",             &g_modelData      },

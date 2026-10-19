@@ -41,6 +41,16 @@ inline bool Decode(uint32_t race, uint32_t sex, uint32_t id, const std::array<ui
     choice = Choices[option->offset + (fields[option->field] / option->factor) % option->count];
     return true;
 }
+inline bool ValidateFields(uint32_t race, uint32_t sex, const std::array<uint8_t, 13>& fields) {
+    std::array<uint32_t, 13> capacities{};
+    bool found = false;
+    for (const auto& option : Options) if (option.race == race && option.sex == sex) {
+        found = true;
+        capacities[option.field] += (option.count - 1) * option.factor;
+    }
+    for (uint32_t i = 0; i < 13; ++i) if (fields[i] > capacities[i]) return false;
+    return found;
+}
 inline bool Encode(uint32_t race, uint32_t sex, uint32_t id, uint32_t choice, std::array<uint8_t, 13>& fields) {
     const Option* option = Find(race, sex, id);
     if (!option) return false;

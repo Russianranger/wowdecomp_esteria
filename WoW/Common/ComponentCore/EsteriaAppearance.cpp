@@ -224,6 +224,8 @@ bool ValidFields(uint32_t race, uint32_t gender, const Fields13& fields) {
         return std::all_of(fields.begin() + first, fields.end(), [](uint8_t value) { return value == 0; });
     };
 
+    if (race == 47) return Retail::LegacyAppearance::ValidateFields(race, gender, fields);
+
     if (CreatureAppearance::Uses(race)) {
         std::array<uint8_t, 5> appearance = {};
         std::copy_n(fields.begin(), appearance.size(), appearance.begin());
@@ -1930,13 +1932,13 @@ namespace {
 std::unordered_map<uint64_t, uint64_t> g_roster;
 
 bool ExtendedRace(uint32_t race) {
-    return race == 20 || race == 46 || race == 48 || race == 49 || race == 50 || race == 51 || CreatureAppearance::Uses(race);
+    return race == 20 || race == 46 || race == 47 || race == 48 || race == 49 || race == 50 || race == 51 || CreatureAppearance::Uses(race);
 }
 
 void SetExtra(CCharacterComponent* character, uint64_t extra) {
     uint32_t race = character->m_data.m_preferences.m_raceID;
     std::array<uint8_t, 8> bytes = {};
-    if (race != 20 && !CreatureAppearance::Uses(race)) {
+    if (race != 20 && race != 47 && !CreatureAppearance::Uses(race)) {
         for (uint32_t i = 0; i < 8; i++) {
             bytes[i] = static_cast<uint8_t>(extra >> (i * 8));
         }
@@ -2033,7 +2035,7 @@ void EsteriaCreateExtra(CDataStore* packet) {
     }
 
     uint32_t race = character->m_data.m_preferences.m_raceID;
-    if (!ExtendedRace(race) || race == 20 || CreatureAppearance::Uses(race)) {
+    if (!ExtendedRace(race) || race == 20 || race == 47 || CreatureAppearance::Uses(race)) {
         return;
     }
 

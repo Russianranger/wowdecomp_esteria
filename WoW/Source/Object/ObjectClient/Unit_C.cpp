@@ -9810,6 +9810,7 @@ void CGUnit_C::InitializeActivePlayerComponent() {
     if (this->m_modelData && (this->m_modelData->m_flags & 0x4) && CGPlayer_C::s_displayId == this->m_unit->m_unitFieldDisplayid) {
         this->SetCharacterModel(CCharacterComponent::m_activePlayerComponent->m_data.m_model);
         this->m_characterComponent = component;
+        RetailRaceBindOwner(component, this);
         CCharacterComponent::m_activePlayerComponent = nullptr;
     } else {
         CCharacterComponent::FreeComponent(CCharacterComponent::m_activePlayerComponent);
@@ -10372,6 +10373,7 @@ CGUnit_C::~CGUnit_C() {
 
     this->m_nameDesc = nullptr;
 
+    RetailRaceBindOwner(this->m_characterComponent, nullptr);
     if (this->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
         if (this->m_worldModel) {
             this->m_worldModel->m_lastAnimTime = 0;
@@ -13912,6 +13914,7 @@ int32_t CGUnit_C::InitializeExtendedDisplay(CGPlayer_C* player, int32_t hasDispl
     }
 
     this->m_characterComponent->Init(&data, nullptr);
+    RetailRaceBindOwner(this->m_characterComponent, this);
     return 1;
 }
 

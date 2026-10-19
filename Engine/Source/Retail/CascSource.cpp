@@ -11,6 +11,7 @@
 #include <fstream>
 #include <map>
 #include <mutex>
+#include <set>
 #include <sstream>
 
 namespace Retail {
@@ -61,6 +62,7 @@ struct File {
 struct Model {
     std::vector<uint8_t> bytes;
     ModelFiles files;
+    bool character = false;
 };
 struct Reference {
     uint32_t id = 0;
@@ -81,6 +83,7 @@ struct CascSource::Impl {
     std::map<std::string, Reference> dependencies;
     std::map<std::string, std::pair<std::shared_ptr<Model>, size_t>> models;
     std::map<std::string, uint32_t> cachedSizes;
+    std::set<uint32_t> characterModels;
     std::map<uint32_t, HandItemAppearance> handItems;
     HandItemAppearance mainHandPreview;
     ~Impl() { if (storage) CascCloseStorage(storage); }
@@ -156,10 +159,47 @@ struct CascSource::Impl {
         }
         return true;
     }
+
+    bool LoadSkeleton(uint32_t id, std::vector<uint8_t>& bytes, std::string& error, std::vector<uint32_t>& chain) {
+        if (chain.size() >= 8 || std::find(chain.begin(), chain.end(), id) != chain.end())
+            return Failure(error, "Retail skeleton parent cycle or depth limit");
+        chain.push_back(id);
+        if (!Fetch(Reference{id}, "", bytes, error)) return false;
+        uint32_t parent = 0;
+        bool found = false;
+        const auto word = [&](size_t at) {
+            return uint32_t(bytes[at]) | (uint32_t(bytes[at + 1]) << 8) |
+                (uint32_t(bytes[at + 2]) << 16) | (uint32_t(bytes[at + 3]) << 24);
+        };
+        for (size_t p = 0; p < bytes.size();) {
+            if (bytes.size() - p < 8) return Failure(error, "Truncated Retail skeleton chunk header");
+            const uint32_t tag = word(p), size = word(p + 4);
+            p += 8;
+            if (size > bytes.size() - p) return Failure(error, "Retail skeleton chunk exceeds file size");
+            if (tag == 0x44504b53) { // SKPD: parent FileDataID is payload word 2.
+                if (found || size < 12) return Failure(error, "Invalid or duplicate skeleton parent chunk");
+                parent = word(p + 8);
+                found = true;
+            }
+            p += size;
+        }
+        if (parent) {
+            std::vector<uint8_t> ancestor, merged;
+            if (!LoadSkeleton(parent, ancestor, error, chain) || !MergeSkeleton(bytes, ancestor, merged, error)) return false;
+            bytes.swap(merged);
+        }
+        chain.pop_back();
+        return true;
+    }
 };
 
 CascSource::CascSource() : m_impl(new Impl) {}
 CascSource::~CascSource() = default;
+
+void CascSource::RegisterCharacterModel(uint32_t id) {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    if (id) m_impl->characterModels.insert(id);
+}
 
 bool CascSource::Configure(const char* configPath, std::string& error) {
     std::lock_guard<std::mutex> lock(m_impl->mutex);
@@ -368,12 +408,13 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
     bool success = true;
     if (ext == ".m2" || ext == ".mdx") {
         auto model = std::make_shared<Model>();
+        model->character = s.characterModels.count(ref.id) != 0;
         // A shared skeleton lives in its own file; fetch it before the model is prepared.
         ModelFiles inspected;
         std::vector<uint8_t> skeleton;
         if (InspectModel(bytes, inspected, error) && inspected.skeleton) {
-            Reference skel{inspected.skeleton};
-            success = s.Fetch(skel, "", skeleton, error);
+            std::vector<uint32_t> chain;
+            success = s.LoadSkeleton(inspected.skeleton, skeleton, error, chain);
         }
         success = success && PrepareModel(bytes, model->bytes, model->files, error, skeleton.empty() ? nullptr : &skeleton);
         std::map<std::string, Reference> pending;
@@ -383,7 +424,7 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
             if (i >= 4 || i >= (model->bytes.size() > 0x44 ? model->bytes[0x44] : 0)) break;
             Reference skin{model->files.skins[i], model};
             std::vector<uint8_t> raw;
-            success = s.Fetch(skin, "", raw, error) && PrepareSkin(raw, model->bytes, error, model->files.skeleton != 0);
+            success = s.Fetch(skin, "", raw, error) && PrepareSkin(raw, model->bytes, error, model->character || model->files.skeleton != 0);
             char suffix[16];
             std::snprintf(suffix, sizeof(suffix), "%02u.skin", static_cast<unsigned>(i));
             pending.emplace(base + suffix, std::move(skin));
@@ -407,7 +448,7 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
             bytes = model->bytes;
         }
     } else if (ext == ".skin") {
-        success = ref.owner ? PrepareSkin(bytes, ref.owner->bytes, error, ref.owner->files.skeleton != 0) : Failure(error, "Open the Retail model before its skin");
+        success = ref.owner ? PrepareSkin(bytes, ref.owner->bytes, error, ref.owner->character || ref.owner->files.skeleton != 0) : Failure(error, "Open the Retail model before its skin");
     } else if (ext == ".anim") {
         success = ref.owner ? (StripAnimationChunk(bytes, error) && ValidateAnimation(bytes, ref.owner->bytes, ref.animation, ref.variation, error)) :
             Failure(error, "Open the Retail model before its animation");

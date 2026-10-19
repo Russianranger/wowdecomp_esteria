@@ -57,6 +57,14 @@ struct SkinParentBinding {
 };
 std::mutex s_skinParentMutex;
 std::map<const CM2Model*, SkinParentBinding> s_skinParents;
+struct AttachmentFrame {
+    CM2Model* parent;
+    const CM2Shared* childShared;
+    const M2Data* parentData;
+    uint32_t bone;
+    C3Vector position;
+};
+std::map<const CM2Model*, AttachmentFrame> s_attachmentFrames;
 
 void ClearSkinParents(CM2Model* model) {
     std::lock_guard<std::mutex> lock(s_skinParentMutex);
@@ -64,6 +72,25 @@ void ClearSkinParents(CM2Model* model) {
         if (it->first == model || it->second.parent == model) it = s_skinParents.erase(it);
         else ++it;
     }
+    for (auto it = s_attachmentFrames.begin(); it != s_attachmentFrames.end();) {
+        if (it->first == model || it->second.parent == model) it = s_attachmentFrames.erase(it);
+        else ++it;
+    }
+}
+
+void ApplyAttachmentFrame(CM2Model* child, CM2Model* parent, C44Matrix& matrix) {
+    std::lock_guard<std::mutex> lock(s_skinParentMutex);
+    const auto found = s_attachmentFrames.find(child);
+    if (found == s_attachmentFrames.end()) return;
+    const auto& frame = found->second;
+    if (child->m_attachParent != parent || frame.parent != parent || child->m_shared != frame.childShared ||
+        !parent->m_shared || parent->m_shared->m_data != frame.parentData ||
+        frame.bone >= frame.parentData->m_bones.m_count || !parent->m_boneMatrices) {
+        s_attachmentFrames.erase(found);
+        return;
+    }
+    matrix = parent->m_boneMatrices[frame.bone];
+    matrix.Translate(frame.position);
 }
 
 bool SameSkinPivot(const C3Vector& a, const C3Vector& b) {
@@ -4922,6 +4949,7 @@ void CM2Model::AnimateAttachmentsMT() {
             matrix.Translate(attachment->m_position);
         }
 
+        ApplyAttachmentFrame(child, this, matrix);
         if (child->m_fFlags & 0x1000) {
             child->AnimateMTSimple(&matrix, this->m_diffuseColor, this->m_emissiveColor, this->m_effectiveAlpha, this->m_alpha);
         } else {
@@ -6253,7 +6281,7 @@ bool CM2Model::SetSkinParent(CM2Model* parent) {
             const auto& bone = childBones[i];
             if (!bone.m_boneNameCRC || !childNames.emplace(bone.m_boneNameCRC, uint16_t(i)).second) return false;
             const auto match = names.find(bone.m_boneNameCRC);
-            if (match == names.end() || !SameSkinPivot(bone.m_pivot, parentBones[match->second].m_pivot)) return false;
+            if (match == names.end()) return false;
             binding.bones[i] = match->second;
         }
     }
@@ -6262,8 +6290,17 @@ bool CM2Model::SetSkinParent(CM2Model* parent) {
     for (uint32_t i = 0; i < childBones.m_count; ++i) {
         const uint16_t ancestor = childBones[i].m_parentIndex;
         if (ancestor != 0xffff && ancestor >= childBones.m_count) return false;
-        const uint16_t expected = ancestor == 0xffff ? 0xffff : binding.bones[ancestor];
-        if (parentBones[binding.bones[i]].m_parentIndex != expected) return false;
+        // Collection skeletons prune intermediate body joints and carry their own unused pivots.
+        // Vertices remain in the body's bind space: copying the body's final skin matrices must
+        // use its pivots and include the omitted joints, rather than re-evaluate the child rig.
+        if (ancestor != 0xffff) {
+            const uint16_t expected = binding.bones[ancestor];
+            uint16_t actual = parentBones[binding.bones[i]].m_parentIndex;
+            uint32_t depth = 0;
+            while (actual != expected && actual != 0xffff && depth++ < parentBones.m_count)
+                actual = parentBones[actual].m_parentIndex;
+            if (actual != expected) return false;
+        }
     }
     s_skinParents.emplace(this, std::move(binding));
     this->m_frameStamp = this->m_scene->m_frameStamp - 1;
@@ -7943,6 +7980,28 @@ int32_t CM2Model::Initialize(CM2Scene* scene, CM2Shared* shared, CM2Model* sourc
     sExtensionMgr->OnModelCreated(this);
 
     return this->m_shared->CallbackWhenLoaded(this);
+}
+
+bool CM2Model::SetAttachmentFrame(uint32_t bone, const C3Vector& position) {
+    CM2Model* parent = this->m_attachParent;
+    if (!parent || !(parent->m_fFlags & 1) || this->m_attachmentIndex == 0xffff ||
+        !this->m_shared || !parent->m_shared || !parent->m_shared->m_data ||
+        bone >= parent->m_shared->m_data->m_bones.m_count ||
+        !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)) return false;
+    std::lock_guard<std::mutex> lock(s_skinParentMutex);
+    const M2Data* data = parent->m_shared->m_data;
+    const auto found = s_attachmentFrames.find(this);
+    if (found != s_attachmentFrames.end()) {
+        const auto& old = found->second;
+        if (old.parent == parent && old.childShared == this->m_shared && old.parentData == data &&
+            old.bone == bone && old.position.x == position.x && old.position.y == position.y &&
+            old.position.z == position.z) return false;
+    }
+    s_attachmentFrames.insert_or_assign(this, AttachmentFrame{parent, this->m_shared, data, bone, position});
+    // The replacement socket carries the full correction; discard a previous local socket shift.
+    this->m_worldTransform.Identity();
+    this->m_fFlags |= 0x8000;
+    return true;
 }
 
 // VERIFY: 767a1eb1 auto

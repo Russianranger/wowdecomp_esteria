@@ -346,6 +346,8 @@ class CM2Model {
     void SetRibbonsEnabled(uint32_t enabled);
     void SetSequenceCallback(void* callback, uint64_t param);
     void SetWorldTransform(const C44Matrix& matrix);
+    // Override this attached instance's socket with a parent bone-space frame. Returns true on change.
+    bool SetAttachmentFrame(uint32_t bone, const C3Vector& position);
     void SetWorldTransform(const C3Vector& position, float rotation, float scale);
     void SetWorldTransform(const C3Vector& position, float rotation, float scale, const C3Vector& up, uint32_t flags);
     void UpdateLoaded();

@@ -7,11 +7,12 @@
 namespace Retail {
 
 // These anatomy groups are hidden by the retail visibility reset. A recipe only names groups
-// controlled by its choices: Dwarves have no Face Shape option, so their full head needs a default.
+// controlled by its choices: Dwarves omit the head, while Night/Blood/Void Elves omit their
+// separate hand mesh (23). Glove cuffs use group 4 and do not supply those fingers/palms.
 // Explicit choices (including a hidden group value) always take precedence over these defaults.
 inline std::vector<uint16_t> DefaultRaceGeosets(const std::vector<uint16_t>& recipe) {
     std::vector<uint16_t> defaults;
-    for (const uint16_t base : {2001, 2201, 3202, 3301, 5101}) {
+    for (const uint16_t base : {2001, 2201, 2301, 3202, 3301, 5101}) {
         bool chosen = false;
         for (const uint16_t geoset : recipe) chosen = chosen || geoset / 100 == base / 100;
         if (!chosen) defaults.push_back(base);

@@ -3,6 +3,7 @@
 #include "Engine/Source/Retail/ClientTables.h"
 #include "Engine/Source/Retail/RetailShader.h"
 #include "Engine/Source/Retail/Equipment.h"
+#include "Engine/Source/Retail/Compose.h"
 #include "Engine/Source/Retail/RaceGeometry.h"
 #include "Engine/Source/Retail/RacePolicy.h"
 #include "Engine/Source/Retail/LegacyAppearance.h"
@@ -13,6 +14,7 @@
 #include <fstream>
 #include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -76,6 +78,41 @@ std::vector<uint8_t> Skin() {
 }
 
 int main(int argc, char** argv) {
+    {
+        Retail::Image skin{3, 1, {100, 120, 140, 255, 100, 120, 140, 255, 100, 120, 140, 255}};
+        const Retail::Image tattoo{3, 1, {255, 255, 255, 255, 128, 128, 128, 255, 0, 0, 0, 0}};
+        Retail::PaintImage(skin, tattoo, 0, 0, 3, 1, 4); // Orc layout 105, target 16: multiply.
+        Check(skin.rgba == std::vector<uint8_t>{100, 120, 140, 255, 50, 60, 70, 255, 100, 120, 140, 255},
+            "Orc tattoo white background and transparent texels preserve skin; only dark marks shade it");
+
+        auto painted = [](std::vector<uint8_t> base, std::vector<uint8_t> source, uint32_t mode) {
+            Retail::Image dst{1, 1, std::move(base)}, src{1, 1, std::move(source)};
+            Retail::PaintImage(dst, src, 0, 0, 1, 1, mode);
+            return dst.rgba;
+        };
+        // Golden pixels from the pinned character shader and its framebuffer blend factors,
+        // including translucent destination alpha rather than only opaque body sheets.
+        Check(painted({80, 120, 160, 128}, {128, 64, 255, 128}, 4) == std::vector<uint8_t>{70, 97, 160, 112},
+            "DB2 multiply uses shader-result alpha before framebuffer blending");
+        Check(painted({64, 128, 192, 255}, {64, 192, 128, 255}, 6) == std::vector<uint8_t>{32, 192, 192, 255},
+            "DB2 overlay uses source thresholds instead of Mod2x");
+        Check(painted({64, 128, 192, 255}, {64, 192, 128, 255}, 7) == std::vector<uint8_t>{112, 224, 224, 255},
+            "DB2 screen preserves the authored highlight operation");
+        Check(painted({100, 150, 200, 64}, {200, 100, 50, 128}, 9) == std::vector<uint8_t>{150, 125, 125, 160},
+            "DB2 straight alpha blends RGB and unions destination alpha");
+        Check(painted({100, 150, 200, 64}, {200, 100, 50, 128}, 15) == std::vector<uint8_t>{150, 125, 125, 96},
+            "DB2 inferred alpha uses source-alpha factors for alpha too");
+        for (uint32_t mode : {0u, 1u})
+            Check(painted({100, 150, 200, 255}, {4, 5, 6, 0}, mode) == std::vector<uint8_t>{4, 5, 6, 0},
+                "DB2 base blit retains authored RGB beneath a transparent mask");
+        Check(painted({100, 150, 200, 64}, {200, 100, 50, 128}, 2) == std::vector<uint8_t>{180, 110, 80, 160},
+            "legacy equipment mode 2 retains straight alpha-over on translucent skin");
+        Retail::Image armor{2, 1, {100, 120, 140, 255, 100, 120, 140, 255}};
+        const Retail::Image item{1, 1, {200, 40, 60, 128}};
+        Retail::PaintImage(armor, item, 1, 0, 1, 1, 2);
+        Check(armor.rgba == std::vector<uint8_t>{100, 120, 140, 255, 150, 80, 100, 255},
+            "legacy armor still paints only its equipment rectangle over the Human body");
+    }
     {
         using namespace Retail::LegacyAppearance;
         for (const auto& option : Options) {
@@ -154,6 +191,26 @@ int main(int argc, char** argv) {
         }
         Check(!has(Retail::DefaultRaceGeosets({2004, 2202, 3302, 5103}), 2001),
             "anatomy defaults do not override selected equipment/body variants");
+        // Pinned source skins 974391/921897, 1100099/1100298 and 1734086/1733813
+        // have palms/fingers in 2301, separate from every 401..404 glove cuff. Their
+        // default customization recipes omit group 23 for both sexes.
+        const std::vector<std::vector<uint16_t>> elfRecipes{
+            {2, 200, 300, 100, 3400, 701, 3900, 5100},
+            {2, 3900, 3401, 701, 3700, 3500, 1600, 3600, 5100},
+            {2, 100, 702, 5100}, {2, 702, 3500, 3600, 3900, 5100},
+            {2, 100, 702, 200, 5100}, {2, 3500, 702, 200, 5100}
+        };
+        for (const auto& recipe : elfRecipes) {
+            for (const uint16_t glove : {401, 402, 403, 404}) {
+                auto equipped = recipe;
+                equipped.push_back(glove);
+                Check(has(Retail::DefaultRaceGeosets(equipped), 2301),
+                    "both sexes of Night/Blood/Void Elves retain hands with every legacy glove style");
+            }
+        }
+        for (const uint16_t selectedHand : {2300, 2301, 2302})
+            Check(!has(Retail::DefaultRaceGeosets({selectedHand}), 2301),
+                "explicit hidden or alternate hand recipes suppress the hand fallback");
     }
     // Reproduce world rendering: item identity survives temporary texture cleanup, and an update
     // of one section must retain the other equipped sections in the next complete retail sheet.
@@ -244,6 +301,85 @@ int main(int argc, char** argv) {
     std::string error;
     Retail::ModelFiles files;
     std::vector<uint8_t> prepared;
+    {
+        auto largeRig = Body();
+        const size_t originalBone = Get(largeRig, 0x30), bones = largeRig.size();
+        const std::vector<uint8_t> bind(largeRig.begin() + originalBone, largeRig.begin() + originalBone + 88);
+        for (uint32_t i = 0; i < 300; ++i) largeRig.insert(largeRig.end(), bind.begin(), bind.end());
+        Put(largeRig, 0x2c, 300); Put(largeRig, 0x30, uint32_t(bones));
+        const size_t palette = Get(largeRig, 0x7c);
+        largeRig[palette] = uint8_t(299); largeRig[palette + 1] = uint8_t(299 >> 8);
+        Check(Retail::PrepareModel(Model(largeRig), prepared, files, error),
+            "large character rigs retain uint16 global bone indices beyond 255");
+        Check(Retail::ValidateSkin(Skin(), prepared, error),
+            "byte section-local palette can reference global character bone 299");
+        Put(largeRig, 0x2c, 65536);
+        Check(!Retail::PrepareModel(Model(largeRig), prepared, files, error),
+            "reject rigs exceeding the global uint16 bone domain");
+    }
+    {
+        auto skeleton = [](bool parent, bool conflict = false) {
+            std::vector<uint8_t> sks(24, 0), skb(16 + 88, 0), result;
+            const uint32_t count = parent ? (conflict ? 3 : 2) : 1;
+            const size_t sequences = sks.size(); sks.resize(sequences + count * 64);
+            Put(sks, 8, count); Put(sks, 12, uint32_t(sequences));
+            for (uint32_t i = 0; i < count; ++i) {
+                const size_t p = sequences + size_t(i) * 64;
+                Put(sks, p, parent ? (i == 2 ? 69 : i ? 60 : 0) : conflict ? 60 : 5);
+                Put(sks, p + 4, 1000); Put(sks, p + 12, (parent && i) || (!parent && conflict) ? 0 : 0x20);
+                Put(sks, p + 60, 0xffffffff);
+                if (parent && i == 2) { Put(sks, p + 12, 0x40); sks[p + 62] = 1; sks[p + 63] = 0; }
+            }
+            const uint32_t lookupCount = parent ? (conflict ? 70 : 61) : conflict ? 61 : 6;
+            const size_t lookup = sks.size(); sks.resize(lookup + lookupCount * 2, 0xff);
+            Put(sks, 16, lookupCount); Put(sks, 20, uint32_t(lookup));
+            const size_t primary = lookup + (parent ? 0 : conflict ? 120 : 10);
+            sks[primary] = sks[primary + 1] = 0;
+            if (parent) { sks[lookup + 120] = 1; sks[lookup + 121] = 0; }
+            Put(skb, 0, 1); Put(skb, 4, 16); Put(skb, 16 + 8, 0xffff);
+            for (const size_t track : {size_t(32), size_t(52), size_t(72)}) skb[track + 2] = skb[track + 3] = 0xff;
+            if (parent) {
+                const size_t times = skb.size(); skb.resize(times + 16);
+                const size_t values = skb.size(); skb.resize(values + 16);
+                const size_t residentTime = skb.size(); skb.resize(residentTime + 4);
+                const size_t residentValue = skb.size(); skb.resize(residentValue + 12);
+                Put(skb, 36, 2); Put(skb, 40, uint32_t(times));
+                Put(skb, 44, 2); Put(skb, 48, uint32_t(values));
+                Put(skb, times, 1); Put(skb, times + 4, uint32_t(residentTime));
+                Put(skb, values, 1); Put(skb, values + 4, uint32_t(residentValue));
+                Put(skb, times + 8, 2); Put(skb, times + 12, 0);
+                Put(skb, values + 8, 2); Put(skb, values + 12, 8);
+            }
+            Chunk(result, "SKS1", sks); Chunk(result, "SKB1", skb);
+            if (parent || conflict) { std::vector<uint8_t> afid(8); Put(afid, 0, 60); Put(afid, 4, parent ? 777 : 888); Chunk(result, "AFID", afid); }
+            return result;
+        };
+        const auto child = skeleton(false), parent = skeleton(true);
+        std::vector<uint8_t> merged;
+        Check(Retail::MergeSkeleton(child, parent, merged, error), error.c_str());
+        auto rawBody = Body(); Put(rawBody, 0x1c, 0); Put(rawBody, 0x2c, 0);
+        auto model = Model(rawBody); Chunk(model, "SKID", Word(111));
+        Check(Retail::PrepareModel(model, prepared, files, error, &merged), error.c_str());
+        Check(Get(prepared, 0x1c) == 3 && (Get(prepared, Get(prepared, 0x20)) & 65535) == 5,
+            "parent skeleton adds missing actions without replacing the child's authored sequence");
+        std::vector<uint8_t> payload(32, 0), animation;
+        Put(payload, 4, 100); Put(payload, 20, 0x3f800000); Chunk(animation, "AFSB", payload);
+        Check(Retail::ValidateAnimation(animation, prepared, 60, 0, error), error.c_str());
+        Check(files.animations.size() == 1 && files.animations[0].fileId == 777,
+            "inherited external motion retains the parent's original AFID payload owner");
+        Check(child == skeleton(false) && parent == skeleton(true), "flattening skeleton inheritance preserves source bytes");
+        Check(Retail::MergeSkeleton(skeleton(false, true), skeleton(true, true), merged, error), error.c_str());
+        Check(Retail::PrepareModel(model, prepared, files, error, &merged), error.c_str());
+        Check(Retail::ValidateAnimation(animation, prepared, 69, 0, error),
+            "inherited aliases use their parent's motion when the child overrides the aliased action");
+        Check(std::any_of(files.animations.begin(), files.animations.end(), [](const Retail::AnimationFile& a) { return a.id == 69 && a.fileId == 777; })
+            && std::any_of(files.animations.begin(), files.animations.end(), [](const Retail::AnimationFile& a) { return a.id == 60 && a.fileId == 888; }),
+            "parent aliases and overridden child actions retain separate animation payload owners");
+        auto corruptParent = parent;
+        const size_t boneChunk = 8 + Get(parent, 4) + 8;
+        Put(corruptParent, boneChunk + 16 + 12, 123);
+        Check(!Retail::MergeSkeleton(child, corruptParent, merged, error), "reject incompatible inherited bone identities");
+    }
     auto table = [](uint32_t fields, uint32_t id) {
         std::vector<uint8_t> data(20 + fields * 4 + 1);
         data[0] = 'W'; data[1] = 'D'; data[2] = 'B'; data[3] = 'C';

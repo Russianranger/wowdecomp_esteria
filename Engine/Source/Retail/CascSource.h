@@ -27,6 +27,9 @@ public:
     bool Exists(const char* name, std::string& error);
     bool Read(const char* name, std::vector<uint8_t>& bytes, std::string& error);
     bool Inspect(const char* name, std::vector<uint8_t>& bytes, std::string& error);
+    // Explicit player body/collection scope for legacy material approximation. Generic models
+    // keep strict unsupported-shader rejection unless their existing shared-skeleton path applies.
+    void RegisterCharacterModel(uint32_t fileDataId);
     // Like Inspect, but encrypted blocks without a key are zero-filled instead of failing.
     bool ReadTable(const char* name, std::vector<uint8_t>& bytes, std::string& error);
     void ReleaseModel(const char* name);

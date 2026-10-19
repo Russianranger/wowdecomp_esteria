@@ -12,6 +12,7 @@
 #include "WoW/Source/DB/Rec/CreatureDisplayInfoRec.h"
 #include "WoW/Source/DB/Rec/CreatureModelDataRec.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
+#include "WoW/Source/Object/ObjectClient/Unit_C.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Gx/CGxTexFlags.h"
@@ -192,6 +193,7 @@ uint32_t* PreferenceFor(CharacterPreferences& prefs, Stock stock) {
 // Selected choice index per option for components whose options go beyond the five stock selectors.
 std::unordered_map<CCharacterComponent*, std::vector<uint32_t>> g_state;
 std::unordered_map<CCharacterComponent*, uint64_t> g_stateIdentity;
+std::unordered_map<CCharacterComponent*, CGUnit_C*> g_owners;
 
 void CheckStateIdentity(CCharacterComponent* character) {
     const auto& prefs = character->m_data.m_preferences;
@@ -331,8 +333,10 @@ void SyncCollections(CCharacterComponent* character, const app::Recipe& recipe) 
     state.parent = parent;
     state.geosets.clear();
     for (const auto& part : recipe.attached)
-        if (part.fileDataId && part.geoset % 100) // group*100 is an explicitly hidden collection.
+        if (part.fileDataId && part.geoset % 100) { // group*100 is an explicitly hidden collection.
+            Retail::Source().RegisterCharacterModel(part.fileDataId);
             state.geosets[Retail::FileName(part.fileDataId, ".m2")].push_back(part.geoset);
+        }
     for (CM2Model* child = parent->m_attachList; child;) {
         CM2Model* next = child->m_attachNext;
         if (child->m_attachmentId == CollectionSocket && !state.geosets.count(CollectionName(child)))
@@ -356,6 +360,118 @@ void SyncCollections(CCharacterComponent* character, const app::Recipe& recipe) 
 // The creator and character select run without an active player. In the world the stock validation applies.
 bool InWorld() {
     return ClntObjMgrGetActivePlayer().m_guid != 0;
+}
+
+// Conditional character models belong to an appearance instance, never to a shared race skeleton.
+bool SyncBodyModel(CCharacterComponent* character) {
+    const auto& prefs = character->m_data.m_preferences;
+    const uint32_t retail = RetailRaceId(prefs.m_raceID);
+    CM2Model* old = character->m_data.m_model;
+    if (prefs.m_sexID || (retail != 2 && retail != 36) || !IsRetailModel(old) ||
+        !(old->m_fFlags & 1) || !old->m_scene) return false;
+
+    const auto choices = Choices(retail, character);
+    app::Recipe recipe;
+    if (!app::BuildForCharacter(retail, prefs.m_sexID, choices.data(), uint32_t(choices.size()), recipe) ||
+        !recipe.modelFileDataId) return false;
+    const std::string path = Retail::FileName(recipe.modelFileDataId, ".m2");
+    if (!_stricmp(CollectionName(old).c_str(), path.c_str())) return false;
+
+    CGUnit_C* owner = nullptr;
+    const auto found = g_owners.find(character);
+    if (found != g_owners.end()) owner = found->second;
+    // A world body is shared by the component and unit. Never update just one of those references.
+    if (owner && (owner->m_characterComponent != character || owner->m_worldModel != old)) return false;
+    if (InWorld() && !owner) return false;
+
+    Retail::Source().RegisterCharacterModel(recipe.modelFileDataId);
+    Retail::BusyNotice busy("Loading Retail posture");
+    CM2Model* replacement = old->m_scene->CreateModel(path.c_str(), old->m_flags);
+    if (!replacement) return false;
+    replacement->WaitForLoad("Retail conditional body");
+    if (!(replacement->m_fFlags & 1) || !replacement->m_shared || !replacement->m_shared->m_data ||
+        !replacement->m_shared->m_skinData || _stricmp(CollectionName(replacement).c_str(), path.c_str())) {
+        Log("conditional body load failed component %p model %s", static_cast<void*>(character), path.c_str());
+        replacement->Release();
+        return false;
+    }
+    // Reparenting detaches first, so reject unsupported equipment sockets before changing any links.
+    for (CM2Model* child = old->m_attachList; child; child = child->m_attachNext) {
+        if (child->m_attachmentId != CollectionSocket && !(child->m_fFlags & 0x40000) &&
+            !replacement->HasAttachment(child->m_attachmentId)) {
+            Log("conditional body missing socket component %p model %s socket %u",
+                static_cast<void*>(character), path.c_str(), child->m_attachmentId);
+            replacement->Release();
+            return false;
+        }
+    }
+
+    replacement->m_worldTransform = old->m_worldTransform;
+    replacement->m_matrixF4 = old->m_matrixF4;
+    replacement->m_scaleSq = old->m_scaleSq;
+    replacement->m_frameOfReferenceMatrix = old->m_frameOfReferenceMatrix;
+    replacement->m_frameOfReference = old->m_frameOfReference == &old->m_frameOfReferenceMatrix
+        ? &replacement->m_frameOfReferenceMatrix : old->m_frameOfReference;
+    replacement->m_fFlags = (replacement->m_fFlags & ~0x8004u) | (old->m_fFlags & 0x8004u);
+    replacement->m_lighting = old->m_lighting;
+    replacement->m_lightingCallback = old->m_lightingCallback;
+    replacement->m_lightingArg = old->m_lightingArg;
+    replacement->m_drawCallback = old->m_drawCallback;
+    replacement->m_drawArg = old->m_drawArg;
+    replacement->m_eventCallback = old->m_eventCallback;
+    replacement->m_eventCallbackParam = old->m_eventCallbackParam;
+    replacement->m_sequenceCallback = old->m_sequenceCallback;
+    replacement->m_sequenceCallbackParam = old->m_sequenceCallbackParam;
+    replacement->m_loadedCallback = old->m_loadedCallback;
+    replacement->m_loadedArg = old->m_loadedArg;
+    replacement->m_fadeAlpha = old->m_fadeAlpha;
+    replacement->m_baseAlpha = old->m_baseAlpha;
+    replacement->m_diffuseTintR = old->m_diffuseTintR;
+    replacement->m_diffuseTintG = old->m_diffuseTintG;
+    replacement->m_diffuseTintB = old->m_diffuseTintB;
+    replacement->m_emissiveTintR = old->m_emissiveTintR;
+    replacement->m_emissiveTintG = old->m_emissiveTintG;
+    replacement->m_emissiveTintB = old->m_emissiveTintB;
+    replacement->m_effectiveAlpha = old->m_effectiveAlpha;
+    replacement->m_alpha = old->m_alpha;
+    replacement->m_diffuseColor = old->m_diffuseColor;
+    replacement->m_emissiveColor = old->m_emissiveColor;
+
+    M2BoneSequenceInfo sequence{};
+    if (old->GetBoneSequenceInfo(UINT32_MAX, sequence))
+        replacement->SetBoneSequence(UINT32_MAX, sequence.m_sequenceId, sequence.m_variationIndex,
+            sequence.m_time, sequence.m_speed, 0, 1);
+    else replacement->SetBoneSequence(UINT32_MAX, 0, UINT32_MAX, 0, 1.0f, 0, 1);
+
+    if (old->m_attachParent)
+        replacement->AttachToParent(old->m_attachParent, old->m_attachmentId, nullptr,
+            (old->m_fFlags & 0x40000) != 0);
+    // The component reference protects old while its attachment and world-owner references change.
+    if (old->m_attachParent) old->DetachFromParent();
+    for (CM2Model* child = old->m_attachList; child;) {
+        CM2Model* next = child->m_attachNext;
+        if (child->m_attachmentId == CollectionSocket) child->DetachFromParent();
+        else {
+            const uint32_t socket = child->m_attachmentId;
+            const bool root = (child->m_fFlags & 0x40000) != 0;
+            ++child->m_refCount; // AttachToParent releases the old parent's attachment reference.
+            child->AttachToParent(replacement, socket, nullptr, root);
+            child->Release(); // Only the replacement parent's attachment reference remains.
+        }
+        child = next;
+    }
+    g_collections.erase(character);
+    character->m_data.m_model = replacement; // CreateModel's reference is now component-owned.
+    if (owner) {
+        owner->m_torsoKeyBone = -1; // The loaded callback resolves the new rig's torso key.
+        owner->SetCharacterModel(replacement); // Adds a separate unit reference; releases old's.
+    }
+    character->m_flags |= 0x4; // Dirty geometry; bit 1 belongs to the normal texture request lifecycle.
+    character->m_dirtySections = UINT32_MAX;
+    Log("conditional body swap component %p race %u model %s -> %s", static_cast<void*>(character),
+        prefs.m_raceID, old->m_shared->m_fileName, path.c_str());
+    old->Release(); // Release the former component reference last.
+    return true;
 }
 
 bool FetchBlp(uint32_t fileDataId, std::vector<uint8_t>& bytes, void*) {
@@ -484,22 +600,6 @@ void BindBody(CCharacterComponent* character, CM2Model* model, const Look& look,
     BindCollectionTextures(model);
 }
 
-bool IdentityHelmetSocket(const M2CompBone& bone) {
-    if (bone.m_translationTrack.m_sequenceTimes.m_count || bone.m_scaleTrack.m_sequenceTimes.m_count) return false;
-    const auto& rotation = bone.m_rotationTrack;
-    if (!rotation.m_sequenceTimes.m_count) return true;
-    // Male Dwarf has two identical global identity keys. Only global tracks are fully resident
-    // here; a per-sequence track may still point into an animation that has not downloaded.
-    if (rotation.m_loopIndex == 0xFFFF || rotation.m_trackType > 1 || !rotation.m_sequenceKeys.m_count) return false;
-    for (uint32_t i = 0; i < rotation.m_sequenceKeys.m_count; ++i) {
-        const auto& keys = rotation.m_sequenceKeys[i];
-        if (!keys.m_count) return false;
-        for (uint32_t j = 0; j < keys.m_count; ++j)
-            if (!Retail::IsIdentityHelmetRotation(keys[j].m_values)) return false;
-    }
-    return true;
-}
-
 void FitLegacyHelmet(CCharacterComponent* character) {
     const auto& prefs = character->m_data.m_preferences;
     if (prefs.m_sexID > 1
@@ -517,9 +617,6 @@ void FitLegacyHelmet(CCharacterComponent* character) {
     if (head >= data->m_bones.m_count || socket >= data->m_attachments.m_count) return;
     const auto& attachment = data->m_attachments[socket];
     if (attachment.m_bone >= data->m_bones.m_count) return;
-    const auto& socketBone = data->m_bones[attachment.m_bone];
-    // The supported Human/Dwarf helpers share the head frame. Retain this guard for other rigs.
-    if (attachment.m_bone != head && (socketBone.m_parentIndex != head || !IdentityHelmetSocket(socketBone))) return;
 
     const auto* race = g_chrRacesDB.GetRecord(prefs.m_raceID);
     const auto* display = race ? g_creatureDisplayInfoDB.GetRecord(prefs.m_sexID ? race->m_femaleDisplayID : race->m_maleDisplayID) : nullptr;
@@ -557,15 +654,16 @@ void FitLegacyHelmet(CCharacterComponent* character) {
     const auto& headPivot = data->m_bones[head].m_pivot;
     Retail::HelmetAnchor target{{headPivot.x, headPivot.y, headPivot.z},
         {attachment.m_position.x, attachment.m_position.y, attachment.m_position.z}};
-    const auto shift = Retail::HelmetTranslation(donor.anchor, target);
-    if ((helmet->m_fFlags & 0x8000) && helmet->m_worldTransform.d0 == shift[0]
-        && helmet->m_worldTransform.d1 == shift[1] && helmet->m_worldTransform.d2 == shift[2]) return;
-    // An attached model's worldTransform is local to its socket. Set an absolute local correction,
-    // never accumulate it: the existing head-bone animation supplies rotation, translation and scale.
-    helmet->SetWorldTransform(C3Vector(shift[0], shift[1], shift[2]), 0.0f, 1.0f);
-    Log("helmet fit race %u sex %u display %u model %s donor %s local shift %.6f %.6f %.6f",
+    const C3Vector crown(target.head[0] + donor.anchor.socket[0] - donor.anchor.head[0],
+        target.head[1] + donor.anchor.socket[1] - donor.anchor.head[1],
+        target.head[2] + donor.anchor.socket[2] - donor.anchor.head[2]);
+    // Legacy helmets use the donor crown convention. Bind this instance directly to the animated
+    // retail head, avoiding extra scale/rotation on authored Retail-helmet helper bones. For an
+    // identity helper this is exactly the accepted Human/Dwarf socket translation, in head space.
+    if (!helmet->SetAttachmentFrame(head, crown)) return;
+    Log("helmet fit race %u sex %u display %u model %s donor %s head frame %.6f %.6f %.6f",
         prefs.m_raceID, prefs.m_sexID, character->m_itemDisplayID[ITEMSLOT_HEAD], helmet->m_shared->m_fileName,
-        donorPath, shift[0], shift[1], shift[2]);
+        donorPath, crown.x, crown.y, crown.z);
 }
 
 }
@@ -597,6 +695,7 @@ bool RetailRaceModelPath(uint32_t race, uint32_t sex, char* path, size_t size) {
     const bool ok = app::BuildForCharacter(retail, sex, nullptr, 0, recipe) && recipe.modelFileDataId;
     Log("model path race %u sex %u -> %s (%u)", race, sex, ok ? "ok" : "unavailable", recipe.modelFileDataId);
     if (!ok) return false;
+    Retail::Source().RegisterCharacterModel(recipe.modelFileDataId);
     std::snprintf(path, size, "%s", Retail::FileName(recipe.modelFileDataId, ".m2").c_str());
     return true;
 }
@@ -647,7 +746,13 @@ bool RetailRaceGeometry(CCharacterComponent* character) {
         if (texture.textureType == 1) continue;
         CTexture*& bound = look.textures[texture.textureType];
         if (!bound) bound = MakeTexture("Retail\\Race\\" + key + "\\" + std::to_string(texture.textureType), texture.image);
-        if (bound) model->ReplaceTexture(texture.textureType, bound);
+        if (bound) {
+            model->ReplaceTexture(texture.textureType, bound);
+            // Some collection-only targets do not appear in the body's texture table, so a
+            // later copy of the body's slots cannot bind those jewelry/fur/hair materials.
+            for (CM2Model* child = model->m_attachList; child; child = child->m_attachNext)
+                if (child->m_attachmentId == CollectionSocket) child->ReplaceTexture(texture.textureType, bound);
+        }
     }
     BindCollectionTextures(model);
     // The body is composed after item loading/section prep. Geometry-only refreshes happen after
@@ -697,12 +802,20 @@ void RetailRaceForget(CCharacterComponent* character) {
     g_stateIdentity.erase(character);
     g_active.erase(character);
     g_collections.erase(character);
+    g_owners.erase(character);
+}
+
+void RetailRaceBindOwner(CCharacterComponent* character, CGUnit_C* owner) {
+    if (!character) return;
+    if (owner) g_owners[character] = owner;
+    else g_owners.erase(character);
 }
 
 namespace {
 
 // Same setter sequence the stock initializer uses, then rebuild geosets and textures.
 void Refresh(CCharacterComponent* character) {
+    SyncBodyModel(character);
     CharacterPreferences& prefs = character->m_data.m_preferences;
     character->SetHairColor(prefs.m_hairColorId, false, "");
     character->SetSkinColor(prefs.m_skinID, false, true, "");
@@ -831,6 +944,7 @@ void RetailRaceTick() {
     // prep when only geosets changed; both end in the retail hooks.
     const bool inWorld = InWorld();
     for (CCharacterComponent* character : std::set<CCharacterComponent*>(g_active)) {
+        if (SyncBodyModel(character)) Refresh(character);
         FitLegacyHelmet(character);
         FinishCollections(character);
         if (inWorld) character->Prep();
@@ -873,6 +987,7 @@ void RetailRaceTick() {}
 void RetailRaceEquipment(CCharacterComponent*) {}
 int RetailRaceCycleCommand(lua_State*, CCharacterComponent*, const char*) { return -1; }
 void RetailRaceForget(CCharacterComponent*) {}
+void RetailRaceBindOwner(CCharacterComponent*, CGUnit_C*) {}
 int32_t RetailRaceSectionCount(int32_t, int32_t, int32_t, bool) { return -1; }
 void RetailRaceSectionArguments(int32_t, int32_t, int32_t*, int32_t*) {}
 

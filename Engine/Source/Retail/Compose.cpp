@@ -143,7 +143,7 @@ namespace {
 struct Rect { uint32_t x, y, w, h; };
 
 // Stretches `src` over `rect` of `dst` with bilinear sampling and the given blend.
-void Paint(Image& dst, const Image& src, const Rect& rect, uint32_t blend) {
+void Paint(Image& dst, const Image& src, const Rect& rect, uint32_t blend, bool legacyAlphaOver = false) {
     if (!rect.w || !rect.h || rect.x + rect.w > dst.width || rect.y + rect.h > dst.height) return;
     for (uint32_t y = 0; y < rect.h; ++y) {
         const float fy = (float(y) + 0.5f) * src.height / rect.h - 0.5f;
@@ -160,21 +160,33 @@ void Paint(Image& dst, const Image& src, const Rect& rect, uint32_t blend) {
                 s[c] = top * (1 - ty) + bottom * ty;
             }
             uint8_t* d = &dst.rgba[(size_t(rect.y + y) * dst.width + rect.x + x) * 4];
-            const float a = s[3] / 255.0f;
-            if (blend == 5 || blend == 6) { // Mod / Mod2x: multiply (x2 for Mod2x), weighted by source alpha (colour under alpha 0 is not makeup)
-                const float k = blend == 6 ? 2.0f : 1.0f;
-                for (int c = 0; c < 3; ++c) d[c] = uint8_t(std::min(255.0f, d[c] + (d[c] * s[c] / 255.0f * k - d[c]) * a));
-            } else if (blend == 7) { // ModAdd: dst * (1 + src * alpha); transparent or black source leaves the sheet unchanged
-                for (int c = 0; c < 3; ++c) d[c] = uint8_t(std::min(255.0f, d[c] * (1.0f + a * s[c] / 255.0f)));
-            } else if (blend == 3 || blend == 11) { // NoAlphaAdd
-                for (int c = 0; c < 3; ++c) d[c] = uint8_t(std::min(255.0f, d[c] + s[c]));
-            } else if (blend == 4 || blend == 14) { // additive by source alpha
-                for (int c = 0; c < 3; ++c) d[c] = uint8_t(std::min(255.0f, d[c] + s[c] * a));
-            } else { // alpha-over; opaque sources replace
-                const float da = d[3] / 255.0f, oa = a + da * (1 - a);
+            const float a = s[3] / 255.0f, da = d[3] / 255.0f;
+            auto byte = [](float value) { return uint8_t(std::min(255.0f, std::max(0.0f, value)) + 0.5f); };
+            if (blend == 0 || blend == 1) { // DB2 blit preserves RGB even under zero alpha.
+                for (int c = 0; c < 4; ++c) d[c] = byte(s[c]);
+            } else if (legacyAlphaOver) { // Legacy equipment PaintImage callers use straight alpha-over.
+                const float oa = a + da * (1 - a);
                 for (int c = 0; c < 3; ++c)
-                    d[c] = uint8_t(oa > 0 ? (s[c] * a + d[c] * da * (1 - a)) / oa + 0.5f : 0);
-                d[3] = uint8_t(oa * 255.0f + 0.5f);
+                    d[c] = byte(oa > 0 ? (s[c] * a + d[c] * da * (1 - a)) / oa : 0);
+                d[3] = byte(oa * 255.0f);
+            } else {
+                // ChrModelTextureLayer uses the character compositor's enum, not M2 material
+                // blend modes. Match wow.export char.fragment.shader + CharMaterialRenderer at
+                // c2fd7bde36a712be78a5da896c995b84fbfa2545: shader result, then GPU blending.
+                // In particular, opaque white tattoo texels multiply to unchanged skin.
+                const float fa = blend == 4 ? da * a : a;
+                for (int c = 0; c < 3; ++c) {
+                    const float base = d[c] / 255.0f, src = s[c] / 255.0f;
+                    float result = src;
+                    if (blend == 4) result = base * src; // Multiply
+                    else if (blend == 6) // Overlay, thresholded by the source.
+                        result = src < 0.5f ? 2 * base * src : 1 - 2 * (1 - base) * (1 - src);
+                    else if (blend == 7) result = 1 - (1 - base) * (1 - src); // Screen
+                    d[c] = byte((result * fa + base * (1 - fa)) * 255.0f);
+                }
+                // Mode 9 has separate ONE/INVSRCALPHA alpha factors. The other modes
+                // use SRCALPHA/INVSRCALPHA for alpha as well as RGB (including mode 15).
+                d[3] = byte((blend == 9 ? fa + da * (1 - fa) : fa * fa + da * (1 - fa)) * 255.0f);
             }
         }
     }
@@ -183,7 +195,7 @@ void Paint(Image& dst, const Image& src, const Rect& rect, uint32_t blend) {
 }
 
 void PaintImage(Image& dst, const Image& src, uint32_t x, uint32_t y, uint32_t width, uint32_t height, uint32_t blend) {
-    Paint(dst, src, {x, y, width, height}, blend);
+    Paint(dst, src, {x, y, width, height}, blend, blend == 2);
 }
 
 bool ComposeTextures(const Db2::appearance::Recipe& recipe, BlpFetch fetch, void* context,

@@ -1,15 +1,165 @@
-# Handoff: Retail race customization (continue on Codex)
+# Handoff: Retail race customization
 
-Current state: the user accepts Human bodies, equipment, helmet placement and streamed animations in-world.
-The user accepts restored Dwarf heads/customization. **The shared Human/Dwarf boot-toe correction is
-built, tested and installed; boot-fix live acceptance is pending.**
-Nothing is committed; server phases 2-3 are not started. Read this file first, then
-[retail-race-customization-plan.md](retail-race-customization-plan.md) for the design.
+Current state: all requested race slots are enabled in the installed native Retail client, with both
+sexes. **The roster expansion is installed; live acceptance is pending.** Human armor/helmets/emotes
+and restored Dwarf heads were previously accepted by the user. Server phases 2-3 (full Retail-choice
+persistence) remain unimplemented. Earlier work was committed separately; the current follow-up is
+uncommitted. See [retail-race-customization-plan.md](retail-race-customization-plan.md).
 
 Repos: client `R:\Users\Zach\Documents\GitHub\wowdecomp` (branch `Esteria`), server
-`R:\Users\Zach\Documents\GitHub\EsteriaWoW` (AzerothCore fork, Docker). Dev client: `G:\3.3.5a - Dev`.
+`R:\Users\Zach\Documents\GitHub\EsteriaWoW`. Dev client: `G:\3.3.5a - Dev`.
 
-## Latest: closed feet under legacy boots (2026-10-19)
+## Latest fixes: Elf hands, Orc tattoos/posture, Blood Elf blindfolds (2026-10-19)
+
+Installed executable SHA-256 **`f5b260430904095a7bfb9550d0defdbb35ee26490eaedc0754cf9fda2ee5a405`**. Fresh launch with the same
+`G:\3.3.5a - Dev\LaunchRetailRaces.cmd` (the Human launcher is also still equivalent).
+These repairs are **installed and offline validated; live acceptance is pending**.
+
+- **Missing Elf hands:** original Night Elf, Blood Elf and Void Elf male/female SKINs have separate
+  palm/finger geoset 2301. The high-group reset hid it; none of their default recipes selected group23.
+  `DefaultRaceGeosets` restores 2301 only when the recipe omits that group. Explicit 2300/2301/2302
+  choices retain priority. Original bounds show cuff401-404 meshes stop above the hand, so cuffs
+  cannot substitute for it. All49 original roster bodies were inventoried; only these six have2301.
+  Evidence: `G:\RetroportWork\retail-roster-20261019\hands-anatomy-audit.json`.
+- **Orc tattoos:** ChrModelTextureLayer's character compositor blend enum was interpreted as M2
+  material blending. Orc tattoo target16 uses mode4, meaning multiply. Its opaque white background
+  must preserve skin, whereas the old additive interpretation brightened the whole sheet. The
+  compositor now follows the authored copy, multiply, overlay, screen and alpha operations, keeping
+  legacy equipment alpha-over separate. Both sexes' three tattoo patterns darken only marked
+  pixels, with untouched pixels unchanged. Primary reference:
+  [wow.export shader](https://github.com/Kruithne/wow.export/blob/c2fd7bde36a712be78a5da896c995b84fbfa2545/src/shaders/char.fragment.shader),
+  [blend state](https://github.com/Kruithne/wow.export/blob/c2fd7bde36a712be78a5da896c995b84fbfa2545/src/js/3D/renderers/CharMaterialRenderer.js).
+- **Orc/Mag'har male Upright/Posture:** source choices439/3427 reference conditional-model rows1/2,
+  not BONE morphs. Both rows resolve through CreatureModelData10882/10883 to native M2 **1968587**;
+  hunched choices438/3426 return to917116. Added pinned table3460182, layout601A4522, and scoped
+  conditional resolution to these two male races. Runtime replacement keeps the component,
+  preferences, equipment, transient choices and scene placement; updates registered world owners;
+  moves attachments with temporary references; and releases the previous component reference last.
+  Owner registration is cleared even when logout retains the active component. Loaded callbacks
+  resolve torso keys; self-referential frame matrices are rebased to the new instance. Model swapping
+  leaves texture requests on their normal lifecycle. Original skeletons/assets remain immutable.
+- **Blood Elf blindfolds:** current selected cloth is a skinned collection using texturetype9. Its
+  materialtarget40 is gated to Demon Hunter eye choices7641/62819 from another ChrModel; normal eye
+  colors previously yielded no cloth texture. A visible blindfold with no compatible target40
+  material now gets the first authored palette (green glow) as a bounded visual fallback. Explicit
+  compatible green/blue choices win, and the selected eye texture is unchanged. The None choice
+  remains hidden and adds no cloth material; ordinary hair/color dependencies retain their filters.
+
+Validation: Release x64 client build and `retail-assets` CTest passed. **98 compositions** cover60
+default race/sex/alias looks, eight Orc tattoo settings, four posture mappings, all24 Blood Elf
+blindfold settings and two explicit palette branches. Pixel checks prove tattoo locality/darkening
+and that blindfold selection preserves normal eyes. Both blindfold collection rigs match the body;
+the upright body's eight streamed chat/laugh/dance clips and both legacy helmet donor anchors pass.
+The full newly authored body-model swap still needs creator/world testing; offline acquisition and
+recipe checks do not establish live render/refcount/animation acceptance.
+
+**Persistence remains unchanged:** Upright is an extra retail choice, so it can still reset after
+creation/relog where the existing server transport does not store it. This repair makes the actual
+toggle display the authored posture. Other conditional forms, BONE morphs, particle customization
+and full extra-choice persistence remain separate work.
+
+Source build remains `88d5e8ef05ec5a8446cdec93d142d7c6`. Raw conditional DB2, upright source M2,
+probe logs, before/after textures, regression receipts and installer:
+`G:\RetroportWork\retail-roster-fixes-20261019`.
+Install receipt: `install-receipt.json`. Previous executable/metadata backup:
+`G:\3.3.5a - Dev\_backups\retail-roster-fixes-20261019-085352`. To roll back this repair with the game closed, restore both backed-up
+files to the paths listed in this receipt. The roster/Glue installation below is still the baseline.
+
+Next live checks: Elf male/female hands bare and with gloves; Orc male/female tattoo None/patterns;
+Orc and Mag'har male posture toggled both ways, with armor/weapons/helmets and animations; Blood Elf
+male/female blindfold None plus all styles, alongside normal eye colors. Check return from preview,
+race/sex switching and logout while a posture is selected. Keep `Logs\RetailRace.log` for any issue.
+
+## Prior install: full requested Retail roster (2026-10-19)
+
+Fresh launch using **`G:\3.3.5a - Dev\LaunchRetailRaces.cmd`**. The existing
+`LaunchRetailHumans.cmd` launches the same expanded roster. Both preserve argument forwarding, the
+Vulkan executable and the online research config override. First uncached assets can download.
+
+Canonical target/source identity mapping: [RetailRaces.csv](../Tools/RetailAssets/RetailRaces.csv), also
+installed as `Data\Retail\RetailRaces.csv`. These are existing effective client race slots; no new
+RaceIDs, server allocations, DBC replacements or SQL migrations were made. Target Pandaren 18 maps
+to source Alliance 25; registry-only target 26 has no effective models and is deliberately omitted.
+Highmountain is source 28, Zandalari source 31. Both faction slots for Earthen and Haranir are enabled.
+Kul Tiran target 29 has effective client models despite being absent from the server registry.
+
+```text
+WOW_RETAIL_RACES=1:1,2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,10:10,11:11,12:22,17:27,18:25,19:29,20:35,21:30,22:31,23:34,28:70,29:32,45:36,46:28,47:37,48:84,49:85,50:86,51:91
+```
+
+Shared native behavior now includes Retail bodies, geosets, composed textures and legacy armor;
+full creator option enumeration; derived legacy helmet placement; streamed chat/laugh/dance; and
+the existing Human/Dwarf full-head and closed-boot-foot corrections. Boot substitution is restricted
+to compatible humanlike races; it preserves authored hooves, mechanical feet and separate Feet choices.
+
+Additional integration needed by the expanded roster:
+
+- Customization collections are root-attached, retain their own matrix storage and copy matched body
+  skin matrices by unique bone CRC/ancestry. Their selected geosets and composed texture targets are
+  applied after asynchronous load. Intermediate pruned joints are allowed; invalid rigs stay hidden.
+  Registrations are cleared on detach/free, and ordinary attachments keep their existing behavior.
+- Explicit player/collection registration permits the existing legacy material approximation for
+  embedded-bone bodies such as Haranir. Generic unsupported shader validation remains strict.
+- SKPD skeleton parents are fetched recursively with cycle/depth checks. Flattening preserves child
+  sequence overrides and parent motion payload ownership, including parent aliases whose targets are
+  overridden by the child. This repairs Mechagnome inherited emotes. Dracthyr's global rig can exceed
+  256 bones; section-local byte palettes remain bounded while global indices use uint16.
+- Helmet fitting uses original stock race crown conventions or the effective custom model donor.
+  High RaceIDs use bounded visual helmet-mask aliases, independently of faction eligibility (Horde
+  Earthen uses Dwarf anatomy, Horde Haranir uses Night Elf anatomy). Legacy helmet instances now bind
+  to an explicit head-bone frame with the donor crown offset. This avoids extra scale/rotation on
+  Retail-only helper bones (notably Dracthyr, Earthen and female Zandalari) while following every head
+  pose. The accepted Human/Dwarf transform is algebraically identical for their identity helpers.
+  Frame state is instance-local, checked against the parent model identity and cleared on detach/free;
+  the original model skeleton and socket are unchanged for other attachments and Retail helmets.
+- Frozen saved-choice IDs retain the installed Vulpera, Highmountain, Earthen, Haranir and Mechagnome
+  codecs. The generator input and codec provenance are in the external evidence directory. Current
+  Retail DB2 order must never be substituted for an old packed choice order. New IDs that cannot fit
+  the existing codec remain transient preview choices and cannot overwrite neighboring packed digits.
+- GlueXML capacity increases from 29 to 64 controls and queries the actual option count (Dracthyr 45).
+  The root and locale winning CharacterCreate.lua entries were patched together and read back.
+
+Offline evidence: **49 unique bodies, 58 race/sex default compositions, 9,563 individual-choice
+recipes, 12 collection rig bindings, 297 external emote clips and 56 helmet donor/target head frames
+passed**. Individual-choice recipes vary one option against the other defaults; this is not a full
+cross-product or unlock/requirements test. Original SKIN inventory confirms full head 3202 on all 49
+bodies. Body atlas contact-sheet review includes intact faces. The collection surface audit also
+passed: 376 requested mesh selections exist in the original SKINs;
+one Dracthyr selector is the source's explicit signed -1 no-mesh action (rows 497/614), documented in
+`collection-none-selectors.log`. This does not require inventing an absent section 1399.
+Lua 5.1 syntax/idempotence and the `retail-assets` CTest passed; regressions cover frozen codec
+neighbors, large global bone indices,
+inherited/overridden animation owners, head defaults and boot selection. Client Release x64 build passed.
+
+**Remaining behavior limits:** full Retail-choice server persistence is still limited to the five
+stock bytes or each race's existing packed codec. Additional new choices can reset on relog. Bone-set
+actions (e.g. posture/body shape), conditional replacement models, particle customization and unlock
+requirements are not implemented by this native appearance resolver. The default body is audited;
+alternative forms such as Dracthyr visage are not newly integrated by this change. No live creator,
+world, remote-player or equipment acceptance is claimed for this install.
+
+Source remains Retail 12.1.5.70448, build `88d5e8ef05ec5a8446cdec93d142d7c6`. Disk exhaustion on R:
+caused misleading CASC fetch errors. The existing cache was copied with per-file SHA-256/size checks
+to `G:\RetroportWork\retail-casc-cache-88d5e8ef05ec5a8446cdec93d142d7c6`, then the research INI
+was pointed there. The old cache was removed only after verification. Acquisition stayed serial to
+avoid concurrent CASC archive writes. Details: `cache-relocation-receipt.json`, `casc-fetch-diagnosis.json`.
+
+Installed executable SHA-256: `19cb5ae1741122515ca629497cd5d0a52951d4e37835a6cb3abcc74e1bb5dc01`.
+Backup of prior executable, metadata and launcher: `G:\3.3.5a - Dev\_backups\retail-roster-20261019-080107`.
+Glue archive backups: `G:\3.3.5a - Dev\_backups\retail-glue-20261019-080121`.
+Full receipt, per-file hashes, audit logs, original inputs, codecs, contact sheet and reproducible
+validation/install scripts: `G:\RetroportWork\retail-roster-20261019` (`install-receipt.json`).
+
+Rollback with the game closed: restore paths marked `existed` in the receipt's `rollback` list from
+their verified backup paths, remove newly added paths marked false, and restore both root/locale
+MPQs from the Glue backup. Restore the full matched set, not just the executable.
+
+Next live checks: select each race and sex in a fresh client; vary face, hair and attached accessories;
+inspect boots and helmets front/side; remove/re-equip armor and robes; chat, `/lol`, `/dance`, run,
+mount and attack. Revisit Human/Dwarf after modern races and verify save/relog behavior for existing
+packed appearances. Collect `Logs\RetailRace.log` plus a screenshot for any remaining defect.
+
+## Prior install: closed feet under legacy boots (2026-10-19)
 
 The user confirms the Dwarf head repair works, but sees individual toes through boots on both Humans
 and Dwarves. The boot texture was painted on the bare-foot mesh, rather than toes intersecting a

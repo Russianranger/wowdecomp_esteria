@@ -492,6 +492,7 @@ namespace Retail::Db2
             static const struct { const char* stem; uint32_t id; } kTables[] = {
                 {"charcomponenttexturelayouts", 1360262}, {"charcomponenttexturesections", 1360263},
                 {"chrcustomizationchoice", 3450554}, {"chrcustomizationelement", 3512765},
+                {"chrcustomizationcondmodel", 3460182},
                 {"chrcustomizationgeoset", 3456171}, {"chrcustomizationmaterial", 3459652},
                 {"chrcustomizationoption", 3384247}, {"chrcustomizationskinnedmodel", 3460183},
                 {"chrmodel", 3384313}, {"chrmodeltexturelayer", 3548976}, {"chrraces", 1305311},

@@ -7,6 +7,7 @@
 #include <string>
 #include <fstream>
 #include <iomanip>
+#include <set>
 
 namespace app = Retail::Db2::appearance;
 
@@ -69,6 +70,7 @@ int main(int argc, char** argv) {
             defaults.push_back(choice.id);
         }
         uint32_t total = 0, failures = 0, attached = 0, missingMaterials = 0;
+        std::set<std::pair<uint32_t, uint16_t>> collections;
         for (size_t i = 0; i < options.size(); ++i) {
             uint32_t withAttached = 0;
             for (uint32_t j = 0; j < app::ChoiceCount(options[i].id); ++j) {
@@ -80,6 +82,7 @@ int main(int argc, char** argv) {
                 if (!app::BuildForCharacter(race, sex, picks.data(), uint32_t(picks.size()), recipe)
                     || !recipe.modelFileDataId || !recipe.textureLayoutId) ++failures;
                 if (!recipe.attached.empty()) { ++withAttached; ++attached; }
+                for (const auto& part : recipe.attached) collections.emplace(part.fileDataId, part.geoset);
                 for (const auto& layer : recipe.layers)
                     if (!app::MaterialFileDataId(layer.materialResourcesId, 0)) ++missingMaterials;
                 ++total;
@@ -89,6 +92,8 @@ int main(int argc, char** argv) {
         }
         std::printf("race %u sex %u: %u individual-choice recipes, %u failures, %u with attached models, %u unresolved materials\n",
             race, sex, total, failures, attached, missingMaterials);
+        for (const auto& part : collections)
+            std::printf("collection file %u geoset %u\n", part.first, part.second);
         return failures || missingMaterials ? 1 : 0;
     }
     if (argc >= 4 && std::string(argv[2]) == "dump") {
