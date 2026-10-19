@@ -31,7 +31,7 @@ def replace_once(text, old, new):
     return text.replace(old, new)
 
 
-def patch(text):
+def patch_base(text):
     if MARKER in text:
         return text
     nl = "\r\n" if "\r\n" in text else "\n"
@@ -60,6 +60,31 @@ def patch(text):
         "    end\n"
         "    randomize();\n")
     return text.replace("\n", nl)
+
+
+def patch(text):
+    text = patch_base(text)
+    marker = "-- Retail option capacity v2 (45-option Dracthyr)"
+    if marker in text:
+        return text
+    nl = "\r\n" if "\r\n" in text else "\n"
+    text = text.replace("\r\n", "\n")
+    # Keep stock/legacy control behavior; allocate enough frames and enumerate the actual retail count.
+    start = text.index(MARKER)
+    prefix, panel = text[:start], text[start:]
+    panel = replace_once(panel, "local function EA_REFRESH()\n", marker + "\n"
+        "local function EA_LIMIT()\n"
+        "    if EA_IS_RETAIL() then return math.min(64, CycleCharCustomization(\"EA_COUNT\", 1) or 29); end\n"
+        "    return 29;\nend\n"
+        "local function EA_REFRESH()\n")
+    panel = panel.replace("for i=6,29 do", "for i=6,64 do")
+    panel = panel.replace("for i=1,29 do", "for i=1,64 do")
+    panel = panel.replace("for i = 1, 29 do", "for i = 1, EA_LIMIT() do")
+    panel = panel.replace("EA_ACTIVE() and 29 or 5", "EA_ACTIVE() and EA_LIMIT() or 5")
+    panel = panel.replace("local rowSpacing=optionCount>22 and 28 or 36;",
+        "local rowSpacing=math.min(optionCount>22 and 28 or 36, math.max(18, math.floor((GetScreenHeight()-210)/rowsPerColumn))); ")
+    # EA_GET returns nil beyond the model's option count, hiding those frames after a race switch.
+    return (prefix + panel).replace("\n", nl)
 
 
 def main():

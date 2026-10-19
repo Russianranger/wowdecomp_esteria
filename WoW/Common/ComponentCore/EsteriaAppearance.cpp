@@ -12,6 +12,7 @@
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Model2/M2Model.h"
+#include "Engine/Source/Retail/LegacyAppearance.h"
 #include "Engine/Source/Gx/CGxTexFlags.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -1246,7 +1247,7 @@ static bool VisitRace(const CharacterPreferences& prefs, Visitor&& visit) {
 }
 
 bool EsteriaGeometry(CCharacterComponent* character) {
-    if (Disabled()) {
+    if (Disabled() || !character || RetailRaceActive(character)) {
         return false;
     }
 
@@ -1334,6 +1335,10 @@ bool EsteriaOwnsRace(uint32_t race, uint32_t sex) {
 }
 
 bool EsteriaBaseLayer(CCharacterComponent* character, int32_t variation, int32_t textureIndex, void** texture) {
+    if (!character || RetailRaceActive(character)) {
+        return false;
+    }
+
     const CharacterPreferences& prefs = character->m_data.m_preferences;
     if (!EsteriaOwnsRace(prefs.m_raceID, prefs.m_sexID)) {
         return false;
@@ -1626,6 +1631,41 @@ int OptionControl(lua_State* L, const char* command, CCharacterComponent* charac
 }
 
 }  // namespace
+
+bool EsteriaRetailChoice(CCharacterComponent* character, uint32_t optionId, uint32_t& choiceId) {
+    if (!character) {
+        return false;
+    }
+
+    const CharacterPreferences& prefs = character->m_data.m_preferences;
+    return Retail::LegacyAppearance::Decode(prefs.m_raceID, prefs.m_sexID, optionId, FieldsOf(character), choiceId);
+}
+
+bool EsteriaRetailStoreChoice(CCharacterComponent* character, uint32_t optionId, uint32_t choiceId) {
+    if (!character) {
+        return false;
+    }
+
+    const CharacterPreferences& prefs = character->m_data.m_preferences;
+    Fields13 fields = FieldsOf(character);
+    if (!Retail::LegacyAppearance::Encode(prefs.m_raceID, prefs.m_sexID, optionId, choiceId, fields)
+        || !ValidFields(prefs.m_raceID, prefs.m_sexID, fields)) {
+        return false;
+    }
+
+    StoreFields(character, fields);
+    return true;
+}
+
+std::array<uint8_t, 13> EsteriaRetailFields(CCharacterComponent* character) {
+    return character ? FieldsOf(character) : Fields13{};
+}
+
+void EsteriaRetailFields(CCharacterComponent* character, const std::array<uint8_t, 13>& fields) {
+    if (character) {
+        StoreFields(character, fields);
+    }
+}
 
 int EsteriaCycleCommand(lua_State* L, CCharacterComponent* character, const char* command) {
     const int retail = RetailRaceCycleCommand(L, character, command);

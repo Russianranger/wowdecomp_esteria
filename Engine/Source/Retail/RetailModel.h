@@ -50,6 +50,10 @@ std::array<float, 3> HelmetTranslation(const HelmetAnchor& donor, const HelmetAn
 // All offsets remain file-relative. Preparation happens before the existing M2 relocation
 // pass; cached CDN bytes are never changed. Unsupported features fail with a reason.
 bool InspectModel(const std::vector<uint8_t>& bytes, ModelFiles& files, std::string& error);
+// Flatten one already-resolved parent into a child SKEL. Resident offsets are
+// rebuilt; external tracks keep their owning AFID. Inputs are never modified.
+bool MergeSkeleton(const std::vector<uint8_t>& child, const std::vector<uint8_t>& parent,
+    std::vector<uint8_t>& merged, std::string& error);
 bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepared,
     ModelFiles& files, std::string& error, const std::vector<uint8_t>* skeleton = nullptr);
 bool ValidateSkin(const std::vector<uint8_t>& bytes, const std::vector<uint8_t>& model,

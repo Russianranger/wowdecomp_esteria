@@ -4,6 +4,8 @@
 #include "Engine/Source/Retail/RetailShader.h"
 #include "Engine/Source/Retail/Equipment.h"
 #include "Engine/Source/Retail/RaceGeometry.h"
+#include "Engine/Source/Retail/RacePolicy.h"
+#include "Engine/Source/Retail/LegacyAppearance.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -74,6 +76,39 @@ std::vector<uint8_t> Skin() {
 }
 
 int main(int argc, char** argv) {
+    {
+        using namespace Retail::LegacyAppearance;
+        for (const auto& option : Options) {
+            std::array<uint8_t, 13> fields{};
+            // Populate neighboring digits too: modifying one retail option must preserve every
+            // other saved choice sharing its original byte, including extra fields above five.
+            for (const auto& neighbor : Options) if (neighbor.race == option.race && neighbor.sex == option.sex)
+                Check(Encode(neighbor.race, neighbor.sex, neighbor.id, Choices[neighbor.offset + neighbor.count - 1], fields),
+                    "installed packed codec fits all authored choices");
+            for (uint32_t i = 0; i < option.count; ++i) {
+                const auto before = fields;
+                const uint32_t selected = Choices[option.offset + i];
+                uint32_t decoded = 0;
+                Check(Encode(option.race, option.sex, option.id, selected, fields)
+                    && Decode(option.race, option.sex, option.id, fields, decoded) && decoded == selected,
+                    "frozen source choice IDs survive Retail option reordering");
+                for (const auto& neighbor : Options) if (neighbor.race == option.race && neighbor.sex == option.sex && neighbor.id != option.id) {
+                    uint32_t oldChoice = 0, newChoice = 0;
+                    Check(Decode(neighbor.race, neighbor.sex, neighbor.id, before, oldChoice)
+                        && Decode(neighbor.race, neighbor.sex, neighbor.id, fields, newChoice) && oldChoice == newChoice,
+                        "changing a packed selector preserves all neighboring saved choices");
+                }
+            }
+            const auto before = fields;
+            Check(!Encode(option.race, option.sex, option.id, UINT32_MAX, fields) && fields == before,
+                "new unencodable Retail choices cannot corrupt installed appearance bytes");
+        }
+        Check(Retail::HelmetMaskRace(85) == 3 && Retail::HelmetMaskRace(91) == 4,
+            "Horde Earthen/Haranir helmets use visual anatomy rather than faction eligibility");
+        Check(!Retail::UsesLegacyClosedFeet(6) && !Retail::UsesLegacyClosedFeet(11)
+            && !Retail::UsesLegacyClosedFeet(86) && Retail::UsesLegacyClosedFeet(3),
+            "legacy boots preserve hooves and authored Feet choices");
+    }
     {
         struct FootModel {
             bool visible[100];

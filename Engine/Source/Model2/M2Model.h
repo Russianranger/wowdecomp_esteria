@@ -297,6 +297,10 @@ class CM2Model {
     void UnsetBoneSequence(uint32_t boneId, int32_t blend, int32_t primary);
     void AnimateSM();
     void AttachToParent(CM2Model* parent, uint32_t id, const C3Vector* position, int32_t attachToRoot);
+    // Explicit collection skinning: the child must already be attached at the parent's root.
+    // No fields are added to the native model layout; null removes the pose binding.
+    bool SetSkinParent(CM2Model* parent);
+    bool HasSkinParent(const CM2Model* parent) const;
     C3Vector GetAttachmentPosition(uint32_t id);
     float GetAttachmentWorldScale(uint32_t id);
     C44Matrix GetAttachmentWorldTransform(uint32_t id);

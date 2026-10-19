@@ -5,10 +5,53 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <fstream>
+#include <iomanip>
 
 namespace app = Retail::Db2::appearance;
 
 int main(int argc, char** argv) {
+    if (argc == 4 && std::string(argv[2]) == "catalog") {
+        _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+        if (!app::Status().loaded) return 1;
+        std::ofstream out(argv[3]);
+        out << "[";
+        bool comma = false;
+        for (uint32_t race = 1; race <= 120; ++race) for (uint32_t sex = 0; sex < 2; ++sex) {
+            const auto model = app::ChrModelForRace(race, sex);
+            if (!model) continue;
+            std::vector<uint32_t> defaults;
+            if (comma) out << ",";
+            comma = true;
+            out << "\n{\"race\":" << race << ",\"sex\":" << sex << ",\"chrModel\":" << model << ",\"options\":[";
+            for (uint32_t i = 0; i < app::OptionCount(model); ++i) {
+                app::ChrOption option{};
+                if (!app::OptionAt(model, i, option)) return 1;
+                if (i) out << ",";
+                out << "{\"id\":" << option.id << ",\"name\":" << std::quoted(app::OptionName(option.id)) << ",\"choices\":[";
+                for (uint32_t j = 0; j < app::ChoiceCount(option.id); ++j) {
+                    app::ChrChoice choice{};
+                    if (!app::ChoiceAt(option.id, j, choice)) return 1;
+                    if (!j) defaults.push_back(choice.id);
+                    if (j) out << ",";
+                    out << choice.id;
+                }
+                out << "]}";
+            }
+            app::Recipe recipe;
+            if (!app::BuildForCharacter(race, sex, defaults.data(), uint32_t(defaults.size()), recipe)) return 1;
+            out << "],\"model\":" << recipe.modelFileDataId << ",\"layout\":" << recipe.textureLayoutId << ",\"geosets\":[";
+            for (size_t i = 0; i < recipe.geosets.size(); ++i) { if (i) out << ","; out << recipe.geosets[i]; }
+            out << "],\"attached\":" << recipe.attached.size() << ",\"collections\":[";
+            for (size_t i = 0; i < recipe.attached.size(); ++i) {
+                if (i) out << ",";
+                out << "{\"file\":" << recipe.attached[i].fileDataId << ",\"geoset\":" << recipe.attached[i].geoset << "}";
+            }
+            out << "]}";
+        }
+        out << "\n]\n";
+        return out.good() ? 0 : 1;
+    }
     if (argc == 5 && std::string(argv[2]) == "audit") {
         _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
         if (!app::Status().loaded) return 1;
@@ -112,6 +155,8 @@ int main(int argc, char** argv) {
                     layer.textureType, layer.layer, layer.blendMode, int(layer.sectionMask), layer.materialResourcesId,
                     app::MaterialFileDataId(layer.materialResourcesId, 0), app::MaterialFileDataId(layer.materialResourcesId, 1));
             for (uint16_t geoset : recipe.geosets) std::printf("  geoset %u\n", geoset);
+            for (const auto& part : recipe.attached)
+                std::printf("  collection file %u geoset %u%s\n", part.fileDataId, part.geoset, part.geoset % 100 ? "" : " (hidden)");
         }
     }
     return 0;

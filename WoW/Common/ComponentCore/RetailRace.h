@@ -15,6 +15,9 @@ struct lua_State;
 // True if the Wrath race id is mapped to a Retail race (no table access).
 bool RetailRaceMapped(uint32_t race);
 
+// Bounded visual donor mask for stock helmet hides, including mapped custom race IDs >= 32.
+uint32_t RetailRaceHelmetMask(uint32_t race);
+
 // True if the component's model is a Retail model of a mapped race. Retail geoset/texture logic must only run
 // on such components: NPCs and other humanoids of the same race keep their stock models.
 bool RetailRaceActive(CCharacterComponent* character);

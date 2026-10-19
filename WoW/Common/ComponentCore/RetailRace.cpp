@@ -3,26 +3,34 @@
 #if defined(WOWDECOMP_RETAIL_ASSETS)
 
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
+#include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "WoW/Common/TextureCache.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/HelmetGeosetVisDataRec.h"
 #include "WoW/Source/DB/Rec/ItemDisplayInfoRec.h"
+#include "WoW/Source/DB/Rec/ChrRacesRec.h"
+#include "WoW/Source/DB/Rec/CreatureDisplayInfoRec.h"
+#include "WoW/Source/DB/Rec/CreatureModelDataRec.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Gx/CGxTexFlags.h"
 #include "Engine/Source/Model2/M2Model.h"
+#include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Retail/Appearance.h"
 #include "Engine/Source/Retail/BusyNotice.h"
 #include "Engine/Source/Retail/CascSource.h"
 #include "Engine/Source/Retail/Compose.h"
 #include "Engine/Source/Retail/Equipment.h"
 #include "Engine/Source/Retail/RaceGeometry.h"
+#include "Engine/Source/Retail/LegacyAppearance.h"
+#include "Engine/Source/Retail/RacePolicy.h"
 #include "Engine/Source/Retail/RetailModel.h"
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "WoW/Source/Glue/CGlueLoading.h"
 #include <cstdarg>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -109,17 +117,20 @@ uint32_t OptionByName(uint32_t retailRace, uint32_t sex, const char* name) {
 }
 
 // The stock selectors (skin, face, hair style, hair colour, facial hair) mapped onto Retail options by name.
-const char* FacialOptionName(uint32_t retailRace, uint32_t sex) {
-    // Wrath female Dwarves use the fifth appearance byte for earrings, not Human makeup.
-    return sex ? (retailRace == 3 ? "Earrings" : "Makeup") : "Beard";
+const char* FirstOption(uint32_t retailRace, uint32_t sex, std::initializer_list<const char*> names) {
+    for (const char* name : names) if (OptionByName(retailRace, sex, name)) return name;
+    return nullptr;
 }
 
 const char* StockOptionName(uint32_t variation, uint32_t retailRace, uint32_t sex, bool colors) {
     switch (variation) {
-        case VARIATION_SKIN: return "Skin Color";
+        case VARIATION_SKIN: return FirstOption(retailRace, sex, {"Skin Color", "Fur Color", "Primary Color"});
         case VARIATION_FACE: return "Face";
-        case VARIATION_HAIR: return colors ? "Hair Color" : "Hair Style";
-        case VARIATION_FACIAL_HAIR: return FacialOptionName(retailRace, sex);
+        case VARIATION_HAIR: return colors ? FirstOption(retailRace, sex, {"Hair Color", "Horn Color"})
+            : FirstOption(retailRace, sex, {"Hair Style", "Horn Style", "Hair"});
+        case VARIATION_FACIAL_HAIR: return sex
+            ? FirstOption(retailRace, sex, {"Makeup", "Earrings", "Piercings", "Horns", "Face Features", "Ears"})
+            : FirstOption(retailRace, sex, {"Beard", "Facial Hair", "Beard Style", "Jaw Features", "Tusks", "Chin Decoration"});
         default: return nullptr;
     }
 }
@@ -136,11 +147,15 @@ struct OptionInfo {
 };
 
 Stock StockFor(const std::string& name, uint32_t retailRace, uint32_t sex) {
-    if (name == "Skin Color") return Stock::Skin;
-    if (name == "Face") return Stock::Face;
-    if (name == "Hair Style") return Stock::HairStyle;
-    if (name == "Hair Color") return Stock::HairColor;
-    if (name == FacialOptionName(retailRace, sex)) return Stock::Facial;
+    const auto matches = [&](uint32_t variation, bool colors) {
+        const char* selected = StockOptionName(variation, retailRace, sex, colors);
+        return selected && name == selected;
+    };
+    if (matches(VARIATION_SKIN, true)) return Stock::Skin;
+    if (matches(VARIATION_FACE, false)) return Stock::Face;
+    if (matches(VARIATION_HAIR, false)) return Stock::HairStyle;
+    if (matches(VARIATION_HAIR, true)) return Stock::HairColor;
+    if (matches(VARIATION_FACIAL_HAIR, false)) return Stock::Facial;
     return Stock::None;
 }
 
@@ -176,31 +191,64 @@ uint32_t* PreferenceFor(CharacterPreferences& prefs, Stock stock) {
 
 // Selected choice index per option for components whose options go beyond the five stock selectors.
 std::unordered_map<CCharacterComponent*, std::vector<uint32_t>> g_state;
+std::unordered_map<CCharacterComponent*, uint64_t> g_stateIdentity;
+
+void CheckStateIdentity(CCharacterComponent* character) {
+    const auto& prefs = character->m_data.m_preferences;
+    const uint64_t identity = (uint64_t(prefs.m_raceID) << 32) | prefs.m_sexID;
+    auto& previous = g_stateIdentity[character];
+    if (previous != identity) { g_state.erase(character); previous = identity; }
+}
 
 // Retail components seen by the geometry hook; ticked each frame in the world.
 std::set<CCharacterComponent*> g_active;
 
 uint32_t IndexOf(CCharacterComponent* character, const std::vector<OptionInfo>& options, size_t i) {
+    CheckStateIdentity(character);
     if (!options[i].count) return 0;
+    if (Retail::LegacyAppearance::IsPackedRace(character->m_data.m_preferences.m_raceID)) {
+        const auto state = g_state.find(character);
+        if (state != g_state.end() && i < state->second.size() && state->second[i] != UINT32_MAX)
+            return state->second[i] % options[i].count;
+        uint32_t saved = 0;
+        if (EsteriaRetailChoice(character, options[i].id, saved)) {
+            for (uint32_t index = 0; index < options[i].count; ++index) {
+                app::ChrChoice choice{};
+                if (app::ChoiceAt(options[i].id, index, choice) && choice.id == saved) return index;
+            }
+        }
+        return 0;
+    }
     uint32_t value = 0;
     if (options[i].stock != Stock::None) {
         value = *PreferenceFor(character->m_data.m_preferences, options[i].stock);
     } else {
         const auto found = g_state.find(character);
-        if (found != g_state.end() && i < found->second.size()) value = found->second[i];
+        if (found != g_state.end() && i < found->second.size() && found->second[i] != UINT32_MAX) value = found->second[i];
     }
     return value % options[i].count;
 }
 
 void StoreIndex(CCharacterComponent* character, const std::vector<OptionInfo>& options, size_t i, uint32_t value) {
+    CheckStateIdentity(character);
     if (!options[i].count) return;
     value %= options[i].count;
+    if (Retail::LegacyAppearance::IsPackedRace(character->m_data.m_preferences.m_raceID)) {
+        app::ChrChoice choice{};
+        if (!app::ChoiceAt(options[i].id, value, choice)) return;
+        auto& state = g_state[character];
+        state.resize(options.size(), UINT32_MAX);
+        // Old IDs retain their installed packed codec. New choices remain preview-only until a
+        // wider server look transport exists; they must not overwrite other packed selectors.
+        state[i] = EsteriaRetailStoreChoice(character, options[i].id, choice.id) ? UINT32_MAX : value;
+        return;
+    }
     if (options[i].stock != Stock::None) {
         *PreferenceFor(character->m_data.m_preferences, options[i].stock) = value;
         return;
     }
     std::vector<uint32_t>& state = g_state[character];
-    state.resize(options.size(), 0);
+    state.resize(options.size(), UINT32_MAX);
     state[i] = value;
 }
 
@@ -229,6 +277,80 @@ bool IsRetailModel(CM2Model* model) {
     if (!model || !model->m_shared) return false;
     const char* name = model->m_shared->m_fileName;
     return !_strnicmp(name, "retail", 6) && (name[6] == '/' || name[6] == 92);
+}
+
+constexpr uint32_t CollectionSocket = UINT32_MAX - 1;
+struct CollectionState {
+    CM2Model* parent = nullptr;
+    std::map<std::string, std::vector<uint16_t>> geosets;
+};
+std::unordered_map<CCharacterComponent*, CollectionState> g_collections;
+
+std::string CollectionName(CM2Model* model) {
+    std::string name = model->m_shared->m_fileName;
+    std::replace(name.begin(), name.end(), '\\', '/');
+    return name;
+}
+
+void BindCollectionTextures(CM2Model* parent) {
+    if (!(parent->m_fFlags & 1) || !parent->m_textures) return;
+    const auto& textures = parent->m_shared->m_data->m_textures;
+    for (CM2Model* child = parent->m_attachList; child; child = child->m_attachNext) {
+        if (child->m_attachmentId != CollectionSocket) continue;
+        for (uint32_t i = 0; i < textures.m_count; ++i)
+            if (textures[i].m_type && parent->m_textures[i]) child->ReplaceTexture(textures[i].m_type, parent->m_textures[i]);
+    }
+}
+
+void FinishCollections(CCharacterComponent* character, bool refresh = false) {
+    const auto state = g_collections.find(character);
+    CM2Model* parent = character->m_data.m_model;
+    if (state == g_collections.end() || state->second.parent != parent || !(parent->m_fFlags & 1)) return;
+    for (CM2Model* child = parent->m_attachList; child; child = child->m_attachNext) {
+        if (child->m_attachmentId != CollectionSocket || !(child->m_fFlags & 1)) continue;
+        const auto selected = state->second.geosets.find(CollectionName(child));
+        if (selected == state->second.geosets.end()) continue;
+        const bool ready = child->HasSkinParent(parent);
+        if (!ready && !child->SetSkinParent(parent)) {
+            static std::set<std::string> reported;
+            const auto key = std::string(parent->m_shared->m_fileName) + ":" + child->m_shared->m_fileName;
+            if (reported.insert(key).second) Log("collection rig mismatch: %s", key.c_str());
+            continue;
+        }
+        if (!ready || refresh) {
+            child->SetGeometryVisible(0, 65535, 0);
+            for (const auto geoset : selected->second) child->SetGeometryVisible(geoset, geoset, 1);
+            BindCollectionTextures(parent);
+        }
+    }
+}
+
+void SyncCollections(CCharacterComponent* character, const app::Recipe& recipe) {
+    CM2Model* parent = character->m_data.m_model;
+    auto& state = g_collections[character];
+    state.parent = parent;
+    state.geosets.clear();
+    for (const auto& part : recipe.attached)
+        if (part.fileDataId && part.geoset % 100) // group*100 is an explicitly hidden collection.
+            state.geosets[Retail::FileName(part.fileDataId, ".m2")].push_back(part.geoset);
+    for (CM2Model* child = parent->m_attachList; child;) {
+        CM2Model* next = child->m_attachNext;
+        if (child->m_attachmentId == CollectionSocket && !state.geosets.count(CollectionName(child)))
+            child->DetachFromParent();
+        child = next;
+    }
+    for (const auto& selected : state.geosets) {
+        bool exists = false;
+        for (CM2Model* child = parent->m_attachList; child; child = child->m_attachNext)
+            exists = exists || (child->m_attachmentId == CollectionSocket && selected.first == CollectionName(child));
+        if (exists) continue;
+        CM2Model* child = parent->m_scene->CreateModel(selected.first.c_str(), 0);
+        if (!child) { Log("collection create failed: %s", selected.first.c_str()); continue; }
+        child->SetGeometryVisible(0, 65535, 0); // Wait for a verified shared pose before exposing geometry.
+        child->AttachToParent(parent, CollectionSocket, nullptr, 1);
+        child->Release(); // The parent owns the attachment reference.
+    }
+    FinishCollections(character, true);
 }
 
 // The creator and character select run without an active player. In the world the stock validation applies.
@@ -359,6 +481,7 @@ void BindBody(CCharacterComponent* character, CM2Model* model, const Look& look,
         }
     }
     model->ReplaceTexture(1, found->second);
+    BindCollectionTextures(model);
 }
 
 bool IdentityHelmetSocket(const M2CompBone& bone) {
@@ -379,7 +502,7 @@ bool IdentityHelmetSocket(const M2CompBone& bone) {
 
 void FitLegacyHelmet(CCharacterComponent* character) {
     const auto& prefs = character->m_data.m_preferences;
-    if ((prefs.m_raceID != 1 && prefs.m_raceID != 3) || RetailRaceId(prefs.m_raceID) != prefs.m_raceID || prefs.m_sexID > 1
+    if (prefs.m_sexID > 1
         || !character->m_itemDisplayID[ITEMSLOT_HEAD] || !RetailRaceActive(character)) return;
     CM2Model* parent = character->m_data.m_model;
     if (!(parent->m_fFlags & 1)) return; // Tick retries once the asynchronous parent load completes.
@@ -396,11 +519,24 @@ void FitLegacyHelmet(CCharacterComponent* character) {
     if (attachment.m_bone >= data->m_bones.m_count) return;
     const auto& socketBone = data->m_bones[attachment.m_bone];
     // The supported Human/Dwarf helpers share the head frame. Retain this guard for other rigs.
-    if (socketBone.m_parentIndex != head || !IdentityHelmetSocket(socketBone)) return;
+    if (attachment.m_bone != head && (socketBone.m_parentIndex != head || !IdentityHelmetSocket(socketBone))) return;
 
-    const char* donorPath = prefs.m_raceID == 3
-        ? (prefs.m_sexID ? "Character\\Dwarf\\Female\\DwarfFemale.m2" : "Character\\Dwarf\\Male\\DwarfMale.m2")
-        : (prefs.m_sexID ? "Character\\Human\\Female\\HumanFemale.m2" : "Character\\Human\\Male\\HumanMale.m2");
+    const auto* race = g_chrRacesDB.GetRecord(prefs.m_raceID);
+    const auto* display = race ? g_creatureDisplayInfoDB.GetRecord(prefs.m_sexID ? race->m_femaleDisplayID : race->m_maleDisplayID) : nullptr;
+    const auto* legacy = display ? g_creatureModelDataDB.GetRecord(display->m_modelID) : nullptr;
+    if (!legacy || !legacy->m_modelName || !*legacy->m_modelName) return;
+    std::string donorName = legacy->m_modelName;
+    // Stock helmet meshes retain the original race's crown convention even when the effective
+    // player display points at its HD "Race2" body. Keep the accepted stock donor paths.
+    const char* stockNames[] = {nullptr,"Human","Orc","Dwarf","NightElf","Scourge","Tauren","Gnome","Troll",nullptr,"BloodElf","Draenei"};
+    if (prefs.m_raceID < 12 && stockNames[prefs.m_raceID]) {
+        const std::string family = stockNames[prefs.m_raceID];
+        const std::string sex = prefs.m_sexID ? "Female" : "Male";
+        donorName = "Character\\" + family + "\\" + sex + "\\" + family + sex + ".m2";
+    }
+    const auto dot = donorName.find_last_of('.');
+    if (dot != std::string::npos) donorName.replace(dot, std::string::npos, ".m2");
+    const char* donorPath = donorName.c_str();
     struct Donor { bool attempted = false, valid = false; Retail::HelmetAnchor anchor; };
     static std::map<std::string, Donor> donors;
     Donor& donor = donors[donorPath];
@@ -436,6 +572,12 @@ void FitLegacyHelmet(CCharacterComponent* character) {
 
 bool RetailRaceMapped(uint32_t race) {
     return RetailRaceId(race) != 0;
+}
+
+uint32_t RetailRaceHelmetMask(uint32_t race) {
+    const uint32_t retail = RetailRaceId(race);
+    const uint32_t donor = retail ? Retail::HelmetMaskRace(retail) : race;
+    return donor && donor < 32 ? uint32_t{1} << donor : 0;
 }
 
 bool RetailRaceActive(CCharacterComponent* character) {
@@ -484,6 +626,7 @@ bool RetailRaceGeometry(CCharacterComponent* character) {
     if (!look.recipe.modelFileDataId) return false;
     Log("RetailRaceGeometry component %p key %s", static_cast<void*>(character), key.c_str());
     g_active.insert(character);
+    SyncCollections(character, look.recipe);
 
     // Stock only hides geosets up to id 2000. Retail models carry more groups above it (feet 20xx, torso 22xx,
     // customization 3xxx...), all of which would otherwise draw at once. Show just the defaults here; the
@@ -506,6 +649,7 @@ bool RetailRaceGeometry(CCharacterComponent* character) {
         if (!bound) bound = MakeTexture("Retail\\Race\\" + key + "\\" + std::to_string(texture.textureType), texture.image);
         if (bound) model->ReplaceTexture(texture.textureType, bound);
     }
+    BindCollectionTextures(model);
     // The body is composed after item loading/section prep. Geometry-only refreshes happen after
     // temporary equipment textures are freed and must never replace the equipped sheet with bare skin.
     return true;
@@ -526,20 +670,22 @@ void RetailRaceEquipment(CCharacterComponent* character) {
             hasClosedFoot = hasClosedFoot || (sections[i].m_skinSectionId & 0xFFFF) == 2002;
         }
     }
-    Retail::ApplyLegacyFootGeometry(*model, character->m_itemDisplayID[ITEMSLOT_BOOTS], hasClosedFoot);
+    if (Retail::UsesLegacyClosedFeet(RetailRaceId(character->m_data.m_preferences.m_raceID)))
+        Retail::ApplyLegacyFootGeometry(*model, character->m_itemDisplayID[ITEMSLOT_BOOTS], hasClosedFoot);
 
     // AddHelm sets stock selector values before the recipe runs. Apply the effective target's
     // helmet hides last; otherwise retail hair and facial hair reappear underneath the helm.
     const uint32_t race = character->m_data.m_preferences.m_raceID;
     const uint32_t sex = character->m_data.m_preferences.m_sexID;
     ItemDisplayInfoRec display;
-    if (race >= 32 || sex > 1 || !character->m_itemDisplayID[ITEMSLOT_HEAD]
+    const uint32_t maskRace = Retail::HelmetMaskRace(RetailRaceId(race));
+    if (!maskRace || maskRace >= 32 || sex > 1 || !character->m_itemDisplayID[ITEMSLOT_HEAD]
         || !g_itemDisplayInfoDB.GetRecord(character->m_itemDisplayID[ITEMSLOT_HEAD], &display)) return;
     const auto* visibility = g_helmetGeosetVisDataDB.GetRecord(display.m_helmetGeosetVisID[sex]);
     if (!visibility) return;
     constexpr uint32_t groups[] = {0, 1, 2, 3, 7, 16, 17};
     for (uint32_t i = 0; i < 7; ++i) {
-        if (!(uint32_t(visibility->m_hideGeoset[i]) & (uint32_t{1} << race))) continue;
+        if (!(uint32_t(visibility->m_hideGeoset[i]) & (uint32_t{1} << maskRace))) continue;
         const uint32_t group = groups[i];
         // Geoset zero contains unconditional anatomy, while 1..99 are hairstyles.
         model->SetGeometryVisible(group ? group * 100 : 1, group * 100 + 99, 0);
@@ -548,7 +694,9 @@ void RetailRaceEquipment(CCharacterComponent* character) {
 
 void RetailRaceForget(CCharacterComponent* character) {
     g_state.erase(character);
+    g_stateIdentity.erase(character);
     g_active.erase(character);
+    g_collections.erase(character);
 }
 
 namespace {
@@ -570,6 +718,8 @@ struct Snapshot {
     CCharacterComponent* owner = nullptr;
     uint32_t prefs[5] = {};
     std::vector<uint32_t> state;
+    std::array<uint8_t, 13> fields{};
+    uint32_t race = 0, sex = 0;
 };
 
 Snapshot g_preview;
@@ -590,9 +740,16 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
 
     const std::vector<OptionInfo>& options = OptionsFor(retail, prefs.m_sexID);
 
+    if (!std::strcmp(command, "EA_COUNT")) {
+        lua_pushnumber(L, options.size());
+        return 1;
+    }
+
     if (!std::strcmp(command, "EA_PREVIEW_SAVE") || !std::strcmp(command, "EA_PREVIEW_RESTORE") || !std::strcmp(command, "EA_PREVIEW_END")) {
         if (!std::strcmp(command, "EA_PREVIEW_SAVE")) {
             g_preview.owner = character;
+            g_preview.race = prefs.m_raceID; g_preview.sex = prefs.m_sexID;
+            g_preview.fields = EsteriaRetailFields(character);
             g_preview.prefs[0] = prefs.m_skinID; g_preview.prefs[1] = prefs.m_faceId; g_preview.prefs[2] = prefs.m_hairStyleId;
             g_preview.prefs[3] = prefs.m_hairColorId; g_preview.prefs[4] = prefs.m_facialHairId;
             const auto found = g_state.find(character);
@@ -601,10 +758,11 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
         } else if (!std::strcmp(command, "EA_PREVIEW_END")) {
             g_preview.owner = nullptr;
             lua_pushnumber(L, 1);
-        } else if (g_preview.owner == character) {
+        } else if (g_preview.owner == character && g_preview.race == prefs.m_raceID && g_preview.sex == prefs.m_sexID) {
             prefs.m_skinID = g_preview.prefs[0]; prefs.m_faceId = g_preview.prefs[1]; prefs.m_hairStyleId = g_preview.prefs[2];
             prefs.m_hairColorId = g_preview.prefs[3]; prefs.m_facialHairId = g_preview.prefs[4];
             g_state[character] = g_preview.state;
+            if (Retail::LegacyAppearance::IsPackedRace(prefs.m_raceID)) EsteriaRetailFields(character, g_preview.fields);
             Refresh(character);
             lua_pushnumber(L, 1);
         } else {
@@ -674,6 +832,7 @@ void RetailRaceTick() {
     const bool inWorld = InWorld();
     for (CCharacterComponent* character : std::set<CCharacterComponent*>(g_active)) {
         FitLegacyHelmet(character);
+        FinishCollections(character);
         if (inWorld) character->Prep();
     }
 }
@@ -704,6 +863,7 @@ void RetailRaceSectionArguments(int32_t race, int32_t sex, int32_t* style, int32
 #else
 
 bool RetailRaceMapped(uint32_t) { return false; }
+uint32_t RetailRaceHelmetMask(uint32_t race) { return race && race < 32 ? uint32_t{1} << race : 0; }
 bool RetailRaceActive(CCharacterComponent*) { return false; }
 bool RetailRaceOwns(uint32_t, uint32_t) { return false; }
 bool RetailRaceModelPath(uint32_t, uint32_t, char*, size_t) { return false; }

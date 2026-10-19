@@ -1,6 +1,7 @@
 #ifndef ESTERIA_APPEARANCE_H
 #define ESTERIA_APPEARANCE_H
 
+#include <array>
 #include <cstdint>
 
 class CCharacterComponent;
@@ -52,5 +53,13 @@ bool EsteriaOwnsRace(uint32_t race, uint32_t sex);
 
 // Stand-in for CCharacterComponent::LoadBaseVariation on Esteria races: `*texture` receives an owned layer (or null).
 bool EsteriaBaseLayer(CCharacterComponent* character, int32_t variation, int32_t textureIndex, void** texture);
+
+// Stable Retail choice IDs backed by the installed custom race's frozen appearance codec.
+bool EsteriaRetailChoice(CCharacterComponent* character, uint32_t optionId, uint32_t& choiceId);
+bool EsteriaRetailStoreChoice(CCharacterComponent* character, uint32_t optionId, uint32_t choiceId);
+
+// Exact appearance snapshots for Retail preview save/restore, including extended server bytes.
+std::array<uint8_t, 13> EsteriaRetailFields(CCharacterComponent* character);
+void EsteriaRetailFields(CCharacterComponent* character, const std::array<uint8_t, 13>& fields);
 
 #endif

@@ -3933,7 +3933,7 @@ void CCharacterComponent::AddHelm(int32_t itemVisual) {
         return;
     }
 
-    uint32_t raceMask = 1 << this->m_data.m_preferences.m_raceID;
+    uint32_t raceMask = RetailRaceHelmetMask(this->m_data.m_preferences.m_raceID);
 
     if (raceMask & visRec->m_hideGeoset[0]) {
         this->m_data.m_geosets[0] = 1;
