@@ -2,6 +2,7 @@
 // Usage: RetailRaceProbe <RetailCasc.ini> [chrRaceId sex]
 #include "Engine/Source/Retail/Appearance.h"
 #include "Engine/Source/Retail/Db2.h"
+#include "Engine/Source/Retail/SourceContext.h"
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -12,8 +13,35 @@
 namespace app = Retail::Db2::appearance;
 
 int main(int argc, char** argv) {
+    const bool forever = argc > 1 && std::string(argv[1]) == "--forever";
+    if (forever) { --argc; ++argv; }
+    Retail::SourceScope scope(forever ? Retail::SourceKind::Forever : Retail::SourceKind::Retail);
+    if (argc == 4 && std::string(argv[2]) == "find-choice") {
+        _putenv_s(forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
+        if (!app::Status().loaded) return 1;
+        const auto* table = app::Get("chrcustomizationchoice");
+        for (const auto& row : table->Rows()) {
+            const auto name = app::ChoiceName(row.id);
+            if (name.find(argv[3]) == std::string::npos) continue;
+            const auto option = table->Value(row, "ChrCustomizationOptionID");
+            std::printf("choice %u %s; option %u %s; requirement %u\n", row.id, name.c_str(), option,
+                app::OptionName(option).c_str(), table->Value(row, "ChrCustomizationReqID"));
+        }
+        return 0;
+    }
+    if (argc == 4 && std::string(argv[2]) == "choices") {
+        _putenv_s(forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
+        if (!app::Status().loaded) return 1;
+        const uint32_t option = uint32_t(std::strtoul(argv[3], nullptr, 10));
+        for (uint32_t i = 0; i < app::ChoiceCount(option); ++i) {
+            app::ChrChoice choice{};
+            if (!app::ChoiceAt(option, i, choice)) return 1;
+            std::printf("%u %u %s\n", i, choice.id, app::ChoiceName(choice.id).c_str());
+        }
+        return 0;
+    }
     if (argc == 4 && std::string(argv[2]) == "catalog") {
-        _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+        _putenv_s(forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
         if (!app::Status().loaded) return 1;
         std::ofstream out(argv[3]);
         out << "[";
@@ -54,7 +82,7 @@ int main(int argc, char** argv) {
         return out.good() ? 0 : 1;
     }
     if (argc == 5 && std::string(argv[2]) == "audit") {
-        _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+        _putenv_s(forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
         if (!app::Status().loaded) return 1;
         const uint32_t race = uint32_t(std::strtoul(argv[3], nullptr, 10));
         const uint32_t sex = uint32_t(std::strtoul(argv[4], nullptr, 10));
@@ -98,7 +126,7 @@ int main(int argc, char** argv) {
     }
     if (argc >= 4 && std::string(argv[2]) == "dump") {
         // RetailRaceProbe <ini> dump <table> [field value]: prints rows, optionally those with field == value.
-        _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+        _putenv_s(forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
         app::Status();
         const Retail::Db2::Table* table = app::Get(argv[3]);
         if (!table) { std::fprintf(stderr, "unknown table\n"); return 1; }
@@ -125,7 +153,7 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "Usage: RetailRaceProbe <RetailCasc.ini> [chrRaceId sex|audit chrRaceId sex]\n");
         return 2;
     }
-    _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+    _putenv_s(forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
     const app::StoreStatus& status = app::Status();
     std::printf("loaded=%d failed=%d models=%u options=%u choices=%u elements=%u layouts=%u\n",
         status.loaded, status.failed, status.chrModels, status.options, status.choices,

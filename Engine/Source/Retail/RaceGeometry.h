@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <vector>
+#include "Engine/Source/Retail/SourceContext.h"
 
 namespace Retail {
 
@@ -18,6 +19,16 @@ inline std::vector<uint16_t> DefaultRaceGeosets(const std::vector<uint16_t>& rec
         if (!chosen) defaults.push_back(base);
     }
     return defaults;
+}
+
+// Forever's playable Skyborne eye colors select texture type 19 on geoset 3301.
+// The inherited donor's 17xx meshes use lightning atlases; no eligible Skyborne
+// choice selects them. Group 51 is an authored eyesight/blindness overlay and stays.
+// Apply after Wrath's selector/DK pass, which would otherwise restore 1701/1703.
+template <class Model>
+void ApplyRaceEyeGeometry(Model& model, SourceKind source, uint32_t sourceRace) {
+    if (source != SourceKind::Forever || (sourceRace != 95 && sourceRace != 96)) return;
+    model.SetGeometryVisible(1701, 1799, 0);
 }
 
 // Legacy boot styles select the shin (group 5), not Retail foot shapes (group 20). Even style

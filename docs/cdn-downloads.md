@@ -1,0 +1,158 @@
+# Independent Retail and Forever acquisition
+
+The client has two independent sources. `retail/` uses `WOW_RETAIL_CONFIG` /
+`RetailCasc.ini`; `forever/` uses `WOW_FOREVER_CONFIG` / `ForeverCasc.ini`.
+Each owns its CASC handle, mutex, aliases, dependencies, DB2 tables and load flags.
+The same FileDataID in two products cannot share an asset entry. Prepared model
+textures and animations retain their source namespace through SFile and Model2.
+
+Forever is opt-in: set its environment variable or install
+`Data/Retail/ForeverCasc.ini` beside the executable (`Data/Forever` remains a
+fallback for older installations). This enables the existing
+target races **52 -> Forever 95** and **53 -> Forever 96** (Skyborne). An optional
+`WOW_FOREVER_RACES=52:95,53:96` overrides this mapping; an empty value disables it.
+Retail's mapping/config remains independent. This provides the existing native
+race model/customization pipeline for Skyborne; it does not add server classes,
+class spells or unlock rules. Existing packed appearance codecs remain unchanged.
+
+Creator choices are filtered separately from the raw DB2 catalog and saved appearance
+indexes. Forever Skyborne ChrModels 218/219 exclude their inherited Blood Elf entries
+under source requirement 12, retaining the playable Skyborne choices and authored
+accessory requirements. Both bodies expose 10 playable faces and 9 skin palettes.
+Internal Transmog placeholders (source requirement 10, including unnamed Forever
+copies) are excluded from every race's creator. Dropdowns, arrows, preview, defaults
+and randomization share the same mapping back to the original choice indexes.
+Existing characters and raw source/saved IDs are not remapped by this UI policy.
+
+The pinned Forever Skyborne bodies inherit donor lightning meshes in group 17.
+No eligible Skyborne customization selects them; their authored eye colors use
+texture type 19 on group 33, with eyesight/blindness overlays in group 51.
+The final geometry pass hides group 17 for Forever source races 95/96 after
+Wrath's stock and Death Knight eye-glow selectors, including on appearance refresh.
+This preserves ordinary Skyborne eyes and affects no other race or source. Cached
+original M2/skin files and saved appearance IDs are unchanged.
+
+Copy [ForeverCasc.example.ini](../config/ForeverCasc.example.ini) into the Wrath
+client's `Data/Retail` folder. The relative paths keep both products' acquired
+assets inside that game folder:
+
+```text
+Data/Retail/
+  RetailCasc.ini
+  ForeverCasc.ini
+  Cache/Retail/<product-build>/           # Retail encoded CASC + decoded originals
+  Cache/Forever/<product-build>/          # Forever encoded CASC
+  Cache/ForeverDecoded/<product-build>/   # Forever decoded originals
+```
+
+Each source has its own build directory and lock. Moving the game folder preserves
+these caches; configs and launchers should use relative paths. When relocating an
+existing cache, move its complete storage and decoded directories with the client
+and downloaders closed, then update both config paths before restarting. Imported
+offline packs under `Data/Retail/Assets` and their supplemental registries remain
+persistent too. Do not nest these caches inside a modern CASC installation with
+an ancestor `.build.info`, `.build.db`, `.build.config` or `versions` manifest;
+the MPQ-based Wrath client folder is supported.
+
+The sample pins the installed Forever build
+1.60.1.70124. `build` is its build-config key; `cdn` is the **matching CDN-config
+key**, and `version` is that build's version. Obtain all three from the same
+installation's `.build.info` or version manifest. With `cdn`, the adapter persists
+an exact `versions` manifest: CascLib otherwise combines the pinned older build
+with the current online archive index, which can fail on uncached files.
+This setting is optional for existing Retail configs.
+
+## Background processes
+
+Build `CdnAssetDownload` and run one process per source:
+
+```powershell
+CdnAssetDownload.exe retail C:/config/RetailCasc.ini 70
+CdnAssetDownload.exe forever C:/config/ForeverCasc.ini 95 96
+```
+
+Arguments are **source race IDs**. Both authored sexes are included. The tool
+collects all reachable customization materials and collections, including
+related-choice combinations, then follows M2 skins, fixed textures, skeletons,
+skeleton parents and external animations. It stores original decoded bytes;
+download completion does not claim renderer or in-game acceptance.
+
+[DownloadForever.ps1](../Tools/RetailAssets/DownloadForever.ps1) starts the Forever
+process hidden at below-normal priority and writes separate progress/error logs.
+[Launch.ps1](../Tools/RetailAssets/Launch.ps1) starts it alongside the client when a
+Forever config is supplied/installed and `CdnAssetDownload.exe` is beside the
+client. A worker mutex prevents duplicate processes for the same source/config;
+Retail's running worker is unaffected. Library cache locks coordinate individual
+CASC acquisitions across clients/workers using the same storage directory.
+
+Failed files are reported and the process exits nonzero after finishing other
+files. Restart with the same arguments to retry; completed files are verified
+and reused. Progress reports `reused`, `acquired` and `failed`. `acquired` can mean
+decoding CascLib's existing encoded cache or reading a local installation as well
+as downloading from the network. It does not falsely report all reads as downloads.
+
+## Durable originals
+
+Online sources always persist decoded assets under
+`path/<product>-<build>/decoded/<locale>/<policy>/`. An explicit `cache=` chooses
+`cache/<product>-<build>/<locale>/<policy>/` instead. Pinned local sources can use
+the same `cache=` to seed originals from an installed game, then switch to online
+without reacquiring them. Unpinned local sources retain installed-storage behavior.
+Offline `mode=files` packs keep their existing layout.
+
+Cache entries have a format tag, bounded size, exact-length check and payload
+checksum. Writes publish a completed temporary file atomically. Incomplete or
+corrupt entries cannot masquerade as cached assets. Originals are never modified
+by model/skin preparation. Successful reads fail explicitly if persistence fails.
+The cache is checked **before opening CASC**, so warm runs need neither metadata
+downloads nor a working network. Product, build and locale separate entries;
+lenient DB2 reads are separate from strict model/texture reads. Changing an
+explicit encryption-key file invalidates its lenient-table partition.
+
+The notice appears only for slow active work. Durable cache hits create no
+acquisition notice. Misses say `Retail: acquiring missing data` or
+`Forever: acquiring missing data`; CPU work says `Preparing character appearance`.
+Nested notices restore the active parent's message, and completed notices hide.
+
+## Creator zoom
+
+The create/customize model viewport accepts mousewheel zoom for all races, including
+legacy models. Wheel up approaches the face; wheel down restores the full-body
+camera. The native camera uses head key bone 6 plus the actual model's pedestal
+transform/scale, with a bounds-based fallback for models without that bone. Race
+and body switches recalculate the target. Leaving the creator resets zoom. Choice
+pickers retain their wheel scrolling. Apply `glue/patch_character_create.py` together
+with the matching native client; the patch updates both locale override archives.
+
+## Dracthyr
+
+Retail races 52/70 select **ChrModel 127 (male Visage, M2 4395382)** or
+**ChrModel 128 (female Visage, M2 4220448)**. Both model and customization options
+use the selected Visage form. Dragon-only saved/debug choice IDs cannot apply
+dragon geosets or collection actions to a Visage body. Target race identity and
+stored character bytes are preserved; old dragon-only selections use Visage
+defaults. No dragon-to-Visage saved-choice migration is implied.
+
+## Verification
+
+`ctest --test-dir build/retail-assets -C Release --output-on-failure` covers cache
+integrity, restart loads with CASC storage absent, product/build/locale isolation,
+read-policy separation and the Forever empty-WDC5-table layout.
+
+`CdnSourceSmoke <retail-config> <forever-config>` checks concurrent source
+initialization and alternating male/female model preparation using warm caches,
+requiring zero acquisition. `RetailRaceProbe --forever` and
+`RetailComposeProbe --forever` inspect the separate Forever store. The normal
+asset probe accepts `forever/<ID>.m2` with `--character`.
+
+For the in-client diagnostic preview, `retailmodel forever/7478487` selects the
+Forever namespace. Set `WOW_RETAIL_PREVIEW_CHARACTER=1` when previewing a player
+body so it uses the same character material policy as the normal race loader.
+The automatic `WOW_RETAIL_PREVIEW` accepts the same Forever-prefixed ID.
+
+On 2026-10-20, Skyborne acquisition completed **1,116 assets**; a fresh process
+reused **1,132 entries including DB2s**, with **zero acquisition/failures**. Both
+Skyborne bodies and both Visage bodies passed client preparation. A cold
+Forever `ChrRaces.db2` request succeeded from the CDN with its paired archive
+index pinned. Live creation, in-world animations, equipment and relog remain
+separate acceptance checks.

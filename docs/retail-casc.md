@@ -1,5 +1,8 @@
 # Retail assets from Blizzard's CDN
 
+For independent Forever/Skyborne acquisition, durable decoded caches, accurate
+progress notices and Dracthyr Visage selection, see [CDN downloads](cdn-downloads.md).
+
 For the proposed workflow that creates new client/server items and mounts while
 preserving original assets, see [Native Retail imports](retail-native-importer.md).
 The [first weapon import backend](retail-import-workflow.md) now implements original
@@ -32,13 +35,13 @@ the archive's SHA-256. It is MIT licensed. To build offline, supply
 ## Configure
 
 Copy [RetailCasc.example.ini](../config/RetailCasc.example.ini) to `RetailCasc.ini`
-in the client's working directory, or set `WOW_RETAIL_CONFIG` to an absolute config
+in the client's `Data/Retail` directory, or set `WOW_RETAIL_CONFIG` to an absolute config
 filename before launching. Relative paths in the config are resolved against the
 config's directory, not the process's working directory.
 
 ```ini
 mode=online
-path=RetailCache
+path=Cache/Retail
 product=wow
 region=us
 build=88d5e8ef05ec5a8446cdec93d142d7c6
@@ -52,8 +55,9 @@ from `http://us.patch.battle.net:1119/wow/versions`. Use the `BuildConfig` colum
 the desired region. Changing a build requires a client restart. Each online build
 uses a separate `path/<product>-<build>/` cache directory.
 
-Keep online caches outside existing game installations and other CASC caches:
-CascLib searches ancestor directories for storage manifests. Encrypted files need
+The Wrath client's `Data/Retail/Cache` directory keeps acquired assets with the
+game. Do not nest it beneath modern CASC installations or other caches with storage
+manifests: CascLib searches ancestor directories. Encrypted files need
 their matching key; an optional `keys=keys.txt` uses CascLib's key-import format.
 Missing keys produce an error, rather than zero-filled data.
 

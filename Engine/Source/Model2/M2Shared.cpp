@@ -505,7 +505,7 @@ CShaderEffect* CM2Shared::GetEffect(uint32_t textureCount, uint16_t shader, uint
 
 #if defined(WOWDECOMP_RETAIL_ASSETS)
             // Retail batches carry no coordinate combo (0xFFFF); their 0x4000 bit selects the second UV set.
-            if (Retail::Source().Handles(this->m_fileName)) {
+            if (Retail::SourceForPath(this->m_fileName).Handles(this->m_fileName)) {
                 if (!(shader & 0x4000)) {
                     vertexShader = "Diffuse_T1";
                 }
@@ -758,7 +758,7 @@ CShaderEffect* CM2Shared::GetEffect(M2Batch* batch) {
     CShaderEffect* effect;
 
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    if (Retail::Source().Handles(this->m_fileName) && batch->m_shader == 0x8010) {
+    if (Retail::SourceForPath(this->m_fileName).Handles(this->m_fileName) && batch->m_shader == 0x8010) {
         const char* name = "Retail_Opaque_Reflection_Glow";
         if (auto* existing = CShaderEffectManager::GetEffect(name)) return existing;
         effect = CShaderEffectManager::CreateEffect(name);
@@ -780,14 +780,14 @@ CShaderEffect* CM2Shared::GetEffect(M2Batch* batch) {
         }
         return effect;
     }
-    if (Retail::Source().Handles(this->m_fileName) && batch->m_shader == 0x8012) {
+    if (Retail::SourceForPath(this->m_fileName).Handles(this->m_fileName) && batch->m_shader == 0x8012) {
         const char* name = "Retail_Mod_Mod_T1_T2";
         if (auto* existing = CShaderEffectManager::GetEffect(name)) return existing;
         effect = CShaderEffectManager::CreateEffect(name);
         effect->InitEffect("Diffuse_T1_T2", "Combiners_Mod_Mod");
         return effect;
     }
-    if (Retail::Source().Handles(this->m_fileName) && batch->m_shader == 0x8011) {
+    if (Retail::SourceForPath(this->m_fileName).Handles(this->m_fileName) && batch->m_shader == 0x8011) {
         const char* name = "Retail_Mod_Mod2x_T1_T2";
         if (auto* existing = CShaderEffectManager::GetEffect(name)) return existing;
         effect = CShaderEffectManager::CreateEffect(name);
@@ -1264,7 +1264,7 @@ int32_t CM2Shared::InitializeSkinProfile() {
     // Legacy specialization packs pairs into one word and cannot preserve a
     // three-layer material, so it must not process these native batches again.
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    if (!Retail::Source().Handles(this->m_fileName))
+    if (!Retail::SourceForPath(this->m_fileName).Handles(this->m_fileName))
 #endif
     {
         this->SubstituteSimpleShaders();
@@ -1669,7 +1669,7 @@ int32_t M2Init(uint8_t* base, uint32_t size, M2Data& data) {
 int32_t CM2Shared::FinishLoadingLowPrioritySequence(uint32_t sequenceIndex, uint8_t* buffer, uint32_t size) {
 #if defined(WOWDECOMP_RETAIL_ASSETS)
     Retail::AnimationLayout layout;
-    const bool retail = !_strnicmp(this->m_fileName, "retail/", 7) || !_strnicmp(this->m_fileName, "retail\\", 7);
+    const bool retail = Retail::IsCdnPath(this->m_fileName);
     if (retail) {
         std::string error;
         if (!Retail::InspectAnimation(buffer, size, layout, error)) {
@@ -2085,7 +2085,7 @@ CM2Shared::~CM2Shared() {
     }
 #if defined(WOWDECOMP_RETAIL_ASSETS)
     // Drop the validation copy when the last native cache using this model lets go.
-    Retail::Source().ReleaseModel(this->m_fileName);
+    Retail::SourceForPath(this->m_fileName).ReleaseModel(this->m_fileName);
 #endif
 }
 

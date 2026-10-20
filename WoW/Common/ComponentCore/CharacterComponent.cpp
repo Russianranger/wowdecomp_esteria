@@ -2215,12 +2215,15 @@ GEOCOMPONENTLINKS CCharacterComponent::AddHandItem(CM2Model* model, const ItemDi
     // Keep the normal hand/sheath links, finger pose, item visuals and scale.
     // Only the model and object-skin texture filenames come from Retail.
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    Retail::HandItemAppearance retail;
-    if (Retail::Source().HandItem(displayRec->m_id, retail, invSlot == INVSLOT_MAINHAND)) {
-        const auto modelPath = Retail::FileName(retail.modelId, ".m2");
-        const auto texturePath = Retail::FileName(retail.textureId, ".blp");
-        CCharacterComponent::AddLink(model, link, modelPath.c_str(), texturePath.c_str(), itemVisual ? itemVisual : displayRec->m_itemVisual, displayRec);
-        return link;
+    {
+        Retail::SourceScope retailEquipment(Retail::SourceKind::Retail);
+        Retail::HandItemAppearance retail;
+        if (Retail::Source().HandItem(displayRec->m_id, retail, invSlot == INVSLOT_MAINHAND)) {
+            const auto modelPath = Retail::FileName(retail.modelId, ".m2");
+            const auto texturePath = Retail::FileName(retail.textureId, ".blp");
+            CCharacterComponent::AddLink(model, link, modelPath.c_str(), texturePath.c_str(), itemVisual ? itemVisual : displayRec->m_itemVisual, displayRec);
+            return link;
+        }
     }
 #endif
 

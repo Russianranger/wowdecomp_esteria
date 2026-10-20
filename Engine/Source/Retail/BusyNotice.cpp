@@ -5,6 +5,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <map>
 
 namespace Retail {
 namespace {
@@ -13,10 +14,11 @@ constexpr DWORD kShowDelayMs = 400;   // reads shorter than this never show a wi
 constexpr DWORD kLingerMs = 1500;     // keep the window across back-to-back reads
 
 std::mutex g_mutex;
-int g_active = 0;
+struct Notice { std::wstring text; int priority; };
+std::map<uint64_t, Notice> g_notices;
+uint64_t g_nextId = 0;
 bool g_threadRunning = false;
 DWORD g_firstBegin = 0, g_lastEnd = 0;
-std::wstring g_text;
 
 LRESULT CALLBACK Proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     if (message == WM_PAINT) {
@@ -34,7 +36,10 @@ LRESULT CALLBACK Proc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
         std::wstring text;
         {
             std::lock_guard<std::mutex> lock(g_mutex);
-            text = g_text;
+            int priority = -1;
+            for (const auto& entry : g_notices) {
+                if (entry.second.priority >= priority) { text = entry.second.text; priority = entry.second.priority; }
+            }
         }
         const unsigned dots = (GetTickCount() / 400) % 4;
         text += std::wstring(dots, L'.');
@@ -56,8 +61,8 @@ void Run() {
         {
             std::lock_guard<std::mutex> lock(g_mutex);
             const DWORD now = GetTickCount();
-            if (g_active == 0 && now - g_lastEnd > kLingerMs) { finished = true; g_threadRunning = false; }
-            show = g_active > 0 && now - g_firstBegin >= kShowDelayMs;
+            if (g_notices.empty() && now - g_lastEnd > kLingerMs) { finished = true; g_threadRunning = false; }
+            show = !g_notices.empty() && now - g_firstBegin >= kShowDelayMs;
         }
         if (finished) break;
         if (show && !window) {
@@ -73,11 +78,12 @@ void Run() {
             if (window) ShowWindow(window, SW_SHOWNOACTIVATE);
         }
         if (window) {
+            ShowWindow(window, show ? SW_SHOWNOACTIVATE : SW_HIDE);
             InvalidateRect(window, nullptr, FALSE);
             MSG message;
             while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) { TranslateMessage(&message); DispatchMessageW(&message); }
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_active == 0 && GetTickCount() - g_lastEnd > kLingerMs) {
+            if (g_notices.empty() && GetTickCount() - g_lastEnd > kLingerMs) {
                 DestroyWindow(window);
                 window = nullptr;
             }
@@ -88,11 +94,12 @@ void Run() {
 
 }
 
-BusyNotice::BusyNotice(const char* text) {
+BusyNotice::BusyNotice(const char* text, int priority) {
     std::lock_guard<std::mutex> lock(g_mutex);
     const DWORD now = GetTickCount();
-    if (g_active++ == 0 && now - g_lastEnd > kLingerMs) g_firstBegin = now;
-    g_text.assign(text, text + std::char_traits<char>::length(text));
+    if (g_notices.empty()) g_firstBegin = now;
+    m_id = ++g_nextId;
+    g_notices.emplace(m_id, Notice{std::wstring(text, text + std::char_traits<char>::length(text)), priority});
     if (!g_threadRunning) {
         g_threadRunning = true;
         std::thread(Run).detach();
@@ -101,14 +108,14 @@ BusyNotice::BusyNotice(const char* text) {
 
 BusyNotice::~BusyNotice() {
     std::lock_guard<std::mutex> lock(g_mutex);
-    --g_active;
+    g_notices.erase(m_id);
     g_lastEnd = GetTickCount();
 }
 
 }
 #else
 namespace Retail {
-BusyNotice::BusyNotice(const char*) {}
+BusyNotice::BusyNotice(const char*, int) {}
 BusyNotice::~BusyNotice() {}
 }
 #endif

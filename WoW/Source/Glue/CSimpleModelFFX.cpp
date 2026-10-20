@@ -10,6 +10,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/CImVector.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
+#include "WoW/Source/Glue/CharacterCreation.h"
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 
 // STATIC: 0x00B6B48C
@@ -109,6 +110,7 @@ void CSimpleModelFFX::Render(void* arg) {
     GxSceneClear(GxBufferBit_Color | GxBufferBit_Depth, clearColor);
 
     if (model->m_model) {
+        if (model == CCharacterCreation::m_charCustomizeFrame) CCharacterCreation::UpdateZoomCamera();
         CSimpleModel::RenderModel(model);
     }
 

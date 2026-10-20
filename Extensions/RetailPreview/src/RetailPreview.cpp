@@ -67,6 +67,8 @@ int32_t EquipPreview(const char*, const char* arguments) {
 
 int BindTexture(lua_State* L) {
     auto* frame = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
+    Retail::SourceScope scope(frame->m_model && !_strnicmp(frame->m_model->m_shared->m_fileName, "forever/", 8)
+        ? Retail::SourceKind::Forever : Retail::SourceKind::Retail);
     const int id = luaL_checkint(L, 2), type = luaL_checkint(L, 3);
     if (id <= 0 || type < 0 || type > 14) return luaL_error(L, "Invalid Retail texture ID or replaceable texture type");
     frame->ReplaceTexture(static_cast<uint32_t>(type), Retail::FileName(static_cast<uint32_t>(id), ".blp").c_str());
@@ -126,8 +128,10 @@ int32_t Preview(const char*, const char* arguments) {
     uint32_t values[4] = {0, 0, 2, 0};
     std::string token;
     size_t count = 0;
+    auto kind = Retail::SourceKind::Retail;
     while (input >> token) {
         if (count == 4) return 0;
+        if (!count && token.compare(0, 8, "forever/") == 0) { kind = Retail::SourceKind::Forever; token.erase(0, 8); }
         auto parsed = std::from_chars(token.data(), token.data() + token.size(), values[count]);
         if (parsed.ec != std::errc() || parsed.ptr != token.data() + token.size()) return 0;
         ++count;
@@ -136,11 +140,13 @@ int32_t Preview(const char*, const char* arguments) {
         sExtensionMgr->Log("Usage: retailmodel <model FileDataID> [texture FileDataID [texture type, default 2]]; retailmodel hide");
         return 0;
     }
+    Retail::SourceScope scope(kind);
+    if (std::getenv("WOW_RETAIL_PREVIEW_CHARACTER")) Retail::Source().RegisterCharacterModel(values[0]);
     char script[2300];
     std::snprintf(script, sizeof(script),
         "local f=RetailModelPreview or CreateFrame('Model','RetailModelPreview'); "
         "f:SetWidth(650); f:SetHeight(650); f:SetPoint('CENTER'); f:SetFrameStrata('TOOLTIP'); "
-        "f:SetModel('retail/%u.m2'); f:SetFacing(0.8); f:SetCamera(0); f:Show(); "
+        "f:SetModel('%s%u.m2'); f:SetFacing(0.8); f:SetCamera(0); f:Show(); "
         "f.retailTime=0; f.retailTexture=%u; f.retailType=%u; f.retailTexture2=%u; "
         "f:SetScript('OnUpdate',function(self,dt) "
         "self.retailTime=self.retailTime+dt; "
@@ -149,7 +155,7 @@ int32_t Preview(const char*, const char* arguments) {
         "if self.retailTexture2>0 then RetailModelBindTexture(self,self.retailTexture2,12) end; "
         "self:SetScript('OnUpdate',nil) "
         "elseif self.retailTime>30 then self:SetScript('OnUpdate',nil) end end)",
-        values[0], values[1], values[2], values[3]);
+        Retail::SourcePrefix(), values[0], values[1], values[2], values[3]);
     sExtensionMgr->Log("Retail preview requested: model %u, texture %u, type %u", values[0], values[1], values[2]);
     FrameScript_Execute(script, "RetailPreview", nullptr);
     return 1;
@@ -219,8 +225,7 @@ class RetailEquipmentModels : public ModelScript {
     bool m_hasRetail = false;
     std::map<const CM2Model*, unsigned> m_diagnostics;
     static bool IsRetailModel(const char* name) {
-        const std::string path = name;
-        return path.compare(0, 7, "retail/") == 0 || path.compare(0, 7, "retail\\") == 0;
+        return Retail::IsCdnPath(name);
     }
     void ReportAttachment(CM2Model& parent, unsigned depth) {
         // Glue backgrounds own the character, which in turn owns its equipment.

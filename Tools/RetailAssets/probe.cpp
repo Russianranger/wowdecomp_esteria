@@ -27,9 +27,11 @@ int main(int argc, char** argv) {
     const bool skinParent = argc == 5 && std::string(argv[3]) == "--skin-parent";
     const bool inspect = extract || (argc == 4 && std::string(argv[3]) == "--inspect");
     if (argc > 3 && !inspect && !helmet && !animation && !skinParent) return 2;
-    Retail::CascSource source;
-    if (character && !std::strncmp(argv[2], "retail/", 7))
-        source.RegisterCharacterModel(uint32_t(std::strtoul(argv[2] + 7, nullptr, 10)));
+    const auto kind = !std::strncmp(argv[2], "forever/", 8) ? Retail::SourceKind::Forever : Retail::SourceKind::Retail;
+    Retail::SourceScope scope(kind);
+    Retail::CascSource source(kind);
+    if (character && Retail::IsCdnPath(argv[2]))
+        source.RegisterCharacterModel(uint32_t(std::strtoul(argv[2] + std::strlen(Retail::SourcePrefix()), nullptr, 10)));
     std::vector<uint8_t> bytes;
     std::string error;
     if (!source.Configure(argv[1], error) || !(inspect ? source.Inspect(argv[2], bytes, error) : source.Read(argv[2], bytes, error))) {

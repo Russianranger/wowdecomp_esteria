@@ -317,6 +317,10 @@ static int32_t Script_CycleCharCustomization(lua_State* L) {
     // Esteria: GlueXML multiplexes EsteriaAppearance commands ("EA_PREVIEW_SCALE", "EA_SET", ...) through this
     // function. The appearance system is not ported, so they are ignored instead of raising a usage error.
     if (lua_type(L, 1) == LUA_TSTRING && !lua_isnumber(L, 1) && !strncmp(lua_tolstring(L, 1, nullptr), "EA_", 3)) {
+        if (!strcmp(lua_tolstring(L, 1, nullptr), "EA_ZOOM") && lua_isnumber(L, 2)) {
+            CCharacterCreation::ZoomCamera(static_cast<float>(lua_tonumber(L, 2)));
+            return 0;
+        }
         if (!strcmp(lua_tolstring(L, 1, nullptr), "EA_PREVIEW_SCALE") && lua_isnumber(L, 2)) {
             // Index 0 is the create-screen character, 1.. are character-select rows.
             double index = lua_tonumber(L, 2);

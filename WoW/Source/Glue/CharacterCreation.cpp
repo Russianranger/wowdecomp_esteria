@@ -2,13 +2,19 @@
 #include "WoW/Common/ClassMask.h"
 #include "CharacterCreation.h"
 #include <cstring>
+#include <algorithm>
+#include <cmath>
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/Model2/M2Model.h"
+#include "Engine/Source/Model2/M2Data.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Model2/M2Shared.h"
 #include "Engine/Source/Storm/H/storm.h"
+#include "Engine/Source/Base/Handle.h"
+#include "Engine/Source/Services/Camera.h"
+#include "Engine/Source/Services/CameraInt.h"
 #include "Engine/Source/Tempest/CRandom.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
@@ -76,6 +82,68 @@ TSGrowableArray<int32_t> CCharacterCreation::m_races;
 // STATIC: 0x00B6B1DC
 CNameGen CCharacterCreation::m_nameGen;
 
+namespace {
+float s_creatorZoom = 0.0f;
+CCamera* s_creatorCamera = nullptr;
+}
+
+void CCharacterCreation::ZoomCamera(float delta) {
+    if (std::isfinite(delta)) {
+        s_creatorZoom = std::clamp(s_creatorZoom + delta / 12.0f, 0.0f, 1.0f);
+        if (s_creatorZoom < 0.0001f) s_creatorZoom = 0.0f;
+    }
+}
+
+void CCharacterCreation::ResetZoomCamera() {
+    s_creatorZoom = 0.0f;
+    if (m_charCustomizeFrame && m_charCustomizeFrame->m_camera == s_creatorCamera && s_creatorCamera) {
+        m_charCustomizeFrame->SetCameraByIndex(0);
+    }
+    if (s_creatorCamera) {
+        HandleClose(reinterpret_cast<HOBJECT>(s_creatorCamera));
+        s_creatorCamera = nullptr;
+    }
+}
+
+void CCharacterCreation::UpdateZoomCamera() {
+    auto* frame = m_charCustomizeFrame;
+    auto* body = m_character ? m_character->m_data.m_model : nullptr;
+    if (!frame || !frame->m_model || !body || !(body->m_fFlags & 1)
+        || !(frame->m_model->m_fFlags & 1)) return;
+    if (s_creatorZoom == 0.0f) {
+        if (s_creatorCamera && frame->m_camera == s_creatorCamera) frame->SetCameraByIndex(0);
+        return;
+    }
+    if (!frame->m_model->m_shared->m_data->m_cameras.m_count) return;
+    auto* base = static_cast<CCamera*>(frame->m_model->GetCameraByIndex(0));
+    if (!base) return;
+
+    // Use the loaded body's head, including its pedestal transform and race-specific scale.
+    // The stable bind pivot avoids making the camera bob with idle facial animations.
+    const auto& bounds = body->m_shared->m_data->m_bounds.m_extent;
+    const float height = bounds.t.z - bounds.b.z;
+    C3Vector face = body->HasBone(6) ? body->GetBonePivot(6)
+        : C3Vector(0.0f, 0.0f, bounds.b.z + height * 0.87f);
+    face.z += height * 0.035f;
+    face = face * body->GetAnimatedWorldTransform();
+    C3Vector position, target;
+    DataMgrGetCoord(base, 7, &position);
+    DataMgrGetCoord(base, 8, &target);
+    const auto offset = position - target;
+    target += (face - target) * s_creatorZoom;
+    position = target + offset * std::pow(0.18f, s_creatorZoom);
+    if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)
+        || !std::isfinite(target.x) || !std::isfinite(target.y) || !std::isfinite(target.z)) return;
+    if (!s_creatorCamera) s_creatorCamera = CameraCreate();
+    if (!s_creatorCamera) return;
+    // A separate camera keeps animated background cameras and other glue screens untouched.
+    for (uint32_t field : {2u, 4u, 5u}) CameraSetFloat(s_creatorCamera, field, CameraGetFloat(base, field));
+    CameraSetFloat(s_creatorCamera, 3, std::max(0.01f, CameraGetFloat(base, 3) * 0.18f));
+    CameraSetCoord(s_creatorCamera, 7, position);
+    CameraSetCoord(s_creatorCamera, 8, target);
+    if (frame->m_camera != s_creatorCamera) frame->SetCamera(s_creatorCamera);
+}
+
 // VERIFY: cbaddeb2 manual
 // OFFSET: 0x004E1C20
 void CCharacterCreation::Initialize() {
@@ -117,6 +185,7 @@ void CCharacterCreation::Initialize() {
 // VERIFY: 3b1595cf manual
 // OFFSET: 0x004E1E20
 void CCharacterCreation::Shutdown() {
+    ResetZoomCamera();
     if (CCharacterCreation::m_character) {
         CCharacterComponent::FreeComponent(CCharacterCreation::m_character);
         CCharacterCreation::m_character = nullptr;
@@ -158,6 +227,7 @@ void CCharacterCreation::GetRandomRaceAndSex(ComponentData* data) {
 // VERIFY: 45c27290 auto
 // OFFSET: 0x004DFFC0
 void CCharacterCreation::OnHide() {
+    ResetZoomCamera();
     EventUnregister(EVENT_ID_IDLE, &CCharacterCreation::Idle);
     LoadingScreenMiniDisable();
 }

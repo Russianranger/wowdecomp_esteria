@@ -29,6 +29,7 @@ add_subdirectory("${WOWDECOMP_CASCLIB_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/casclib"
 
 add_library(RetailAssets STATIC
     "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/CascSource.cpp"
+    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/DecodedCache.cpp"
     "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/RetailModel.cpp"
     "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/RetailShader.cpp"
     "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/ClientTables.cpp"
@@ -51,6 +52,10 @@ add_executable(RetailAssetTests "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/tests.cp
 target_link_libraries(RetailAssetTests PRIVATE RetailAssets)
 add_executable(RetailAssetAcquire "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/acquire.cpp")
 target_link_libraries(RetailAssetAcquire PRIVATE RetailAssets)
+add_executable(CdnAssetDownload "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/download.cpp")
+target_link_libraries(CdnAssetDownload PRIVATE RetailAssets)
+add_executable(CdnSourceSmoke "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/source_smoke.cpp")
+target_link_libraries(CdnSourceSmoke PRIVATE RetailAssets)
 if (WIN32)
     add_executable(RetailShaderProbe "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/shader_probe.cpp"
         "${CMAKE_SOURCE_DIR}/Engine/Source/Gx/CGxDeviceD3d11/ShaderTranslator.cpp")

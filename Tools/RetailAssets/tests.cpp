@@ -7,6 +7,11 @@
 #include "Engine/Source/Retail/RaceGeometry.h"
 #include "Engine/Source/Retail/RacePolicy.h"
 #include "Engine/Source/Retail/LegacyAppearance.h"
+#include "Engine/Source/Retail/DecodedCache.h"
+#include "Engine/Source/Retail/Db2.h"
+#include "Engine/Source/Retail/CreationPolicy.h"
+#include <chrono>
+#include <set>
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -78,6 +83,18 @@ std::vector<uint8_t> Skin() {
 }
 
 int main(int argc, char** argv) {
+    {
+        using Retail::AllowCreationChoice;
+        using Retail::SourceKind;
+        Check(!AllowCreationChoice(SourceKind::Retail, 1, 10, "Transmog") &&
+            !AllowCreationChoice(SourceKind::Forever, 218, 10, ""), "exclude named and unnamed internal Transmog creator entries");
+        Check(!AllowCreationChoice(SourceKind::Forever, 218, 12, "") &&
+            !AllowCreationChoice(SourceKind::Forever, 219, 12, ""), "Skyborne creator excludes inherited Blood Elf entries for both bodies");
+        Check(AllowCreationChoice(SourceKind::Retail, 218, 12, "") &&
+            AllowCreationChoice(SourceKind::Forever, 19, 12, ""), "Skyborne exclusion cannot affect other products or models");
+        for (uint32_t requirement : {0u, 141u, 144u, 145u, 4896u, 4898u})
+            Check(AllowCreationChoice(SourceKind::Forever, 218, requirement, ""), "retain playable Skyborne choices and authored accessory prerequisites");
+    }
     {
         Retail::Image skin{3, 1, {100, 120, 140, 255, 100, 120, 140, 255, 100, 120, 140, 255}};
         const Retail::Image tattoo{3, 1, {255, 255, 255, 255, 128, 128, 128, 255, 0, 0, 0, 0}};
@@ -211,6 +228,37 @@ int main(int argc, char** argv) {
         for (const uint16_t selectedHand : {2300, 2301, 2302})
             Check(!has(Retail::DefaultRaceGeosets({selectedHand}), 2301),
                 "explicit hidden or alternate hand recipes suppress the hand fallback");
+    }
+    {
+        struct Model {
+            std::set<uint16_t> visible;
+            void SetGeometryVisible(uint32_t first, uint32_t last, int show) {
+                for (uint32_t id = first; id <= last; ++id) {
+                    if (show) visible.insert(uint16_t(id));
+                    else visible.erase(uint16_t(id));
+                }
+            }
+        };
+        const std::set<uint16_t> inherited{0, 2, 1701, 1702, 1703, 1704, 1705, 2001, 2301, 3301, 5101, 5102, 5103};
+        const std::set<uint16_t> authored{0, 2, 2001, 2301, 3301, 5101, 5102, 5103};
+        for (uint32_t race : {95u, 96u}) {
+            Model model{inherited};
+            Retail::ApplyRaceEyeGeometry(model, Retail::SourceKind::Forever, race);
+            Check(model.visible == authored, "Skyborne retain anatomy, eyes and eyesight overlays without inherited lightning");
+            // A later customization or class refresh restores stock eye-glow meshes first.
+            model.SetGeometryVisible(1701, 1701, 1);
+            model.SetGeometryVisible(1703, 1703, 1);
+            Retail::ApplyRaceEyeGeometry(model, Retail::SourceKind::Forever, race);
+            Check(model.visible == authored, "Skyborne eye effects stay off after stock/DK and appearance refreshes");
+        }
+        for (auto source : {Retail::SourceKind::Retail, Retail::SourceKind::Forever}) {
+            for (uint32_t race : {1u, 10u, 29u, 70u, 95u, 96u}) {
+                if (source == Retail::SourceKind::Forever && (race == 95 || race == 96)) continue;
+                Model model{inherited};
+                Retail::ApplyRaceEyeGeometry(model, source, race);
+                Check(model.visible == inherited, "Skyborne eye repair cannot change another race or source");
+            }
+        }
     }
     // Reproduce world rendering: item identity survives temporary texture cleanup, and an update
     // of one section must retain the other equipped sections in the next complete retail sheet.
@@ -523,7 +571,7 @@ int main(int argc, char** argv) {
     Check(!Retail::ValidateSkin(bad, prepared, error), "reject invalid vertex bone palette index");
 
     // Exercise config and routing without a network request or a WoW installation.
-    auto temp = std::filesystem::temp_directory_path() / ("wow-retail-tests-" + std::to_string(std::rand()));
+    auto temp = std::filesystem::temp_directory_path() / ("wow-retail-tests-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(temp);
     std::ofstream(temp / "aliases.csv") << "42;Creature/Test/Test.m2\n";
     std::ofstream(temp / "listfile.csv") << "43;Interface/Icons/Test.blp\n";
@@ -558,6 +606,100 @@ int main(int argc, char** argv) {
     Check(offline.Configure((temp / "offline.ini").string().c_str(), error), "configure offline originals without network");
     Check(offline.Inspect("retail/42.m2", prepared, error) && prepared == valid, "offline source preserves original bytes");
     Check(!offline.Inspect("retail/43.m2", prepared, error), "offline source fails on missing dependency");
+    {
+        // A real source restart with an absent CASC installation: only the durable cache can satisfy it.
+        const std::string build = "0123456789abcdef0123456789abcdef";
+        const auto root = temp / "decoded" / ("wow-" + build) / "2" / "strict";
+        const auto foreverRoot = temp / "decoded" / ("wow_classic_beta-" + build) / "2" / "strict";
+        std::vector<std::filesystem::path> created;
+        auto persist = [&](const std::filesystem::path& file, const std::vector<uint8_t>& data) {
+            Check(Retail::WriteDecodedCache(file, data, error), error.c_str());
+            created.push_back(file);
+        };
+        persist(root / "id-42.bin", valid);
+        persist(root / "id-123.bin", skin);
+        persist(foreverRoot / "id-42.bin", {1, 2, 3});
+        const auto config = temp / "cached.ini";
+        std::ofstream(config) << "mode=local\npath=absent-storage\ncache=decoded\nbuild=" << build << "\n";
+        created.push_back(config);
+        {
+            Retail::CascSource first;
+            Check(first.Configure(config.string().c_str(), error) && first.Inspect("retail/42.m2", prepared, error)
+                && prepared == valid, "cache supplies immutable original without opening CASC");
+        }
+        Retail::CascSource restarted;
+        Check(restarted.Configure(config.string().c_str(), error), error.c_str());
+        uint32_t localBytes = 0;
+        Check(restarted.CachedOriginalSize("retail/42.m2", localBytes) && localBytes == valid.size(),
+            "durable originals report local before any model is prepared");
+        Check(restarted.Exists("RETAIL\\42.m2", error) && restarted.Read("retail/42.m2", prepared, error),
+            "restart loads and prepares cached model and skin with storage absent");
+        Check(prepared != valid && Get(prepared, 0) == 0x3032444d,
+            "prepared bytes are derived from the original on load");
+        Check(restarted.Stats().reused == 2 && restarted.Stats().acquired == 0,
+            "warm model plus dependency accurately report reuse with zero acquisition");
+        std::vector<uint8_t> original;
+        Check(Retail::ReadDecodedCache(root / "id-42.bin", original) && original == valid,
+            "preparation never changes cached originals");
+        restarted.ReleaseModel("retail/42.m2");
+        std::ofstream(config) << "mode=local\nproduct=wow_classic_beta\npath=absent-storage\ncache=decoded\nbuild=" << build << "\n";
+        Retail::CascSource forever(Retail::SourceKind::Forever);
+        Check(forever.Configure(config.string().c_str(), error), error.c_str());
+        Check(forever.Handles("FOREVER\\42.m2") && !forever.Handles("retail/42.m2")
+            && !restarted.Handles("forever/42.m2"), "source namespaces cannot cross-route colliding FileDataIDs");
+        Check(forever.Inspect("forever/42.m2", original, error) && original == std::vector<uint8_t>({1, 2, 3}),
+            "Forever FileDataID collision uses its own product/build cache");
+        {
+            Retail::SourceScope scope(Retail::SourceKind::Forever);
+            Check(Retail::FileName(42, ".m2") == "forever/42.m2", "scoped dependency names retain Forever provenance");
+        }
+        Check(Retail::FileName(42, ".m2") == "retail/42.m2", "source scope restores the caller after nested work");
+        // Lenient table data must not satisfy a strict model request.
+        persist(root.parent_path() / "tables" / "id-77.bin", {0, 0, 0});
+        Check(!restarted.Inspect("retail/77.m2", original, error), "zero-filled table cache cannot satisfy a strict read");
+        std::ofstream(config) << "mode=local\npath=absent-storage\ncache=decoded\nbuild=" << build << "\nlocale=4\n";
+        Retail::CascSource otherLocale;
+        Check(otherLocale.Configure(config.string().c_str(), error) && !otherLocale.Inspect("retail/42.m2", original, error),
+            "cache is isolated by locale");
+        std::ofstream(config) << "mode=local\npath=absent-storage\ncache=decoded\nbuild=1123456789abcdef0123456789abcdef\n";
+        Retail::CascSource otherBuild;
+        Check(otherBuild.Configure(config.string().c_str(), error) && !otherBuild.Inspect("retail/42.m2", original, error),
+            "cache is isolated by pinned build");
+        const auto damaged = root / "id-42.bin";
+        {
+            std::fstream output(damaged, std::ios::binary | std::ios::in | std::ios::out);
+            output.seekp(16); output.put('x');
+        }
+        Check(!Retail::ReadDecodedCache(damaged, original) && original.empty(), "reject corrupt cached payload by checksum");
+        Check(Retail::WriteDecodedCache(damaged, valid, error), error.c_str());
+        std::filesystem::resize_file(damaged, 17);
+        Check(!Retail::ReadDecodedCache(damaged, original), "reject interrupted or truncated cached payload");
+        Check(Retail::WriteDecodedCache(damaged, valid, error)
+            && Retail::ReadDecodedCache(damaged, original) && original == valid, "atomically replace corrupt entries");
+        persist(root / "empty.bin", {});
+        Check(Retail::ReadDecodedCache(root / "empty.bin", original) && original.empty(), "cache complete empty assets without repeated acquisition");
+        // Only remove the files and empty directories created by this test.
+        std::set<std::filesystem::path> directories;
+        for (const auto& file : created) {
+            std::filesystem::remove(file);
+            for (auto dir = file.parent_path(); dir != temp && dir != dir.parent_path(); dir = dir.parent_path()) directories.insert(dir);
+        }
+        for (auto dir = directories.rbegin(); dir != directories.rend(); ++dir) std::filesystem::remove(*dir);
+    }
+    {
+        std::vector<uint8_t> emptyTable(212);
+        Put(emptyTable, 0, 0x35434457); Put(emptyTable, 4, 5);
+        Put(emptyTable, 140, 2); // physical fields, no records/sections/column storage
+        Put(emptyTable, 176, 2);
+        Retail::Db2::wdc5::Table table;
+        std::vector<Retail::Db2::wdc5::FieldShape> fields(2);
+        Check(table.Load(emptyTable.data(), emptyTable.size(), fields, 0, &error) && table.Rows().empty(),
+            "Forever empty WDC5 tables have no column storage");
+        emptyTable.pop_back();
+        Check(!table.Load(emptyTable.data(), emptyTable.size(), fields, 0, &error), "reject truncated empty WDC5 descriptors");
+        emptyTable.resize(212); Put(emptyTable, 136, 1);
+        Check(!table.Load(emptyTable.data(), emptyTable.size(), fields, 0, &error), "empty-table exception cannot accept nonempty data");
+    }
     // Remove only the individual files created here; no recursive cleanup of computed paths.
     for (const char* file : {"aliases.csv", "listfile.csv", "equipment.csv", "RetailCasc.ini", "bad.ini", "offline.ini", "42.bin"}) std::filesystem::remove(temp / file);
     std::filesystem::remove(temp);

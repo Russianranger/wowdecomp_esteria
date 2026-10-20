@@ -48,6 +48,9 @@ class CCharacterCreation {
     static void RandomizeCharCustomization();
     static void ResetCharCustomizeInfo();
     static void SetCharacterFacing(float facing);
+    static void ZoomCamera(float delta);
+    static void UpdateZoomCamera();
+    static void ResetZoomCamera();
     static void SetCharCustomizeModel(const char* modelName);
     static void SetSelectedClass(int32_t classID);
     static void SetSelectedRace(uint32_t raceIndex);

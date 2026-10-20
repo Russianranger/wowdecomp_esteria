@@ -1,5 +1,6 @@
 #include "Engine/Source/Retail/CascSource.h"
 #include "Engine/Source/Retail/BusyNotice.h"
+#include "Engine/Source/Retail/DecodedCache.h"
 #include "Engine/Source/Retail/RetailModel.h"
 #include "Engine/Source/Retail/ClientTables.h"
 #include <CascLib.h>
@@ -13,6 +14,7 @@
 #include <mutex>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 
 namespace Retail {
 namespace {
@@ -32,7 +34,6 @@ bool Number(const std::string& s, uint32_t& result, int base = 10) {
     auto parsed = std::from_chars(s.data(), s.data() + s.size(), result, base);
     return !s.empty() && parsed.ec == std::errc() && parsed.ptr == s.data() + s.size() && result;
 }
-bool IsRetail(const std::string& name) { return name.compare(0, 7, "retail/") == 0; }
 std::string Extension(const std::string& name) {
     const auto dot = name.find_last_of('.');
     return dot == std::string::npos ? "" : name.substr(dot);
@@ -59,6 +60,20 @@ struct File {
     HANDLE handle = nullptr;
     ~File() { if (handle) CascCloseFile(handle); }
 };
+#ifdef _WIN32
+struct CacheLock {
+    HANDLE handle;
+    explicit CacheLock(HANDLE mutex) : handle(mutex) {
+        if (handle) {
+            const auto status = WaitForSingleObject(handle, INFINITE);
+            if (status != WAIT_OBJECT_0 && status != WAIT_ABANDONED) throw std::runtime_error("Cannot lock CDN cache");
+        }
+    }
+    ~CacheLock() { if (handle) ReleaseMutex(handle); }
+};
+#else
+struct CacheLock { explicit CacheLock(void*) {} };
+#endif
 struct Model {
     std::vector<uint8_t> bytes;
     ModelFiles files;
@@ -75,7 +90,11 @@ struct Reference {
 struct CascSource::Impl {
     std::mutex mutex;
     HANDLE storage = nullptr;
-    std::string path, product = "wow", region = "us", build, keys, tables;
+    HANDLE cacheMutex = nullptr;
+    std::string path, product = "wow", region = "us", build, keys, tables, cache, tablePolicy = "tables";
+    SourceKind kind = SourceKind::Retail;
+    Statistics stats;
+    std::string Prefix() const { return kind == SourceKind::Forever ? "forever/" : "retail/"; }
     uint32_t locale = CASC_LOCALE_ENUS;
     bool online = true, configured = false, files = false;
     std::string configurationError = "RetailCasc.ini has not been configured";
@@ -86,7 +105,12 @@ struct CascSource::Impl {
     std::set<uint32_t> characterModels;
     std::map<uint32_t, HandItemAppearance> handItems;
     HandItemAppearance mainHandPreview;
-    ~Impl() { if (storage) CascCloseStorage(storage); }
+    ~Impl() {
+        if (storage) CascCloseStorage(storage);
+#ifdef _WIN32
+        if (cacheMutex) CloseHandle(cacheMutex);
+#endif
+    }
 
     bool Open(std::string& error) {
         if (!configured) { error = configurationError; return false; }
@@ -114,8 +138,8 @@ struct CascSource::Impl {
         if (dep != dependencies.end()) { ref = dep->second; return true; }
         const auto alias = names.find(name);
         if (alias != names.end()) { ref.id = alias->second; return true; }
-        if (!IsRetail(name)) return Failure(error, "No Retail alias for this path");
-        internal = name.substr(7);
+        if (name.compare(0, Prefix().size(), Prefix()) != 0) return Failure(error, "No CDN alias for this path");
+        internal = name.substr(Prefix().size());
         const auto dot = internal.find('.');
         const auto stem = internal.substr(0, dot);
         if (Number(stem, ref.id)) { internal.clear(); return true; }
@@ -126,6 +150,7 @@ struct CascSource::Impl {
     }
 
     bool OpenFile(const Reference& ref, const std::string& internal, File& file, std::string& error, bool lenient = false) {
+        CacheLock lock(cacheMutex);
         if (!Open(error)) return false;
         const void* name = ref.id ? CASC_FILE_DATA_ID(ref.id) : internal.c_str();
         DWORD flags = (ref.id ? CASC_OPEN_BY_FILEID : CASC_OPEN_BY_NAME) | (lenient ? CASC_OVERCOME_ENCRYPTED : CASC_STRICT_DATA_CHECK);
@@ -145,7 +170,14 @@ struct CascSource::Impl {
             if (!input.read(reinterpret_cast<char*>(bytes.data()), bytes.size())) return Failure(error, "Cannot read offline Retail asset");
             return true;
         }
-        BusyNotice busy("Downloading Retail data from the Blizzard CDN");
+        const auto cached = CachePath(ref, internal, lenient);
+        if (!cached.empty() && ReadDecodedCache(cached, bytes)) { ++stats.reused; return true; }
+        CacheLock lock(cacheMutex);
+        // Another client/downloader may have completed this miss while we waited.
+        if (!cached.empty() && ReadDecodedCache(cached, bytes)) { ++stats.reused; return true; }
+        // CascLib may satisfy a miss from its encoded disk cache or a local installation.
+        // Do not claim every read is a network download.
+        BusyNotice busy(kind == SourceKind::Forever ? "Forever: acquiring missing data" : "Retail: acquiring missing data", 1);
         File file;
         if (!OpenFile(ref, internal, file, error, lenient)) return false;
         ULONGLONG size = 0;
@@ -157,7 +189,24 @@ struct CascSource::Impl {
             bytes.clear();
             return CascFailure(error, "Cannot read Retail file (missing data or encryption key)");
         }
+        if (!cached.empty() && !WriteDecodedCache(cached, bytes, error)) { bytes.clear(); return false; }
+        ++stats.acquired;
         return true;
+    }
+
+    std::filesystem::path CachePath(const Reference& ref, const std::string& internal, bool lenient) const {
+        if (cache.empty()) return {};
+        std::filesystem::path key;
+        std::string segment = "name-";
+        if (!ref.id) {
+            constexpr char hex[] = "0123456789abcdef";
+            for (unsigned char c : internal) {
+                segment += hex[c >> 4]; segment += hex[c & 15];
+                if (segment.size() >= 120) { key /= segment; segment.clear(); }
+            }
+            key /= segment + ".bin";
+        } else key = "id-" + std::to_string(ref.id) + ".bin";
+        return std::filesystem::path(cache) / std::to_string(locale) / (lenient ? tablePolicy : "strict") / key;
     }
 
     bool LoadSkeleton(uint32_t id, std::vector<uint8_t>& bytes, std::string& error, std::vector<uint32_t>& chain) {
@@ -193,7 +242,7 @@ struct CascSource::Impl {
     }
 };
 
-CascSource::CascSource() : m_impl(new Impl) {}
+CascSource::CascSource(SourceKind kind) : m_impl(new Impl) { m_impl->kind = kind; }
 CascSource::~CascSource() = default;
 
 void CascSource::RegisterCharacterModel(uint32_t id) {
@@ -210,7 +259,9 @@ bool CascSource::Configure(const char* configPath, std::string& error) {
     // Failed configuration is retained for the client's diagnostic log.
     struct Remember { Impl& state; std::string& error; ~Remember() { state.configurationError = error; } } remember{s, error};
     std::ifstream input(configPath);
-    if (!input) return Failure(error, "Cannot read Retail CASC config; set WOW_RETAIL_CONFIG or create RetailCasc.ini");
+    if (!input) return Failure(error, s.kind == SourceKind::Forever
+        ? "Cannot read ForeverCasc.ini; set WOW_FOREVER_CONFIG"
+        : "Cannot read RetailCasc.ini; set WOW_RETAIL_CONFIG");
     std::map<std::string, std::string> values;
     std::string line;
     while (std::getline(input, line)) {
@@ -223,7 +274,7 @@ bool CascSource::Configure(const char* configPath, std::string& error) {
     }
     for (const auto& value : values) {
         if (value.first != "mode" && value.first != "path" && value.first != "product" && value.first != "region" &&
-            value.first != "build" && value.first != "locale" && value.first != "aliases" && value.first != "listfile" && value.first != "keys" && value.first != "equipment" && value.first != "tables")
+            value.first != "build" && value.first != "locale" && value.first != "aliases" && value.first != "listfile" && value.first != "keys" && value.first != "equipment" && value.first != "tables" && value.first != "cache" && value.first != "cdn" && value.first != "version")
             return Failure(error, "Unknown Retail CASC config key");
     }
     if (values["mode"] != "online" && values["mode"] != "local" && values["mode"] != "files") return Failure(error, "mode must be online, local or files");
@@ -231,7 +282,9 @@ bool CascSource::Configure(const char* configPath, std::string& error) {
     s.files = values["mode"] == "files";
     if (!values["product"].empty()) s.product = values["product"];
     if (!values["region"].empty()) s.region = values["region"];
-    if (s.product != "wow" && s.product != "wowt" && s.product != "wow_beta") return Failure(error, "Unsupported Retail product");
+    if (s.kind == SourceKind::Forever && values["product"].empty()) s.product = "wow_classic_beta";
+    if (s.product != "wow" && s.product != "wowt" && s.product != "wow_beta" &&
+        !(s.kind == SourceKind::Forever && s.product == "wow_classic_beta")) return Failure(error, "Unsupported CDN product for this source");
     if (s.region.find_first_not_of("abcdefghijklmnopqrstuvwxyz0123456789_") != std::string::npos || s.region.empty())
         return Failure(error, "Invalid Retail region");
     s.build = Normalize(values["build"]);
@@ -244,7 +297,7 @@ bool CascSource::Configure(const char* configPath, std::string& error) {
     auto path = absolute(values["path"]);
     if (s.online) {
         path /= s.product + "-" + s.build;
-        // CascLib searches ancestor build files; keep online caches outside game installs.
+        // MPQ clients can own Data/Retail caches; avoid ancestors of actual CASC installs.
         for (auto parent = path; !parent.empty();) {
             for (const char* file : {".build.info", ".build.db", "data/.build.config"})
                 if (std::filesystem::exists(parent / file)) return Failure(error, "Online cache must be outside installed CASC storages");
@@ -256,8 +309,57 @@ bool CascSource::Configure(const char* configPath, std::string& error) {
         }
     }
     s.path = path.string();
+#ifdef _WIN32
+    uint64_t identity = 14695981039346656037ull;
+    for (unsigned char c : Normalize(s.path)) { identity ^= c; identity *= 1099511628211ull; }
+    if (s.cacheMutex) CloseHandle(s.cacheMutex);
+    s.cacheMutex = CreateMutexA(nullptr, FALSE, ("Local\\WowCascCache-" + std::to_string(identity)).c_str());
+    if (!s.cacheMutex) return Failure(error, "Cannot create CDN cache lock");
+#endif
+    // CascLib overrides the build key but otherwise uses today's CDN index from /versions.
+    // Pin the paired index as well so archived builds keep resolving their data archives.
+    if (!values["cdn"].empty()) {
+        const auto cdn = Normalize(values["cdn"]);
+        const auto version = values["version"];
+        if (!s.online || cdn.size() != 32 || cdn.find_first_not_of("0123456789abcdef") != std::string::npos ||
+            version.empty() || version.find_first_not_of("0123456789.") != std::string::npos)
+            return Failure(error, "cdn requires online mode, a 32-digit CDN config key and a numeric version");
+        CacheLock lock(s.cacheMutex);
+        std::filesystem::create_directories(path);
+        const auto manifest = path / "versions";
+        const std::string text = "Region!STRING:0|BuildConfig!HEX:16|CDNConfig!HEX:16|KeyRing!HEX:16|BuildId!DEC:4|VersionsName!String:0|ProductConfig!HEX:16\n" +
+            s.region + "|" + s.build + "|" + cdn + "||" + version.substr(version.find_last_of('.') + 1) + "|" + version + "|\n";
+        std::ifstream existing(manifest, std::ios::binary);
+        const std::string previous((std::istreambuf_iterator<char>(existing)), {});
+        existing.close();
+        if (previous != text) {
+            const auto temporary = path / "versions.tmp";
+            std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+            output << text;
+            output.close();
+            if (!output) return Failure(error, "Cannot persist pinned CDN manifest");
+#ifdef _WIN32
+            if (!MoveFileExW(temporary.c_str(), manifest.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+                return Failure(error, "Cannot commit pinned CDN manifest");
+#else
+            std::filesystem::rename(temporary, manifest);
+#endif
+        }
+    } else if (!values["version"].empty()) return Failure(error, "version requires a pinned CDN config key");
     s.tables = values["tables"].empty() ? "" : absolute(values["tables"]).string();
     s.keys = values["keys"].empty() ? "" : absolute(values["keys"]).string();
+    if (!s.files && (s.online || !s.build.empty())) {
+        auto cache = values["cache"].empty() ? (s.online ? path / "decoded" : base / "CdnCache" / (s.product + "-" + s.build))
+            : absolute(values["cache"]) / (s.product + "-" + s.build);
+        s.cache = cache.string();
+    } else if (!values["cache"].empty()) return Failure(error, "Decoded cache requires a pinned build and online or local mode");
+    if (!s.keys.empty()) {
+        std::ifstream keyFile(s.keys, std::ios::binary);
+        if (!keyFile) return Failure(error, "Cannot read CDN encryption key file");
+        uint64_t fingerprint = 14695981039346656037ull;
+        for (char c; keyFile.get(c);) { fingerprint ^= static_cast<unsigned char>(c); fingerprint *= 1099511628211ull; }
+        s.tablePolicy += "-" + std::to_string(fingerprint);
+    }
     std::map<std::string, uint32_t> names;
     for (const char* kind : {"listfile", "aliases"}) {
         if (values[kind].empty()) continue;
@@ -272,7 +374,7 @@ bool CascSource::Configure(const char* configPath, std::string& error) {
                 return Failure(error, "Retail mapping must use FileDataID;path rows");
             auto name = Normalize(Trim(line.substr(separator + 1)));
             if (!SafeName(name)) return Failure(error, "Invalid Retail mapping path");
-            if (std::string(kind) == "listfile") name = "retail/" + name;
+            if (std::string(kind) == "listfile") name = s.Prefix() + name;
             const auto result = names.emplace(name, id);
             if (!result.second && result.first->second != id) return Failure(error, "Conflicting Retail mappings");
         }
@@ -338,7 +440,7 @@ bool CascSource::Handles(const char* name) {
     if (!name) return false;
     std::lock_guard<std::mutex> lock(m_impl->mutex);
     const auto key = Normalize(name);
-    return IsRetail(key) || m_impl->names.count(key) || m_impl->dependencies.count(key);
+    return key.compare(0, m_impl->Prefix().size(), m_impl->Prefix()) == 0 || m_impl->names.count(key) || m_impl->dependencies.count(key);
 }
 
 bool CascSource::HasClientTable(const char* name) {
@@ -369,6 +471,7 @@ bool CascSource::MergeTable(const char* name, const std::vector<uint8_t>& base,
 // missing key must not fail the table. Unreadable blocks come back zero-filled.
 bool CascSource::ReadTable(const char* name, std::vector<uint8_t>& bytes, std::string& error) {
     error.clear();
+    bytes.clear();
     std::lock_guard<std::mutex> lock(m_impl->mutex);
     Reference ref;
     std::string internal;
@@ -383,6 +486,9 @@ bool CascSource::Exists(const char* name, std::string& error) {
     File file;
     if (!m_impl->Resolve(Normalize(name ? name : ""), ref, internal, error)) return false;
     if (m_impl->files) return ref.id && std::filesystem::is_regular_file(std::filesystem::path(m_impl->path) / (std::to_string(ref.id) + ".bin"));
+    std::vector<uint8_t> cached;
+    const auto path = m_impl->CachePath(ref, internal, false);
+    if (!path.empty() && ReadDecodedCache(path, cached)) return true;
     return m_impl->OpenFile(ref, internal, file, error);
 }
 
@@ -396,6 +502,7 @@ bool CascSource::Inspect(const char* name, std::vector<uint8_t>& bytes, std::str
 }
 
 bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string& error) {
+    SourceScope scope(m_impl->kind);
     error.clear();
     bytes.clear();
     std::lock_guard<std::mutex> lock(m_impl->mutex);
@@ -472,6 +579,29 @@ bool CascSource::CachedSize(const char* name, uint32_t& size) {
     return true;
 }
 
+bool CascSource::CachedOriginalSize(const char* name, uint32_t& size) {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    size = 0;
+    const auto key = Normalize(name ? name : "");
+    const auto prepared = m_impl->cachedSizes.find(key);
+    if (prepared != m_impl->cachedSizes.end()) { size = prepared->second; return true; }
+    Reference ref;
+    std::string internal, error;
+    if (!m_impl->Resolve(key, ref, internal, error)) return false;
+    if (m_impl->files) {
+        std::error_code ec;
+        const auto length = std::filesystem::file_size(std::filesystem::path(m_impl->path) / (std::to_string(ref.id) + ".bin"), ec);
+        if (!ref.id || ec || length > 128 * 1024 * 1024) return false;
+        size = static_cast<uint32_t>(length);
+        return true;
+    }
+    const auto path = m_impl->CachePath(ref, internal, false);
+    std::vector<uint8_t> bytes;
+    if (path.empty() || !ReadDecodedCache(path, bytes)) return false;
+    size = static_cast<uint32_t>(bytes.size());
+    return true;
+}
+
 void CascSource::ReleaseModel(const char* name) {
     std::lock_guard<std::mutex> lock(m_impl->mutex);
     const auto model = m_impl->models.find(Normalize(name ? name : ""));
@@ -483,27 +613,43 @@ void CascSource::ReleaseModel(const char* name) {
     m_impl->models.erase(model);
 }
 
+CascSource::Statistics CascSource::Stats() {
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    return m_impl->stats;
+}
+
 CascSource& Source() {
-    static CascSource source;
-    static std::once_flag initialized;
-    std::call_once(initialized, [&] {
-        const char* path = std::getenv("WOW_RETAIL_CONFIG");
-        std::string error, fallback = "RetailCasc.ini";
+    static CascSource retail, forever(SourceKind::Forever);
+    static std::once_flag retailOnce, foreverOnce;
+    const bool isForever = currentSource == SourceKind::Forever;
+    auto& source = isForever ? forever : retail;
+    std::call_once(isForever ? foreverOnce : retailOnce, [&] {
+        const char* path = std::getenv(isForever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG");
+        const char* filename = isForever ? "ForeverCasc.ini" : "RetailCasc.ini";
+        std::string error, fallback = filename;
 #ifdef _WIN32
         if (!path || !*path) {
             // Launching the .exe directly: use the installed pack's config beside it (Data\\Retail\\RetailCasc.ini).
             char exe[MAX_PATH];
             const DWORD length = GetModuleFileNameA(nullptr, exe, sizeof(exe));
             if (length && length < sizeof(exe)) {
-                const auto installed = std::filesystem::path(exe).parent_path() / "Data" / "Retail" / "RetailCasc.ini";
+                const auto data = std::filesystem::path(exe).parent_path() / "Data";
+                const auto installed = data / "Retail" / filename;
+                const auto legacy = data / "Forever" / filename;
                 std::error_code code;
                 if (std::filesystem::exists(installed, code)) fallback = installed.string();
+                else if (isForever && std::filesystem::exists(legacy, code)) fallback = legacy.string();
             }
         }
 #endif
         if (!source.Configure(path && *path ? path : fallback.c_str(), error))
-            std::fprintf(stderr, "Retail CASC: %s\n", error.c_str());
+            std::fprintf(stderr, "%s CASC: %s\n", isForever ? "Forever" : "Retail", error.c_str());
     });
     return source;
+}
+CascSource& SourceForPath(const char* name) {
+    const auto key = Normalize(name ? name : "");
+    SourceScope scope(key.compare(0, 8, "forever/") == 0 ? SourceKind::Forever : SourceKind::Retail);
+    return Source();
 }
 }

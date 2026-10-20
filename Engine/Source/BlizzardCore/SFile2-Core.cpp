@@ -161,9 +161,9 @@ int32_t STORMAPI SFile::EnableDirectAccess(uint32_t flags) {
 // OFFSET: 0x004217E0
 bool STORMAPI SFile::FileGetIsLocalAmount(const char* name, int64_t& local, int64_t& total) {
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    if (Retail::Source().Handles(name)) {
+    if (Retail::SourceForPath(name).Handles(name)) {
         uint32_t size = 0;
-        bool cached = Retail::Source().CachedSize(name, size);
+        bool cached = Retail::SourceForPath(name).CachedOriginalSize(name, size);
         local = total = size;
         return cached;
     }
@@ -646,9 +646,9 @@ int32_t STORMAPI SFileCloseArchive(SArchive* archive) {
 // OFFSET: 0x00421FC0
 int32_t STORMAPI SFile::FileExistsInArchives(const char* name) {
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    if (Retail::Source().Handles(name)) {
+    if (Retail::SourceForPath(name).Handles(name)) {
         std::string error;
-        return Retail::Source().Exists(name, error);
+        return Retail::SourceForPath(name).Exists(name, error);
     }
 #endif
     int32_t result = Blizzard::Mopaq::SFileFileExists(nullptr, name, 0, nullptr);
@@ -664,7 +664,7 @@ int32_t STORMAPI SFile::FileExistsInArchives(const char* name) {
 // OFFSET: 0x00421FF0
 int32_t STORMAPI SFileLoadFileEx(SArchive* archive, const char* name, void** data, uint32_t* size, uint32_t extra, uint32_t flags, SOVERLAPPED* overlapped) {
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    if (!archive && Retail::Source().Handles(name)) {
+    if (!archive && Retail::SourceForPath(name).Handles(name)) {
         return SFile::ReadFile(nullptr, name, data, size, extra, flags, overlapped);
     }
 #endif
@@ -984,10 +984,10 @@ void System_SFile2::BuildFileSystemHash() {
 // OFFSET: 0x00424780
 bool System_SFile2::FindFile(const char* name, char* path, uint32_t size, uint32_t flags, SFILE_TYPE* type, System_SFile::ARCHIVEREC** archive) {
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    if (Retail::Source().Handles(name)) {
+    if (Retail::SourceForPath(name).Handles(name)) {
         if (archive) *archive = nullptr;
         std::string error;
-        if (!Retail::Source().Exists(name, error)) return false;
+        if (!Retail::SourceForPath(name).Exists(name, error)) return false;
         Blizzard::String::Copy(path, name, size);
         *type = SFILE_RETAIL;
         return true;
@@ -1095,11 +1095,11 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
     }
 
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    if (!archive && Retail::Source().Handles(name)) {
+    if (!archive && Retail::SourceForPath(name).Handles(name)) {
         *result = nullptr;
         std::vector<uint8_t> bytes;
         std::string error;
-        if (!Retail::Source().Read(name, bytes, error)) {
+        if (!Retail::SourceForPath(name).Read(name, bytes, error)) {
             Blizzard::Log::Printf(1, "Logs/RetailAssets.log", "%s: %s\n", name, error.c_str());
             SErrSetLastError(13);
             return 0;
@@ -1198,7 +1198,7 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
     }
 
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    retailTable = !archive && Retail::Source().HasClientTable(name);
+    retailTable = !archive && Retail::SourceForPath(name).HasClientTable(name);
 #endif
     if (!(flags & 0x20000) && !retailTable) {
         // Not in the original: the handle is open and about to be handed out.
@@ -1223,7 +1223,7 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
         const std::vector<uint8_t> base(data, data + (*result)->m_size);
         std::vector<uint8_t> merged;
         std::string error;
-        if (!Retail::Source().MergeTable(name, base, merged, error)) {
+        if (!Retail::SourceForPath(name).MergeTable(name, base, merged, error)) {
             Blizzard::Log::Printf(1, "Logs/RetailAssets.log", "%s: %s\n", name, error.c_str());
             goto fail;
         }
@@ -1378,9 +1378,9 @@ int32_t STORMAPI SFileOpenFile(const char* name, SFileImpl** result) {
 int32_t STORMAPI SFile::FileIsLocal(const char* name, int32_t flags) {
 #if defined(WOWDECOMP_RETAIL_ASSETS)
     // A named reference may still need a CDN fetch. Open handles have already completed it.
-    if (Retail::Source().Handles(name)) {
+    if (Retail::SourceForPath(name).Handles(name)) {
         uint32_t size;
-        return Retail::Source().CachedSize(name, size);
+        return Retail::SourceForPath(name).CachedOriginalSize(name, size);
     }
 #endif
     return Blizzard::Mopaq::SFileFileIsLocal(name, flags);
@@ -1397,14 +1397,14 @@ int32_t STORMAPI SFile::FileIsLocal(SFileImpl* file, int32_t flags) {
 // OFFSET: 0x00421800
 int32_t STORMAPI SFile::MakeFileLocal(const char* name, int32_t priority, bool wait) {
 #if defined(WOWDECOMP_RETAIL_ASSETS)
-    if (Retail::Source().Handles(name)) {
+    if (Retail::SourceForPath(name).Handles(name)) {
         if (!wait) {
             uint32_t size;
-            return Retail::Source().CachedSize(name, size);
+            return Retail::SourceForPath(name).CachedOriginalSize(name, size);
         }
         std::vector<uint8_t> bytes;
         std::string error;
-        return Retail::Source().Read(name, bytes, error);
+        return Retail::SourceForPath(name).Read(name, bytes, error);
     }
 #endif
     return Blizzard::Mopaq::SFileMakeFileLocal(name, priority, wait);

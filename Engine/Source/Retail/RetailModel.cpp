@@ -1,4 +1,5 @@
 #include "Engine/Source/Retail/RetailModel.h"
+#include "Engine/Source/Retail/SourceContext.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -776,7 +777,7 @@ bool MergeSkeleton(const std::vector<uint8_t>& childBytes, const std::vector<uin
 }
 
 std::string FileName(uint32_t id, const char* extension) {
-    return "retail/" + std::to_string(id) + extension;
+    return std::string(SourcePrefix()) + std::to_string(id) + extension;
 }
 
 bool ReadHelmetAnchor(const std::vector<uint8_t>& b, HelmetAnchor& anchor, std::string& error) {
@@ -900,7 +901,7 @@ bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepa
             name = FileName(files.textures[i], ".blp");
         } else {
             if (!String(b, p + 8) || !U32(b, p + 8)) return Fail(error, "Texture has neither TXID nor filename");
-            name = "retail/" + std::string(reinterpret_cast<const char*>(b.data() + U32(b, p + 12)));
+            name = std::string(SourcePrefix()) + std::string(reinterpret_cast<const char*>(b.data() + U32(b, p + 12)));
         }
         if (b.size() + name.size() + 1 > 128 * 1024 * 1024) return Fail(error, "Prepared model exceeds 128 MiB");
         Put(b, p + 8, uint32_t(name.size() + 1));

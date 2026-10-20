@@ -71,7 +71,7 @@ bool Fetch(uint32_t fileDataId, std::vector<uint8_t>& bytes, void*) {
 
 int ComposeCase(int argc, char** argv) {
     if (argc == 5 && std::string(argv[2]) == "texture") {
-        _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+        _putenv_s(Retail::currentSource == Retail::SourceKind::Forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
         std::vector<uint8_t> bytes;
         Retail::Image image;
         std::string error;
@@ -86,7 +86,7 @@ int ComposeCase(int argc, char** argv) {
         std::fprintf(stderr, "Usage: RetailComposeProbe <RetailCasc.ini> <chrRaceId> <sex> <outputPrefix> [choiceId ...]\n");
         return 2;
     }
-    _putenv_s("WOW_RETAIL_CONFIG", argv[1]);
+    _putenv_s(Retail::currentSource == Retail::SourceKind::Forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
     const uint32_t race = uint32_t(std::atoi(argv[2])), sex = uint32_t(std::atoi(argv[3]));
     std::vector<uint32_t> choices;
     // Arguments are choice IDs, or "optionId:index" to pick the index-th choice of an option (others default to 0).
@@ -130,6 +130,9 @@ int ComposeCase(int argc, char** argv) {
 }
 
 int main(int argc, char** argv) {
+    const bool forever = argc > 1 && std::string(argv[1]) == "--forever";
+    if (forever) { --argc; ++argv; }
+    Retail::SourceScope sourceScope(forever ? Retail::SourceKind::Forever : Retail::SourceKind::Retail);
     if (argc != 4 || std::string(argv[2]) != "batch") return ComposeCase(argc, argv);
     std::ifstream cases(argv[3]);
     if (!cases) return 2;

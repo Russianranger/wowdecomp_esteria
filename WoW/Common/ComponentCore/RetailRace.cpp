@@ -30,6 +30,7 @@
 #include "Engine/Source/Services/Texture.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "WoW/Source/Glue/CGlueLoading.h"
+#include "WoW/Source/Glue/CharacterCreation.h"
 #include <cstdarg>
 #include <algorithm>
 #include <cstdio>
@@ -37,6 +38,8 @@
 #include <cstring>
 #include <deque>
 #include <fstream>
+#include <filesystem>
+#include <sstream>
 #include <map>
 #include <mutex>
 #include <random>
@@ -102,7 +105,42 @@ std::map<uint32_t, uint32_t>& RaceMap() {
     return map;
 }
 
+// Forever uses separate IDs, tables, storage and cache; never add its IDs to Retail's source.
+const std::map<uint32_t, uint32_t>& ForeverRaceMap() {
+    static const auto map = [] {
+        std::map<uint32_t, uint32_t> result;
+        if (const char* env = std::getenv("WOW_FOREVER_RACES")) {
+            std::istringstream input(env);
+            std::string pair;
+            while (std::getline(input, pair, ',')) {
+                unsigned target = 0, source = 0;
+                if (std::sscanf(pair.c_str(), "%u:%u", &target, &source) == 2 && target && source)
+                    result[target] = source;
+            }
+            return result;
+        }
+        // Only opt in when an explicit Forever configuration is present.
+        const char* config = std::getenv("WOW_FOREVER_CONFIG");
+        bool enabled = config && *config;
+        char exe[MAX_PATH];
+        if (GetModuleFileNameA(nullptr, exe, sizeof(exe))) {
+            const auto data = std::filesystem::path(exe).parent_path() / "Data";
+            enabled = enabled || std::filesystem::is_regular_file(data / "Retail" / "ForeverCasc.ini")
+                || std::filesystem::is_regular_file(data / "Forever" / "ForeverCasc.ini");
+        }
+        if (enabled) { result[52] = 95; result[53] = 96; }
+        return result;
+    }();
+    return map;
+}
+
+Retail::SourceKind RaceSource(uint32_t race) {
+    return ForeverRaceMap().count(race) ? Retail::SourceKind::Forever : Retail::SourceKind::Retail;
+}
+
 uint32_t RetailRaceId(uint32_t race) {
+    const auto forever = ForeverRaceMap().find(race);
+    if (forever != ForeverRaceMap().end()) return forever->second;
     const auto found = RaceMap().find(race);
     return found == RaceMap().end() ? 0 : found->second;
 }
@@ -145,6 +183,7 @@ struct OptionInfo {
     std::string name;
     uint32_t count = 0;
     Stock stock = Stock::None;
+    std::vector<uint32_t> creationIndices; // UI positions map to the unchanged raw choice indexes.
 };
 
 Stock StockFor(const std::string& name, uint32_t retailRace, uint32_t sex) {
@@ -163,7 +202,7 @@ Stock StockFor(const std::string& name, uint32_t retailRace, uint32_t sex) {
 // The options of a race/sex model in display order, with their choice counts.
 const std::vector<OptionInfo>& OptionsFor(uint32_t retailRace, uint32_t sex) {
     static std::map<uint64_t, std::vector<OptionInfo>> cache;
-    std::vector<OptionInfo>& options = cache[(uint64_t(retailRace) << 8) | sex];
+    std::vector<OptionInfo>& options = cache[(uint64_t(Retail::currentSource == Retail::SourceKind::Forever) << 63) | (uint64_t(retailRace) << 8) | sex];
     if (!options.empty()) return options;
     const uint32_t model = app::ChrModelForRace(retailRace, sex);
     for (uint32_t i = 0, n = app::OptionCount(model); i < n; ++i) {
@@ -174,6 +213,11 @@ const std::vector<OptionInfo>& OptionsFor(uint32_t retailRace, uint32_t sex) {
         info.name = app::OptionName(option.id);
         info.count = app::ChoiceCount(option.id);
         info.stock = StockFor(info.name, retailRace, sex);
+        for (uint32_t index = 0; index < info.count; ++index) {
+            app::ChrChoice choice{};
+            if (app::ChoiceAt(info.id, index, choice) && app::CreationChoiceAllowed(model, choice.id))
+                info.creationIndices.push_back(index);
+        }
         options.push_back(std::move(info));
     }
     return options;
@@ -269,7 +313,16 @@ std::vector<uint32_t> Choices(uint32_t retailRace, CCharacterComponent* characte
     const std::vector<OptionInfo>& options = OptionsFor(retailRace, character->m_data.m_preferences.m_sexID);
     for (size_t i = 0; i < options.size(); ++i) {
         app::ChrChoice choice{};
-        if (options[i].count && app::ChoiceAt(options[i].id, IndexOf(character, options, i), choice)) choices.push_back(choice.id);
+        uint32_t index = IndexOf(character, options, i);
+        if (character == CCharacterCreation::m_character) {
+            const auto& eligible = options[i].creationIndices;
+            if (eligible.empty()) continue;
+            if (std::find(eligible.begin(), eligible.end(), index) == eligible.end()) {
+                index = eligible.front();
+                StoreIndex(character, options, i, index);
+            }
+        }
+        if (options[i].count && app::ChoiceAt(options[i].id, index, choice)) choices.push_back(choice.id);
     }
     return choices;
 }
@@ -278,7 +331,7 @@ std::vector<uint32_t> Choices(uint32_t retailRace, CCharacterComponent* characte
 bool IsRetailModel(CM2Model* model) {
     if (!model || !model->m_shared) return false;
     const char* name = model->m_shared->m_fileName;
-    return !_strnicmp(name, "retail", 6) && (name[6] == '/' || name[6] == 92);
+    return Retail::IsCdnPath(name);
 }
 
 constexpr uint32_t CollectionSocket = UINT32_MAX - 1;
@@ -364,6 +417,7 @@ bool InWorld() {
 
 // Conditional character models belong to an appearance instance, never to a shared race skeleton.
 bool SyncBodyModel(CCharacterComponent* character) {
+    Retail::SourceScope sourceScope(RaceSource(character->m_data.m_preferences.m_raceID));
     const auto& prefs = character->m_data.m_preferences;
     const uint32_t retail = RetailRaceId(prefs.m_raceID);
     CM2Model* old = character->m_data.m_model;
@@ -385,7 +439,7 @@ bool SyncBodyModel(CCharacterComponent* character) {
     if (InWorld() && !owner) return false;
 
     Retail::Source().RegisterCharacterModel(recipe.modelFileDataId);
-    Retail::BusyNotice busy("Loading Retail posture");
+    Retail::BusyNotice busy("Loading character posture");
     CM2Model* replacement = old->m_scene->CreateModel(path.c_str(), old->m_flags);
     if (!replacement) return false;
     replacement->WaitForLoad("Retail conditional body");
@@ -489,12 +543,12 @@ struct Look {
 Look& LookFor(uint32_t retail, uint32_t sex, const std::vector<uint32_t>& choices, std::string& key) {
     static std::map<std::string, Look> looks;
     static std::deque<std::string> order;
-    key = std::to_string(retail) + ":" + std::to_string(sex);
+    key = std::string(Retail::SourcePrefix()) + std::to_string(retail) + ":" + std::to_string(sex);
     for (const uint32_t choice : choices) key += ":" + std::to_string(choice);
     auto found = looks.find(key);
     if (found != looks.end()) return found->second;
 
-    Retail::BusyNotice busy("Preparing Retail character data");
+    Retail::BusyNotice busy("Preparing character appearance");
     const unsigned long start = GetTickCount();
     // Bound memory while the player cycles through options: keep a few recent looks.
     while (order.size() >= 6) {
@@ -547,7 +601,7 @@ void BindBody(CCharacterComponent* character, CM2Model* model, const Look& look,
     const std::string name = "Retail\\Race\\" + key + "\\body" + itemKey;
     auto found = bodies.find(name);
     if (found == bodies.end()) {
-        Retail::BusyNotice busy("Preparing Retail character data");
+        Retail::BusyNotice busy("Preparing character appearance");
         const unsigned long start = GetTickCount();
         Retail::Image sheet = body->image;
         for (const auto& layer : layers) {
@@ -683,14 +737,16 @@ bool RetailRaceActive(CCharacterComponent* character) {
 }
 
 bool RetailRaceOwns(uint32_t race, uint32_t sex) {
+    Retail::SourceScope sourceScope(RaceSource(race));
     const uint32_t retail = RetailRaceId(race);
     return retail && app::ChrModelForRace(retail, sex);
 }
 
 bool RetailRaceModelPath(uint32_t race, uint32_t sex, char* path, size_t size) {
+    Retail::SourceScope sourceScope(RaceSource(race));
     const uint32_t retail = RetailRaceId(race);
     if (!retail) return false;
-    Retail::BusyNotice busy("Loading Retail race data");
+    Retail::BusyNotice busy("Loading character data");
     app::Recipe recipe;
     const bool ok = app::BuildForCharacter(retail, sex, nullptr, 0, recipe) && recipe.modelFileDataId;
     Log("model path race %u sex %u -> %s (%u)", race, sex, ok ? "ok" : "unavailable", recipe.modelFileDataId);
@@ -701,6 +757,7 @@ bool RetailRaceModelPath(uint32_t race, uint32_t sex, char* path, size_t size) {
 }
 
 bool RetailRaceBody(CCharacterComponent* character) {
+    Retail::SourceScope sourceScope(RaceSource(character->m_data.m_preferences.m_raceID));
     CharacterPreferences& prefs = character->m_data.m_preferences;
     CM2Model* model = character->m_data.m_model;
     const uint32_t retail = RetailRaceId(prefs.m_raceID);
@@ -714,6 +771,7 @@ bool RetailRaceBody(CCharacterComponent* character) {
 }
 
 bool RetailRaceGeometry(CCharacterComponent* character) {
+    Retail::SourceScope sourceScope(RaceSource(character->m_data.m_preferences.m_raceID));
     CharacterPreferences& prefs = character->m_data.m_preferences;
     CM2Model* model = character->m_data.m_model;
     const uint32_t retail = RetailRaceId(prefs.m_raceID);
@@ -761,8 +819,11 @@ bool RetailRaceGeometry(CCharacterComponent* character) {
 }
 
 void RetailRaceEquipment(CCharacterComponent* character) {
+    Retail::SourceScope sourceScope(RaceSource(character->m_data.m_preferences.m_raceID));
     CM2Model* model = character->m_data.m_model;
     if (!RetailRaceActive(character)) return;
+    Retail::ApplyRaceEyeGeometry(*model, Retail::currentSource,
+        RetailRaceId(character->m_data.m_preferences.m_raceID));
     FitLegacyHelmet(character);
 
     // Bare feet and closed shoes are separate Retail meshes. Wrath boot style zero is still a
@@ -841,6 +902,7 @@ Snapshot g_preview;
 
 int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const char* command) {
     if (!character) return -1;
+    Retail::SourceScope sourceScope(RaceSource(character->m_data.m_preferences.m_raceID));
     CharacterPreferences& prefs = character->m_data.m_preferences;
     const uint32_t retail = RetailRaceId(prefs.m_raceID);
     const bool owned = retail && app::ChrModelForRace(retail, prefs.m_sexID) && IsRetailModel(character->m_data.m_model);
@@ -852,9 +914,12 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
     if (!owned) return -1;
 
     const std::vector<OptionInfo>& options = OptionsFor(retail, prefs.m_sexID);
+    std::vector<size_t> visibleOptions;
+    for (size_t i = 0; i < options.size(); ++i)
+        if (!options[i].creationIndices.empty()) visibleOptions.push_back(i);
 
     if (!std::strcmp(command, "EA_COUNT")) {
-        lua_pushnumber(L, options.size());
+        lua_pushnumber(L, visibleOptions.size());
         return 1;
     }
 
@@ -886,8 +951,11 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
 
     if (!std::strcmp(command, "EA_RANDOM")) {
         static std::mt19937 random(GetTickCount());
-        for (size_t i = 0; i < options.size(); ++i)
-            if (options[i].count > 1) StoreIndex(character, options, i, std::uniform_int_distribution<uint32_t>(0, options[i].count - 1)(random));
+        for (const size_t i : visibleOptions) {
+            const auto& eligible = options[i].creationIndices;
+            if (eligible.size() > 1) StoreIndex(character, options, i,
+                eligible[std::uniform_int_distribution<size_t>(0, eligible.size() - 1)(random)]);
+        }
         Refresh(character);
         return 0;
     }
@@ -895,43 +963,49 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
     if (!lua_isnumber(L, 2)) return -1;
     const double requested = lua_tonumber(L, 2);
     const bool isGet = !std::strcmp(command, "EA_GET");
-    const bool inRange = requested >= 1 && requested <= double(options.size()) && requested == double(int(requested));
+    const bool inRange = requested >= 1 && requested <= double(visibleOptions.size()) && requested == double(int(requested));
     if (!inRange) {
         if (isGet) { lua_pushnumber(L, 0); lua_pushnumber(L, 1); lua_pushstring(L, ""); return 3; }
         if (!std::strcmp(command, "EA_CHOICES") || !std::strcmp(command, "EA_CHOICE_NAME")) { lua_pushstring(L, ""); return 1; }
         return 0;
     }
-    const size_t index = size_t(requested) - 1;
+    const size_t index = visibleOptions[size_t(requested) - 1];
     const OptionInfo& option = options[index];
-    const uint32_t value = IndexOf(character, options, index);
+    const auto& eligible = option.creationIndices;
+    const auto selected = std::find(eligible.begin(), eligible.end(), IndexOf(character, options, index));
+    const uint32_t value = selected == eligible.end() ? 0 : uint32_t(selected - eligible.begin());
+    const uint32_t count = uint32_t(eligible.size());
 
     if (isGet) {
         lua_pushnumber(L, value);
-        lua_pushnumber(L, option.count);
+        lua_pushnumber(L, count);
         lua_pushstring(L, option.name.c_str());
         return 3;
     }
     if (!std::strcmp(command, "EA_CHOICES")) {
         std::string list;
-        for (uint32_t i = 0; i < option.count; ++i) list += std::to_string(i) + ",";
+        for (uint32_t i = 0; i < count; ++i) list += std::to_string(i) + ",";
         lua_pushstring(L, list.c_str());
         return 1;
     }
     if (!std::strcmp(command, "EA_CHOICE_NAME")) {
         app::ChrChoice choice{};
         const double which = lua_isnumber(L, 3) ? lua_tonumber(L, 3) : -1;
-        const std::string name = which >= 0 && which < option.count && app::ChoiceAt(option.id, uint32_t(which), choice) ? app::ChoiceName(choice.id) : std::string();
+        const std::string name = which >= 0 && which < count && which == std::floor(which) &&
+            app::ChoiceAt(option.id, eligible[size_t(which)], choice) ? app::ChoiceName(choice.id) : std::string();
         lua_pushstring(L, name.c_str());
         return 1;
     }
     if (!std::strcmp(command, "EA_SET") || !std::strcmp(command, "EA_CYCLE")) {
         const double argument = lua_tonumber(L, 3);
-        if (!std::isfinite(argument) || !option.count) return 0;
-        const uint32_t next = !std::strcmp(command, "EA_SET")
-            ? (argument < 0 ? 0 : uint32_t(argument))
-            : uint32_t((int64_t(value) + (argument < 0 ? -1 : 1) + option.count) % option.count);
-        if (next >= option.count) return 0;
-        StoreIndex(character, options, index, next);
+        if (!std::isfinite(argument) || !count) return 0;
+        const bool direct = !std::strcmp(command, "EA_SET");
+        if (direct && (argument < 0 || argument >= count || argument != std::floor(argument))) return 0;
+        const uint32_t next = direct
+            ? uint32_t(argument)
+            : uint32_t((int64_t(value) + (argument < 0 ? -1 : 1) + count) % count);
+        if (next >= count) return 0;
+        StoreIndex(character, options, index, eligible[next]);
         Refresh(character);
         return 0;
     }
@@ -944,6 +1018,7 @@ void RetailRaceTick() {
     // prep when only geosets changed; both end in the retail hooks.
     const bool inWorld = InWorld();
     for (CCharacterComponent* character : std::set<CCharacterComponent*>(g_active)) {
+        Retail::SourceScope sourceScope(RaceSource(character->m_data.m_preferences.m_raceID));
         if (SyncBodyModel(character)) Refresh(character);
         FitLegacyHelmet(character);
         FinishCollections(character);
@@ -953,6 +1028,7 @@ void RetailRaceTick() {
 
 // Counts the stock selectors report for a Retail race: the size of the mapped Retail option.
 int32_t RetailRaceSectionCount(int32_t race, int32_t sex, int32_t variation, bool colors) {
+    Retail::SourceScope sourceScope(RaceSource(uint32_t(race)));
     if (InWorld()) return -1;
     const uint32_t retail = RetailRaceId(uint32_t(race));
     if (!retail || sex < 0 || sex > 1 || !app::ChrModelForRace(retail, uint32_t(sex))) return -1;

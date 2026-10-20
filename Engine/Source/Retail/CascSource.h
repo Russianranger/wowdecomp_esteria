@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "Engine/Source/Retail/SourceContext.h"
 
 namespace Retail {
 
@@ -14,10 +15,10 @@ struct HandItemAppearance {
 };
 
 // One source per pinned build. Storage calls and dependency publication are serialized.
-// Only retail/ references and explicit aliases are handled; stock paths stay in MPQ.
+// Each source owns its retail/ or forever/ namespace plus explicit aliases; stock paths stay in MPQ.
 class CascSource {
 public:
-    CascSource();
+    explicit CascSource(SourceKind kind = SourceKind::Retail);
     ~CascSource();
     CascSource(const CascSource&) = delete;
     CascSource& operator=(const CascSource&) = delete;
@@ -34,12 +35,17 @@ public:
     bool ReadTable(const char* name, std::vector<uint8_t>& bytes, std::string& error);
     void ReleaseModel(const char* name);
     bool CachedSize(const char* name, uint32_t& size);
+    // Locality/progress checks may use durable original size before client preparation.
+    // CachedSize above remains the exact prepared size for SFile reads.
+    bool CachedOriginalSize(const char* name, uint32_t& size);
     bool HandItem(uint32_t displayId, HandItemAppearance& appearance, bool mainHand = false);
     bool SetHandItem(uint32_t displayId, HandItemAppearance appearance);
     bool SetMainHandPreview(HandItemAppearance appearance);
     bool HasClientTable(const char* name);
     bool MergeTable(const char* name, const std::vector<uint8_t>& base,
         std::vector<uint8_t>& merged, std::string& error);
+    struct Statistics { uint64_t reused = 0, acquired = 0; };
+    Statistics Stats();
 
 private:
     struct Impl;
@@ -49,6 +55,7 @@ private:
 // Lazy process-wide source, configured by WOW_RETAIL_CONFIG or RetailCasc.ini in the
 // working directory. Initialization does no network IO until a Retail reference is read.
 CascSource& Source();
+CascSource& SourceForPath(const char* name);
 
 }
 #endif

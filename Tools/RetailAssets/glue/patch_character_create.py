@@ -2,7 +2,8 @@
 
 The creator already draws up to 29 option rows from CycleCharCustomization("EA_GET", i). This patch makes any
 race mapped to Retail data (native "EA_RETAIL" command) use that panel, shows the real choice names and
-routes the randomizer to the native EA_RANDOM. It is idempotent.
+routes the randomizer to the native EA_RANDOM, and binds viewport wheel input to
+the native face zoom. It is idempotent.
 
 Default is a dry run that writes the patched files to --stage. With --apply it backs up and rewrites
 Data\\patch-Z.MPQ and Data\\enUS\\patch-enUS-Z.MPQ. Close the game first.
@@ -62,7 +63,7 @@ def patch_base(text):
     return text.replace("\n", nl)
 
 
-def patch(text):
+def patch_capacity(text):
     text = patch_base(text)
     marker = "-- Retail option capacity v2 (45-option Dracthyr)"
     if marker in text:
@@ -85,6 +86,23 @@ def patch(text):
         "local rowSpacing=math.min(optionCount>22 and 28 or 36, math.max(18, math.floor((GetScreenHeight()-210)/rowsPerColumn))); ")
     # EA_GET returns nil beyond the model's option count, hiding those frames after a race switch.
     return (prefix + panel).replace("\n", nl)
+
+
+def patch(text):
+    text = patch_capacity(text)
+    marker = "-- Creator mousewheel face zoom (wowdecomp)"
+    if marker in text:
+        return text
+    nl = "\r\n" if "\r\n" in text else "\n"
+    text = text.replace("\r\n", "\n")
+    text = replace_once(text, "function CharacterCreate_OnLoad(self)\n",
+        marker + "\nfunction CharacterCreate_OnLoad(self)\n"
+        "    -- The viewport owns zoom; choice pickers keep their own wheel scrolling.\n"
+        "    CharacterCreateFrame:EnableMouseWheel(true);\n"
+        "    CharacterCreateFrame:SetScript(\"OnMouseWheel\", function(_, delta)\n"
+        "        CycleCharCustomization(\"EA_ZOOM\", delta);\n"
+        "    end);\n")
+    return text.replace("\n", nl)
 
 
 def main():

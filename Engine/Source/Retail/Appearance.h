@@ -86,6 +86,10 @@ namespace Retail::Db2::appearance
     /// model's customization hangs off is the ChrModel, not the race, so this is where an enumeration
     /// starts.
     uint32_t ChrModelForRace(uint32_t chrRaceId, uint32_t sex);
+    // Every reachable choice's acquisition roots, including related-choice combinations.
+    // The downloader follows M2/SKEL edges from these roots separately.
+    struct CharacterAssets { std::vector<uint32_t> models, textures, skeletons; };
+    bool CollectCharacterAssets(uint32_t race, uint32_t sex, CharacterAssets& assets, std::string& error);
 
     /// The options a ChrModel offers, in the tables' own order. Enumerated rather than reduced to
     /// fixed slots: the table that used to map the stock client's five customization bytes onto
@@ -97,6 +101,8 @@ namespace Retail::Db2::appearance
     /// The choices one option offers, likewise ordered.
     uint32_t ChoiceCount(uint32_t chrCustomizationOptionId);
     bool     ChoiceAt(uint32_t chrCustomizationOptionId, uint32_t index, ChrChoice& out);
+    // Creator eligibility only. Raw enumerations and saved source IDs remain unchanged.
+    bool CreationChoiceAllowed(uint32_t chrModelId, uint32_t choiceId);
 
     /// The layout a ChrModel's textures are addressed in, 0 when it names none. Separate from the
     /// recipe because the sheet has to be sized before a single choice is known.

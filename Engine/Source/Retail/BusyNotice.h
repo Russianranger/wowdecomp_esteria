@@ -1,17 +1,19 @@
 #ifndef ENGINE_SOURCE_RETAIL_BUSYNOTICE_H
 #define ENGINE_SOURCE_RETAIL_BUSYNOTICE_H
+#include <cstdint>
 
 namespace Retail {
 
-// Shows a small always-on-top "downloading" window while a slow Retail read blocks the calling thread.
-// The window lives on its own thread, so it keeps painting while the game thread waits. It appears only if
-// the read lasts longer than a moment and lingers briefly so a run of reads shows one steady notice.
+// Shows active acquisition/preparation work after a short delay. Nested notices restore their
+// parent's message; acquisition takes priority. The window hides as soon as all work finishes.
 class BusyNotice {
 public:
-    explicit BusyNotice(const char* text);
+    explicit BusyNotice(const char* text, int priority = 0);
     ~BusyNotice();
     BusyNotice(const BusyNotice&) = delete;
     BusyNotice& operator=(const BusyNotice&) = delete;
+private:
+    uint64_t m_id = 0;
 };
 
 }

@@ -273,9 +273,14 @@ namespace Retail::Db2::wdc5
         std::vector<FieldMeta> fieldMeta;
         std::vector<ColumnMeta> columnMeta;
         if (!cursor.ReadArray(sections, header.sectionCount) ||
-            !cursor.ReadArray(fieldMeta, header.fieldCount) ||
-            !cursor.ReadArray(columnMeta, header.fieldCount))
+            !cursor.ReadArray(fieldMeta, header.fieldCount))
             return Fail(error, "WDC5: truncated metadata");
+        // Forever ships truly empty tables with field descriptors and no column storage.
+        // Require the exact empty layout; truncated nonempty tables must still fail.
+        if (!header.recordCount && !header.sectionCount && !header.fieldStorageInfoSize &&
+            !header.commonDataSize && !header.palletDataSize && !header.stringTableSize &&
+            size == sizeof(Header) + size_t(header.fieldCount) * sizeof(FieldMeta)) return true;
+        if (!cursor.ReadArray(columnMeta, header.fieldCount)) return Fail(error, "WDC5: truncated metadata");
 
         std::vector<std::vector<uint32_t>> pallets(header.fieldCount);
         std::vector<CommonMap> commons(header.fieldCount);
@@ -516,7 +521,7 @@ namespace Retail::Db2
             bytes.clear();
             const uint32_t id = TableFileDataId(filename);
             if (!id) { error = "no FileDataID known for " + std::string(filename); return false; }
-            return Source().ReadTable(("retail/" + std::to_string(id) + ".db2").c_str(), bytes, error);
+            return Source().ReadTable((std::string(SourcePrefix()) + std::to_string(id) + ".db2").c_str(), bytes, error);
         }
 
         const Definition* FindDefinition(Span<const Definition> definitions, std::string_view name)

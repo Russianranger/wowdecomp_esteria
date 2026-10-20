@@ -416,4 +416,8 @@ CMakeSettings.json
 # Per-machine Retail CDN configuration and game data cache.
 RetailCasc.ini
 RetailCache/
+ForeverCasc.ini
+ForeverCache/
+ForeverDecoded/
+CdnCache/
 __pycache__/
