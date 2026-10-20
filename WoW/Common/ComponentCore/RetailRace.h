@@ -7,6 +7,7 @@
 class CCharacterComponent;
 class CGUnit_C;
 struct lua_State;
+class CDataStore;
 
 // Races taken 1:1 from the Retail client data (DB2 customization tables, model and textures from CASC).
 // A Wrath race ID is mapped to a Retail ChrRaces ID by WOW_RETAIL_RACES ("1:1,2:2") or, if that is unset,
@@ -55,6 +56,11 @@ void RetailRaceForget(CCharacterComponent* character);
 
 // Registers the world owner whose model reference must follow a per-character body change.
 void RetailRaceBindOwner(CCharacterComponent* character, CGUnit_C* owner);
+
+// Independent per-character cosmetic, transported separately from frozen appearance codecs.
+bool RetailRaceEyeLightning(CCharacterComponent* character);
+void RetailRaceEyeLightning(CCharacterComponent* character, bool enabled);
+void RetailRaceCreateEyeEffects(CDataStore* packet);
 
 // Once per frame: keeps retail components moving through the stock section pipeline in the world. Stock drives that
 // pipeline from the dynamic base-skin texture, which retail components deliberately do not bind.

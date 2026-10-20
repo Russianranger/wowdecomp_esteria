@@ -46,6 +46,7 @@
 #include "WoW/Source/Game/GameClient/FFXEffects.h"
 #include "WoW/Source/Game/ValidateName.h"
 #include "WoW/Source/Glue/CharacterCreation.h"
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Source/Glue/CharacterSelection.h"
 #include "WoW/Source/Glue/CSimpleModelFFX.h"
 #include "WoW/Source/Glue/CWOWClientStatus.h"
@@ -2332,6 +2333,7 @@ void CGlueMgr::CustomizeCharacter(WOWGUID guid, const CHARACTER_CREATE_INFO* inf
     msg.Put(info->m_hairStyleID);
     msg.Put(info->m_facialHairStyleID);
     msg.Put(info->m_faceID);
+    RetailRaceCreateEyeEffects(&msg);
     msg.Finalize();
     ClientServices::Send2(&msg);
 }
@@ -2357,6 +2359,7 @@ void CGlueMgr::FactionChange(WOWGUID guid, const CHARACTER_CREATE_INFO* info) {
     msg.Put(info->m_facialHairStyleID);
     msg.Put(info->m_faceID);
     msg.Put(info->m_raceID);
+    RetailRaceCreateEyeEffects(&msg);
     msg.Finalize();
     ClientServices::Send2(&msg);
 }
@@ -2382,6 +2385,7 @@ void CGlueMgr::RaceChange(WOWGUID guid, const CHARACTER_CREATE_INFO* info) {
     msg.Put(info->m_facialHairStyleID);
     msg.Put(info->m_faceID);
     msg.Put(info->m_raceID);
+    RetailRaceCreateEyeEffects(&msg);
     msg.Finalize();
     ClientServices::Send2(&msg);
 }

@@ -1,4 +1,5 @@
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include <cstdint>
 #include <cstring>
 #include "ClientServices.h"
@@ -1369,6 +1370,7 @@ void ClientConnection::RequestCharacterCreate(const CHARACTER_CREATE_INFO& info)
     msg.Put(info.m_facialHairStyleID);
     msg.Put(info.m_outfitID);
     EsteriaCreateExtra(&msg);
+    RetailRaceCreateEyeEffects(&msg);
     msg.Finalize();
     this->Send(&msg);
 }

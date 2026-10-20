@@ -21,14 +21,13 @@ inline std::vector<uint16_t> DefaultRaceGeosets(const std::vector<uint16_t>& rec
     return defaults;
 }
 
-// Forever's playable Skyborne eye colors select texture type 19 on geoset 3301.
-// The inherited donor's 17xx meshes use lightning atlases; no eligible Skyborne
-// choice selects them. Group 51 is an authored eyesight/blindness overlay and stays.
-// Apply after Wrath's selector/DK pass, which would otherwise restore 1701/1703.
+// Eye lightning is opt-in for every mapped character. Apply after Wrath's
+// selector/DK pass so it cannot restore 1701/1703 behind the creator's toggle.
+// Normal eyes (33) and authored eyesight/blindness overlays (51) stay independent.
 template <class Model>
-void ApplyRaceEyeGeometry(Model& model, SourceKind source, uint32_t sourceRace) {
-    if (source != SourceKind::Forever || (sourceRace != 95 && sourceRace != 96)) return;
+void ApplyRaceEyeGeometry(Model& model, bool lightning = false) {
     model.SetGeometryVisible(1701, 1799, 0);
+    if (lightning) model.SetGeometryVisible(1701, 1701, 1);
 }
 
 // Legacy boot styles select the shin (group 5), not Retail foot shapes (group 20). Even style

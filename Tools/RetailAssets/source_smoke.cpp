@@ -13,6 +13,39 @@
 #include <stdexcept>
 
 namespace app = Retail::Db2::appearance;
+void VerifyNightElfEyes(uint32_t sex) {
+    Retail::SourceScope scope(Retail::SourceKind::Retail);
+    app::Recipe recipe;
+    if (!app::BuildForCharacter(4, sex, nullptr, 0, recipe)) throw std::runtime_error("Missing Night Elf model");
+    std::vector<uint8_t> body, skin; std::string error; Retail::ModelFiles files;
+    auto& source = Retail::Source();
+    if (!source.Inspect(Retail::FileName(recipe.modelFileDataId, ".m2").c_str(), body, error)
+        || !Retail::InspectModel(body, files, error) || files.skins.empty()
+        || !source.Inspect(Retail::FileName(files.skins.front(), ".skin").c_str(), skin, error))
+        throw std::runtime_error("Cannot inspect Night Elf eye fixture: " + error);
+    const auto word = [&](size_t p) { uint32_t v; std::memcpy(&v, skin.data() + p, 4); return v; };
+    if (skin.size() < 36 || word(32) > skin.size() || uint64_t(word(28)) * 48 > skin.size() - word(32))
+        throw std::runtime_error("Invalid Night Elf skin fixture");
+    struct Model {
+        std::set<uint16_t> visible;
+        void SetGeometryVisible(uint32_t first, uint32_t last, int show) {
+            for (uint32_t id = first; id <= last; ++id)
+                if (show) visible.insert(uint16_t(id)); else visible.erase(uint16_t(id));
+        }
+    } model;
+    for (uint32_t i = 0; i < word(28); ++i) {
+        uint16_t geo; std::memcpy(&geo, skin.data() + word(32) + size_t(i) * 48, 2);
+        model.visible.insert(geo);
+    }
+    if (!model.visible.count(1701) || !model.visible.count(3301)) throw std::runtime_error("Missing Night Elf eye geometry fixture");
+    Retail::ApplyRaceEyeGeometry(model);
+    if (model.visible.count(1701) || !model.visible.count(3301)) throw std::runtime_error("Night Elf default eye lightning not Off");
+    Retail::ApplyRaceEyeGeometry(model, true);
+    if (!model.visible.count(1701) || !model.visible.count(3301)) throw std::runtime_error("Night Elf explicit eye lightning not On");
+    Retail::ApplyRaceEyeGeometry(model, false);
+    if (model.visible.count(1701) || source.Stats().acquired) throw std::runtime_error("Night Elf toggle did not return to Off or acquired data");
+    std::printf("Night Elf sex %u: actual eye meshes toggle Off/On/Off; normal eyes preserved.\n", sex);
+}
 void VerifySkyborneEyes() {
     Retail::SourceScope scope(Retail::SourceKind::Forever);
     for (uint32_t race : {95u, 96u}) for (uint32_t sex : {0u, 1u}) {
@@ -71,12 +104,15 @@ void VerifySkyborneEyes() {
         }
         for (uint16_t geo : {1701, 1703, 3301, 5101})
             if (!visibility.visible.count(geo)) throw std::runtime_error("Missing inherited/authored eye mesh fixture");
-        Retail::ApplyRaceEyeGeometry(visibility, Retail::currentSource, race);
+        Retail::ApplyRaceEyeGeometry(visibility);
         for (uint16_t geo : visibility.visible)
             if (geo / 100 == 17) throw std::runtime_error("Inherited Skyborne eye effects remain visible");
         if (!visibility.visible.count(3301) || !visibility.visible.count(5101) || source.Stats().acquired)
             throw std::runtime_error("Eye repair hid authored eyes or acquired cached assets again");
-        std::printf("Skyborne race %u sex %u: inherited eye meshes hidden; all %u authored eye colors preserved.\n", race, sex, eyeColors);
+        Retail::ApplyRaceEyeGeometry(visibility, true);
+        if (!visibility.visible.count(1701) || visibility.visible.count(1703) || !visibility.visible.count(3301))
+            throw std::runtime_error("Explicit eye-lightning toggle did not restore exactly the chosen effect");
+        std::printf("Skyborne race %u sex %u: eye toggle Off/On passed; all %u authored eye colors preserved.\n", race, sex, eyeColors);
     }
 }
 void VerifyCreator(Retail::SourceKind kind) {
@@ -142,6 +178,8 @@ int main(int argc, char** argv) {
         VerifyCreator(Retail::SourceKind::Retail);
         VerifyCreator(Retail::SourceKind::Forever);
         VerifySkyborneEyes();
+        VerifyNightElfEyes(0);
+        VerifyNightElfEyes(1);
         std::puts("Concurrent Retail/Forever stores and alternating models passed; zero acquisition.");
         return 0;
     } catch (const std::exception& error) { std::fprintf(stderr, "%s\n", error.what()); return 1; }

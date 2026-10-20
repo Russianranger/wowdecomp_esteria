@@ -10,6 +10,7 @@
 #include "Engine/Source/Retail/DecodedCache.h"
 #include "Engine/Source/Retail/Db2.h"
 #include "Engine/Source/Retail/CreationPolicy.h"
+#include "Engine/Source/Retail/EyeEffects.h"
 #include <chrono>
 #include <set>
 #include <algorithm>
@@ -241,23 +242,66 @@ int main(int argc, char** argv) {
         };
         const std::set<uint16_t> inherited{0, 2, 1701, 1702, 1703, 1704, 1705, 2001, 2301, 3301, 5101, 5102, 5103};
         const std::set<uint16_t> authored{0, 2, 2001, 2301, 3301, 5101, 5102, 5103};
-        for (uint32_t race : {95u, 96u}) {
+        for (uint32_t race : {4u, 95u, 96u}) {
             Model model{inherited};
-            Retail::ApplyRaceEyeGeometry(model, Retail::SourceKind::Forever, race);
+            Retail::ApplyRaceEyeGeometry(model);
             Check(model.visible == authored, "Skyborne retain anatomy, eyes and eyesight overlays without inherited lightning");
             // A later customization or class refresh restores stock eye-glow meshes first.
             model.SetGeometryVisible(1701, 1701, 1);
             model.SetGeometryVisible(1703, 1703, 1);
-            Retail::ApplyRaceEyeGeometry(model, Retail::SourceKind::Forever, race);
+            Retail::ApplyRaceEyeGeometry(model);
             Check(model.visible == authored, "Skyborne eye effects stay off after stock/DK and appearance refreshes");
+            Retail::ApplyRaceEyeGeometry(model, true);
+            auto enabled = authored; enabled.insert(1701);
+            Check(model.visible == enabled, "explicit lightning enables exactly one effect while retaining normal eyes");
+            Retail::ApplyRaceEyeGeometry(model, false);
+            Check(model.visible == authored, "Off reverses an explicit On without altering other appearance");
         }
-        for (auto source : {Retail::SourceKind::Retail, Retail::SourceKind::Forever}) {
-            for (uint32_t race : {1u, 10u, 29u, 70u, 95u, 96u}) {
-                if (source == Retail::SourceKind::Forever && (race == 95 || race == 96)) continue;
-                Model model{inherited};
-                Retail::ApplyRaceEyeGeometry(model, source, race);
-                Check(model.visible == inherited, "Skyborne eye repair cannot change another race or source");
-            }
+    }
+    {
+        using namespace CharacterEyeEffects;
+        for (uint64_t payload : {uint64_t{0}, uint64_t{255}, uint64_t{0x123456789abc}, uint64_t{0x7fffffffffffffff}}) {
+            const auto enabled = WithLightning(payload, true);
+            Check(Lightning(enabled) && Appearance(enabled) == payload, "eye flag preserves every existing extension bit");
+            Check(WithLightning(enabled, false) == payload, "clearing eye lightning restores the original packed appearance");
+            Check(((uint32_t(enabled >> 32) & LightningWordMask) != 0), "public object high word carries the saved toggle");
+        }
+        for (bool enabled : {false, true}) {
+            const auto bytes = Trailer(enabled); bool read = !enabled;
+            Check(ReadTrailer(bytes.data(), bytes.size(), read) && read == enabled, "EYE1 footer round trips Off and On");
+            for (size_t size = 0; size < bytes.size(); ++size)
+                Check(!ReadTrailer(bytes.data(), size, read), "truncated cosmetic footer cannot become an enabled toggle");
+        }
+        auto invalid = Trailer(true); bool enabled = false;
+        invalid[0] = 2;
+        Check(!ReadTrailer(invalid.data(), invalid.size(), enabled), "reject non-boolean eye selection");
+        invalid = Trailer(true); invalid[4] = 0;
+        Check(!ReadTrailer(invalid.data(), invalid.size(), enabled), "reject unknown cosmetic footer versions");
+        invalid = Trailer(true);
+        Check(!ReadTrailer(invalid.data(), invalid.size() + 1, enabled), "reject oversized cosmetic trailers");
+        struct Packet {
+            std::vector<uint8_t> bytes;
+            size_t read = 10;
+            size_t rpos() const { return read; }
+            void rpos(size_t value) { read = value; }
+            size_t size() const { return bytes.size(); }
+            const uint8_t* contents() const { return bytes.data(); }
+            void resize(size_t size) { bytes.resize(size); read = 0; } // Real ByteBuffer behavior.
+        };
+        for (size_t profile : {size_t{0}, size_t{12}}) for (bool value : {false, true}) {
+            Packet packet; packet.bytes.resize(10 + profile, 42);
+            const auto original = packet.bytes;
+            const auto footer = Trailer(value);
+            packet.bytes.insert(packet.bytes.end(), footer.begin(), footer.end());
+            bool present = false, selected = !value;
+            Check(ReadTail(packet, profile, present, selected) && present && selected == value
+                && packet.rpos() == 10 && packet.bytes == original, "optional footer preserves the profile payload and parser cursor");
+            present = false;
+            Check(ReadTail(packet, profile, present, selected) && !present,
+                "legacy clients with no footer retain their existing packet shape");
+            packet.bytes.insert(packet.bytes.end(), footer.begin(), footer.end());
+            packet.bytes.insert(packet.bytes.end(), footer.begin(), footer.end());
+            Check(!ReadTail(packet, profile, present, selected), "duplicate eye footers fail instead of shifting appearance parsing");
         }
     }
     // Reproduce world rendering: item identity survives temporary texture cleanup, and an update

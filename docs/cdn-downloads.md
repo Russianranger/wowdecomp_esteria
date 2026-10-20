@@ -24,13 +24,25 @@ copies) are excluded from every race's creator. Dropdowns, arrows, preview, defa
 and randomization share the same mapping back to the original choice indexes.
 Existing characters and raw source/saved IDs are not remapped by this UI policy.
 
-The pinned Forever Skyborne bodies inherit donor lightning meshes in group 17.
-No eligible Skyborne customization selects them; their authored eye colors use
-texture type 19 on group 33, with eyesight/blindness overlays in group 51.
-The final geometry pass hides group 17 for Forever source races 95/96 after
-Wrath's stock and Death Knight eye-glow selectors, including on appearance refresh.
-This preserves ordinary Skyborne eyes and affects no other race or source. Cached
-original M2/skin files and saved appearance IDs are unchanged.
+Retail/Forever characters now have an independent **Eye Lightning: Off / On**
+creator option when the loaded model contains effect mesh 1701. Off is the default,
+including existing characters. Randomization keeps this explicit selection; hover
+previews restore it on cancel. The final geometry pass clears inherited group-17
+effects after stock and Death Knight selectors, then enables exactly 1701 when
+requested. Normal eyes (group 33), eyesight/blindness (group 51), and helmet hides
+remain independent. This includes Night Elves and Skyborne. Cached originals and
+the order/meaning of every existing appearance byte are unchanged.
+
+The matched server persists the toggle in bit 63 of the existing unsigned
+`characters.extraAppearance`. The lower appearance payload remains intact, including
+Haranir; no schema migration is required. An optional five-byte `EYE1` footer carries
+Off/On after the normal creation/customization payload (after `HRC1` on Haranir
+creation). Absent legacy footers preserve the old contract; malformed/duplicate
+footers are rejected. Character enumeration reuses HXE2 for flagged characters;
+live/nearby-player state uses bit 31 of the already-public Object padding high word.
+The native decoder removes that flag before decoding the frozen profile bytes.
+Client/server copies of `EyeEffects.h` must match. Deploy the matching server before
+installing this native client; client-only installation cannot promise saved choices.
 
 Copy [ForeverCasc.example.ini](../config/ForeverCasc.example.ini) into the Wrath
 client's `Data/Retail` folder. The relative paths keep both products' acquired

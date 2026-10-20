@@ -24,6 +24,8 @@
 #include "Engine/Source/Retail/Compose.h"
 #include "Engine/Source/Retail/Equipment.h"
 #include "Engine/Source/Retail/RaceGeometry.h"
+#include "Engine/Source/Retail/EyeEffects.h"
+#include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Retail/LegacyAppearance.h"
 #include "Engine/Source/Retail/RacePolicy.h"
 #include "Engine/Source/Retail/RetailModel.h"
@@ -238,12 +240,13 @@ uint32_t* PreferenceFor(CharacterPreferences& prefs, Stock stock) {
 std::unordered_map<CCharacterComponent*, std::vector<uint32_t>> g_state;
 std::unordered_map<CCharacterComponent*, uint64_t> g_stateIdentity;
 std::unordered_map<CCharacterComponent*, CGUnit_C*> g_owners;
+std::unordered_map<CCharacterComponent*, bool> g_eyeLightning;
 
 void CheckStateIdentity(CCharacterComponent* character) {
     const auto& prefs = character->m_data.m_preferences;
     const uint64_t identity = (uint64_t(prefs.m_raceID) << 32) | prefs.m_sexID;
     auto& previous = g_stateIdentity[character];
-    if (previous != identity) { g_state.erase(character); previous = identity; }
+    if (previous != identity) { g_state.erase(character); g_eyeLightning.erase(character); previous = identity; }
 }
 
 // Retail components seen by the geometry hook; ticked each frame in the world.
@@ -822,8 +825,7 @@ void RetailRaceEquipment(CCharacterComponent* character) {
     Retail::SourceScope sourceScope(RaceSource(character->m_data.m_preferences.m_raceID));
     CM2Model* model = character->m_data.m_model;
     if (!RetailRaceActive(character)) return;
-    Retail::ApplyRaceEyeGeometry(*model, Retail::currentSource,
-        RetailRaceId(character->m_data.m_preferences.m_raceID));
+    Retail::ApplyRaceEyeGeometry(*model, RetailRaceEyeLightning(character));
     FitLegacyHelmet(character);
 
     // Bare feet and closed shoes are separate Retail meshes. Wrath boot style zero is still a
@@ -864,6 +866,30 @@ void RetailRaceForget(CCharacterComponent* character) {
     g_active.erase(character);
     g_collections.erase(character);
     g_owners.erase(character);
+    g_eyeLightning.erase(character);
+}
+
+bool RetailRaceEyeLightning(CCharacterComponent* character) {
+    if (!character) return false;
+    CheckStateIdentity(character);
+    const auto owner = g_owners.find(character);
+    if (owner != g_owners.end() && owner->second && owner->second->m_obj)
+        return (owner->second->m_obj->m_pad & CharacterEyeEffects::LightningWordMask) != 0;
+    const auto found = g_eyeLightning.find(character);
+    return found != g_eyeLightning.end() && found->second;
+}
+
+void RetailRaceEyeLightning(CCharacterComponent* character, bool enabled) {
+    if (!character) return;
+    CheckStateIdentity(character);
+    g_eyeLightning[character] = enabled;
+    character->m_flags |= 0x4;
+}
+
+void RetailRaceCreateEyeEffects(CDataStore* packet) {
+    auto* character = CCharacterCreation::m_character;
+    if (!packet || !character || !RetailRaceMapped(character->m_data.m_preferences.m_raceID)) return;
+    for (uint8_t byte : CharacterEyeEffects::Trailer(RetailRaceEyeLightning(character))) packet->Put(byte);
 }
 
 void RetailRaceBindOwner(CCharacterComponent* character, CGUnit_C* owner) {
@@ -894,6 +920,7 @@ struct Snapshot {
     std::vector<uint32_t> state;
     std::array<uint8_t, 13> fields{};
     uint32_t race = 0, sex = 0;
+    bool eyeLightning = false;
 };
 
 Snapshot g_preview;
@@ -917,9 +944,19 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
     std::vector<size_t> visibleOptions;
     for (size_t i = 0; i < options.size(); ++i)
         if (!options[i].creationIndices.empty()) visibleOptions.push_back(i);
+    // A synthetic final option does not enter DB2 choice lists or the saved legacy codec.
+    // Models without an authored lightning mesh do not offer an ineffective toggle.
+    const auto* body = character->m_data.m_model;
+    bool eyeOption = false;
+    if ((body->m_fFlags & 1) && body->m_shared->m_skinData) {
+        const auto& sections = body->m_shared->m_skinData->m_skinSections;
+        for (uint32_t i = 0; i < sections.m_count; ++i)
+            eyeOption = eyeOption || (sections[i].m_skinSectionId & 0xFFFF) == 1701;
+    }
+    const size_t visibleCount = visibleOptions.size() + (eyeOption ? 1 : 0);
 
     if (!std::strcmp(command, "EA_COUNT")) {
-        lua_pushnumber(L, visibleOptions.size());
+        lua_pushnumber(L, visibleCount);
         return 1;
     }
 
@@ -928,6 +965,7 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
             g_preview.owner = character;
             g_preview.race = prefs.m_raceID; g_preview.sex = prefs.m_sexID;
             g_preview.fields = EsteriaRetailFields(character);
+            g_preview.eyeLightning = RetailRaceEyeLightning(character);
             g_preview.prefs[0] = prefs.m_skinID; g_preview.prefs[1] = prefs.m_faceId; g_preview.prefs[2] = prefs.m_hairStyleId;
             g_preview.prefs[3] = prefs.m_hairColorId; g_preview.prefs[4] = prefs.m_facialHairId;
             const auto found = g_state.find(character);
@@ -940,6 +978,7 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
             prefs.m_skinID = g_preview.prefs[0]; prefs.m_faceId = g_preview.prefs[1]; prefs.m_hairStyleId = g_preview.prefs[2];
             prefs.m_hairColorId = g_preview.prefs[3]; prefs.m_facialHairId = g_preview.prefs[4];
             g_state[character] = g_preview.state;
+            RetailRaceEyeLightning(character, g_preview.eyeLightning);
             if (Retail::LegacyAppearance::IsPackedRace(prefs.m_raceID)) EsteriaRetailFields(character, g_preview.fields);
             Refresh(character);
             lua_pushnumber(L, 1);
@@ -963,10 +1002,31 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
     if (!lua_isnumber(L, 2)) return -1;
     const double requested = lua_tonumber(L, 2);
     const bool isGet = !std::strcmp(command, "EA_GET");
-    const bool inRange = requested >= 1 && requested <= double(visibleOptions.size()) && requested == double(int(requested));
+    const bool inRange = requested >= 1 && requested <= double(visibleCount) && requested == std::floor(requested);
     if (!inRange) {
         if (isGet) { lua_pushnumber(L, 0); lua_pushnumber(L, 1); lua_pushstring(L, ""); return 3; }
         if (!std::strcmp(command, "EA_CHOICES") || !std::strcmp(command, "EA_CHOICE_NAME")) { lua_pushstring(L, ""); return 1; }
+        return 0;
+    }
+    if (eyeOption && requested == double(visibleCount)) {
+        const uint32_t value = RetailRaceEyeLightning(character) ? 1 : 0;
+        if (isGet) {
+            lua_pushnumber(L, value); lua_pushnumber(L, 2); lua_pushstring(L, "Eye Lightning"); return 3;
+        }
+        if (!std::strcmp(command, "EA_CHOICES")) { lua_pushstring(L, "0,1,"); return 1; }
+        if (!std::strcmp(command, "EA_CHOICE_NAME")) {
+            const double which = lua_isnumber(L, 3) ? lua_tonumber(L, 3) : -1;
+            lua_pushstring(L, which == 0 ? "Off" : which == 1 ? "On" : ""); return 1;
+        }
+        if (!std::strcmp(command, "EA_SET") || !std::strcmp(command, "EA_CYCLE")) {
+            if (!lua_isnumber(L, 3)) return 0;
+            const double argument = lua_tonumber(L, 3);
+            if (!std::isfinite(argument)) return 0;
+            const bool direct = !std::strcmp(command, "EA_SET");
+            if (direct && argument != 0 && argument != 1) return 0;
+            RetailRaceEyeLightning(character, direct ? argument == 1 : !value);
+            Refresh(character);
+        }
         return 0;
     }
     const size_t index = visibleOptions[size_t(requested) - 1];
@@ -1019,6 +1079,17 @@ void RetailRaceTick() {
     const bool inWorld = InWorld();
     for (CCharacterComponent* character : std::set<CCharacterComponent*>(g_active)) {
         Retail::SourceScope sourceScope(RaceSource(character->m_data.m_preferences.m_raceID));
+        // The extension high word is public unit state. Poll after normal object updates;
+        // do not register a padding-field observer in the stock object callback tables.
+        const auto owner = g_owners.find(character);
+        if (owner != g_owners.end() && owner->second && owner->second->m_obj) {
+            const bool enabled = RetailRaceEyeLightning(character);
+            auto previous = g_eyeLightning.find(character);
+            if (previous == g_eyeLightning.end() || previous->second != enabled) {
+                g_eyeLightning[character] = enabled;
+                character->m_flags |= 0x4;
+            }
+        }
         if (SyncBodyModel(character)) Refresh(character);
         FitLegacyHelmet(character);
         FinishCollections(character);
@@ -1064,6 +1135,9 @@ void RetailRaceEquipment(CCharacterComponent*) {}
 int RetailRaceCycleCommand(lua_State*, CCharacterComponent*, const char*) { return -1; }
 void RetailRaceForget(CCharacterComponent*) {}
 void RetailRaceBindOwner(CCharacterComponent*, CGUnit_C*) {}
+bool RetailRaceEyeLightning(CCharacterComponent*) { return false; }
+void RetailRaceEyeLightning(CCharacterComponent*, bool) {}
+void RetailRaceCreateEyeEffects(CDataStore*) {}
 int32_t RetailRaceSectionCount(int32_t, int32_t, int32_t, bool) { return -1; }
 void RetailRaceSectionArguments(int32_t, int32_t, int32_t*, int32_t*) {}
 

@@ -630,6 +630,9 @@ void CCharacterCreation::Dress() {
 // VERIFY: 6d456576 auto
 // OFFSET: 0x004E13A0
 void CCharacterCreation::InitCharacterComponents(ComponentData* data, bool randomize) {
+    const bool eyeLightning = m_character
+        && m_character->m_data.m_preferences.m_raceID == data->m_preferences.m_raceID
+        && RetailRaceEyeLightning(m_character);
     CreatureModelDataRec* modelRec = GetModelDataRec(data->m_preferences.m_raceID, data->m_preferences.m_sexID);
 
     if (!modelRec || !*modelRec->m_modelName) {
@@ -660,6 +663,7 @@ void CCharacterCreation::InitCharacterComponents(ComponentData* data, bool rando
     data->m_flags |= 0x2;
 
     CCharacterCreation::m_character->Init(data, nullptr);
+    RetailRaceEyeLightning(m_character, eyeLightning);
 
     if (randomize) {
         CCharacterCreation::m_character->SetRandomSkin(COMPONENT_CONTEXT_0);
@@ -832,6 +836,7 @@ void CCharacterCreation::ResetCharCustomizeInfo() {
     }
 
     CCharacterCreation::m_existingCharacterIndex = -1;
+    RetailRaceEyeLightning(m_character, false);
 
     if (CCharacterCreation::m_charCustomizeFrame->m_model) {
         CCharacterCreation::m_charCustomizeFrame->m_model->DetachAllChildrenById(0);
@@ -965,6 +970,7 @@ void CCharacterCreation::SetToExistingCharacter(uint32_t index) {
     data.m_preferences.m_facialHairId = display->m_characterInfo.m_facialHairStyleID;
     data.m_preferences.m_faceId = display->m_characterInfo.m_faceID;
     CCharacterCreation::InitCharacterComponents(&data, false);
+    RetailRaceEyeLightning(m_character, EsteriaEyeLightning(display->m_characterInfo.m_guid.m_guid));
     CCharacterCreation::CalcClasses(data.m_preferences.m_raceID);
     CCharacterCreation::InitCharacterComponents(&data, false);
 

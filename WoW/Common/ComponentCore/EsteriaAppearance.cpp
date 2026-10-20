@@ -1,4 +1,5 @@
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
+#include "Engine/Source/Retail/EyeEffects.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Common/ComponentCore/CreatureAppearance.h"
 #include "WoW/Common/ComponentCore/EarthenAppearance.h"
@@ -1994,7 +1995,13 @@ void EsteriaEnumExtra(CDataStore* packet) {
     }
 }
 
+bool EsteriaEyeLightning(uint64_t guid) {
+    const auto found = g_roster.find(guid);
+    return found != g_roster.end() && CharacterEyeEffects::Lightning(found->second);
+}
+
 void EsteriaSelectCharacter(CCharacterComponent* character, uint64_t guid, uint32_t skin, uint32_t face, uint32_t hairStyle, uint32_t hairColor, uint32_t facialHair) {
+    RetailRaceEyeLightning(character, EsteriaEyeLightning(guid));
     if (Disabled() || !character || !ExtendedRace(character->m_data.m_preferences.m_raceID)) {
         return;
     }
@@ -2007,7 +2014,7 @@ void EsteriaSelectCharacter(CCharacterComponent* character, uint64_t guid, uint3
     prefs.m_facialHairId = facialHair;
 
     auto found = g_roster.find(guid);
-    SetExtra(character, found == g_roster.end() ? 0 : found->second);
+    SetExtra(character, found == g_roster.end() ? 0 : CharacterEyeEffects::Appearance(found->second));
 
     Fields13 fields = FieldsOf(character);
     if (!ValidFields(prefs.m_raceID, prefs.m_sexID, fields)) {
@@ -2024,7 +2031,7 @@ void EsteriaCaptureUnit(CCharacterComponent* character, uint32_t unitPadding, ui
     }
 
     uint32_t race = character->m_data.m_preferences.m_raceID;
-    uint64_t extra = race == 50 || race == 51 ? (unitPadding | (isPlayer ? uint64_t{objectPadding} << 32 : 0)) : (unitPadding & 255);
+    uint64_t extra = race == 50 || race == 51 ? CharacterEyeEffects::Appearance(unitPadding | (isPlayer ? uint64_t{objectPadding} << 32 : 0)) : (unitPadding & 255);
     SetExtra(character, extra);
 }
 
