@@ -173,6 +173,14 @@ class M2Event {
     /* 000A */ uint16_t unused_000A;
     /* 000C */ C3Vector m_position;
     /* 0018 */ M2TrackBase m_enabled;
+
+    M2Array<uint32_t>* TimesForSequence(uint32_t index)
+    {
+        if (m_enabled.m_loopIndex != 0xFFFF)
+            index = 0;
+
+        return index < m_enabled.m_sequenceTimes.m_count ? &m_enabled.m_sequenceTimes[index] : nullptr;
+    }
 };
 
 class M2Light {

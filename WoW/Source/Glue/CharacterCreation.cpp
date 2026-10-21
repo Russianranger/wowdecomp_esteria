@@ -1,3 +1,4 @@
+#include "Engine/Source/Retail/BodyShape.h"
 #include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Common/ClassMask.h"
 #include "CharacterCreation.h"
@@ -206,6 +207,14 @@ void CCharacterCreation::Shutdown() {
 // OFFSET: 0x004DFA50
 int32_t CCharacterCreation::Idle(const void* data, void* param) {
     CGlueLoading::Idle(CCharacterCreation::m_character);
+
+    // Body sliders from the creator's Body page, shown on the preview model.
+    if (CCharacterCreation::m_character && CCharacterCreation::m_character->m_data.m_model) {
+        static const bool noTwist[2] = { false, false };
+        static const C44Matrix noBase[2];
+        BodyShape::ApplyEdited(CCharacterCreation::m_character->m_data.m_model, noTwist, noBase);
+    }
+
     return 1;
 }
 
@@ -284,7 +293,8 @@ void CCharacterCreation::SetCharacterFacing(float facing) {
 
     if (CCharacterCreation::m_character->m_data.m_model) {
         C3Vector position(0.0f, 0.0f, 0.0f);
-        CCharacterCreation::m_character->m_data.m_model->SetWorldTransform(position, facing, 1.0f);
+        CCharacterCreation::m_character->m_data.m_model->SetWorldTransform(position, facing,
+            RetailRacePreviewScale(CCharacterCreation::m_character->m_data.m_preferences.m_raceID));
     }
 }
 

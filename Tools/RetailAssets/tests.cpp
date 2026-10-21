@@ -11,6 +11,10 @@
 #include "Engine/Source/Retail/Db2.h"
 #include "Engine/Source/Retail/CreationPolicy.h"
 #include "Engine/Source/Retail/EyeEffects.h"
+#include "Engine/Source/Retail/SlimeGiant.h"
+#include "Engine/Source/Retail/Centaur.h"
+#include "Engine/Source/Retail/CentaurAppearance.h"
+#include "Engine/Source/Model2/M2Data.h"
 #include <chrono>
 #include <set>
 #include <algorithm>
@@ -84,6 +88,325 @@ std::vector<uint8_t> Skin() {
 }
 
 int main(int argc, char** argv) {
+    if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--centaur-source") {
+        Retail::CascSource source;
+        std::string error;
+        const auto require = [&](bool ok) { Check(ok, error.c_str()); };
+        require(source.Configure(argv[2], error));
+        for (const uint32_t id : Retail::Centaur::Bodies) {
+            std::vector<uint8_t> original, player;
+            const auto ordinary = "retail/" + std::to_string(id) + ".m2";
+            std::printf("Checking original %s\n", ordinary.c_str()); std::fflush(stdout);
+            source.RegisterCharacterModel(id);
+            require(source.Read(ordinary.c_str(), original, error));
+            const auto adapted = Retail::Centaur::Path(id);
+            std::printf("Checking player %s\n", adapted.c_str()); std::fflush(stdout);
+            require(source.Read(adapted.c_str(), player, error));
+            Check(Retail::SlimeGiant::Word(player, 0x50) == 7
+                && Retail::SlimeGiant::Half(player, Retail::SlimeGiant::Word(player, 0x6c) + 15 * 2) == 6,
+                "playable Centaur reserves an independent belt texture without replacing body/cloak textures");
+            for (uint32_t i = 0; i < Retail::SlimeGiant::Word(player, 0x100); ++i) {
+                const size_t at = Retail::SlimeGiant::Word(player, 0x104) + size_t(i) * sizeof(M2Event);
+                auto& event = *reinterpret_cast<M2Event*>(player.data() + at);
+                event.m_enabled.m_sequenceTimes.Relocate(player.data());
+                for (uint32_t sequence = 0; sequence < Retail::SlimeGiant::Word(player, 0x1c); ++sequence) {
+                    auto* times = event.TimesForSequence(sequence);
+                    const uint32_t index = event.m_enabled.m_loopIndex == 0xffff ? sequence : 0;
+                    Check((times != nullptr) == (index < event.m_enabled.m_sequenceTimes.m_count),
+                        "all inherited Centaur sequences safely handle absent model event tracks");
+                }
+            }
+            for (const auto array : {std::pair<size_t, size_t>{0x1c, 64}, {0x2c, 88}, {0x3c, 48}}) {
+                const uint32_t count = Retail::SlimeGiant::Word(original, array.first);
+                const uint32_t offset = Retail::SlimeGiant::Word(original, array.first + 4);
+                const uint32_t playerOffset = Retail::SlimeGiant::Word(player, array.first + 4);
+                Check(count == Retail::SlimeGiant::Word(player, array.first), "Centaur source array counts are preserved");
+                for (uint32_t i = 0; i < count; ++i)
+                    Check(!std::memcmp(original.data() + offset + i * array.second,
+                        player.data() + playerOffset + i * array.second, array.first == 0x1c ? 62 : array.second),
+                        "Centaur preserves motion metadata, bones and vertices; only alias-ring links change");
+            }
+            for (const auto ids : {std::pair<uint16_t, uint16_t>{50, 128}, {188, 123}, {189, 129}}) {
+                Check(Retail::Centaur::PickupSequence(adapted.c_str(), ids.first) == ids.second,
+                    "playable Centaur pickup uses existing motion without adding sequence aliases");
+                const auto index = Retail::SlimeGiant::Half(player,
+                    Retail::SlimeGiant::Word(player, 0x28) + ids.second * 2);
+                Check(index < Retail::SlimeGiant::Word(player, 0x1c), "pickup source exists in the original rig");
+                uint32_t next = index;
+                const auto count = Retail::SlimeGiant::Word(player, 0x1c);
+                for (uint32_t step = 0; step <= count; ++step) {
+                    Check(next < count && step < count, "pickup external-animation alias ring terminates");
+                    next = Retail::SlimeGiant::Half(player, Retail::SlimeGiant::Word(player, 0x20) + next * 64 + 62);
+                    if (next == index) break;
+                }
+            }
+            for (const uint32_t socket : {1u, 2u, 5u, 6u, 11u, 12u}) {
+                const uint32_t count = Retail::SlimeGiant::Word(player, 0xf8);
+                const uint32_t offset = Retail::SlimeGiant::Word(player, 0xfc);
+                Check(socket < count && Retail::SlimeGiant::Half(player, offset + socket * 2)
+                    < Retail::SlimeGiant::Word(player, 0xf0), "all required Centaur equipment sockets resolve");
+            }
+            for (uint32_t lod = 0; lod < Retail::SlimeGiant::Word(player, 0x44); ++lod) {
+                char suffix[16]; std::snprintf(suffix, sizeof(suffix), "%02u.skin", lod);
+                const auto name = adapted.substr(0, adapted.size() - 3) + suffix;
+                std::printf("Checking skin %s\n", name.c_str()); std::fflush(stdout);
+                std::vector<uint8_t> skin;
+                require(source.Read(name.c_str(), skin, error));
+                const auto ordinarySkinName = ordinary.substr(0, ordinary.size() - 3) + suffix;
+                std::vector<uint8_t> ordinarySkin, expectedBatches;
+                require(source.Read(ordinarySkinName.c_str(), ordinarySkin, error));
+                for (uint32_t i = 0; i < Retail::SlimeGiant::Word(ordinarySkin, 0x24); ++i) {
+                    const size_t at = Retail::SlimeGiant::Word(ordinarySkin, 0x28) + size_t(i) * 24;
+                    const uint16_t section = Retail::SlimeGiant::Half(ordinarySkin, at + 4);
+                    const uint16_t geoset = Retail::SlimeGiant::Half(ordinarySkin,
+                        Retail::SlimeGiant::Word(ordinarySkin, 0x20) + size_t(section) * 48);
+                    if (id == Retail::Centaur::Bodies[1] && (geoset == 601 || geoset == 602 || geoset == 902))
+                        continue;
+                    expectedBatches.insert(expectedBatches.end(), ordinarySkin.begin() + at, ordinarySkin.begin() + at + 24);
+                }
+                Check(Retail::SlimeGiant::Word(skin, 0x24) * 24 == expectedBatches.size()
+                    && !std::memcmp(skin.data() + Retail::SlimeGiant::Word(skin, 0x28),
+                        expectedBatches.data(), expectedBatches.size()),
+                    "every unrelated source render batch is byte-identical and in its original order");
+                bool body = false, arms = false, chest = false, tail = false;
+                uint32_t wrapSections = 0;
+                for (uint32_t i = 0; i < Retail::SlimeGiant::Word(skin, 0x1c); ++i) {
+                    const uint32_t geoset = Retail::SlimeGiant::Half(skin,
+                        Retail::SlimeGiant::Word(skin, 0x20) + i * 48);
+                    body = body || geoset == 0; arms = arms || geoset == 6101;
+                    chest = chest || geoset == 6201; tail = tail || geoset == 6701;
+                    wrapSections += geoset == Retail::Centaur::FemaleChestWrap;
+                    Check(!geoset || geoset >= 6000, "Centaur cosmetics cannot overlap player item selectors");
+                }
+                Check(body && tail && (id != Retail::Centaur::Bodies[1] || (arms && chest)),
+                    "all Centaur LODs retain complete sex-specific anatomy");
+                Check(wrapSections == (id == Retail::Centaur::Bodies[1] ? 1u : 0u),
+                    "female chest wrap has one dedicated section, separate from source outfit 202");
+                if (id == Retail::Centaur::Bodies[1])
+                    for (uint32_t i = 0; i < Retail::SlimeGiant::Word(skin, 0x24); ++i) {
+                        const size_t at = Retail::SlimeGiant::Word(skin, 0x28) + size_t(i) * 24;
+                        const uint16_t section = Retail::SlimeGiant::Half(skin, at + 4);
+                        const uint16_t geoset = Retail::SlimeGiant::Half(skin,
+                            Retail::SlimeGiant::Word(skin, 0x20) + size_t(section) * 48);
+                        Check(geoset != 6601 && geoset != 6602 && geoset != 6902,
+                            "female built-in belts/quiver have no render batches in any LOD");
+                    }
+            }
+            if (argc == 4) {
+                const auto read = [&](const std::filesystem::path& path) {
+                    std::ifstream input(path, std::ios::binary);
+                    Check(input.good(), "open staged Centaur clothing fixture");
+                    return std::vector<uint8_t>(std::istreambuf_iterator<char>(input), {});
+                };
+                const auto root = std::filesystem::path(argv[3]) / "stage/assets/custom/centaur";
+                const auto clothing = read(root / (std::to_string(id) + "-clothing.m2"));
+                const auto skin = read(root / (std::to_string(id) + "-clothing00.skin"));
+                require(Retail::ValidateSkin(skin, clothing, error));
+                Check(Retail::SlimeGiant::Word(clothing, 0x2c) == Retail::SlimeGiant::Word(player, 0x2c),
+                    "Centaur clothing and native parent have equal bone counts");
+                for (uint32_t i = 0; i < Retail::SlimeGiant::Word(player, 0x2c); ++i) {
+                    const size_t a = Retail::SlimeGiant::Word(clothing, 0x30) + size_t(i) * 88;
+                    const size_t b = Retail::SlimeGiant::Word(player, 0x30) + size_t(i) * 88;
+                    Check(!std::memcmp(clothing.data() + a, player.data() + b, 16)
+                        && !std::memcmp(clothing.data() + a + 76, player.data() + b + 76, 12),
+                        "Centaur clothing can share the exact original animated parent rig");
+                }
+            }
+        }
+        std::puts("Both original Centaur bodies, inherited skeletons, advertised render profiles and player adapters passed.");
+        return 0;
+    }
+    {
+        struct {
+            M2Event event{};
+            M2Array<uint32_t> times[5]{};
+            uint32_t timestamp = 100;
+        } fixture;
+        fixture.event.m_enabled.m_loopIndex = 0xffff;
+        fixture.event.m_enabled.m_sequenceTimes.m_count = 5;
+        fixture.event.m_enabled.m_sequenceTimes.Set(fixture.times);
+        fixture.times[1].m_count = 1;
+        fixture.times[1].Set(&fixture.timestamp);
+        Check(fixture.event.TimesForSequence(1)->Data()[0] == 100,
+            "authored event timestamps remain readable");
+        Check(fixture.event.TimesForSequence(4) == &fixture.times[4]
+            && !fixture.event.TimesForSequence(5) && !fixture.event.TimesForSequence(71)
+            && !fixture.event.TimesForSequence(UINT32_MAX),
+            "five-entry female event table rejects the captured sequence 71 and other missing tracks");
+        fixture.event.m_enabled.m_loopIndex = 0;
+        Check(fixture.event.TimesForSequence(71) == &fixture.times[0],
+            "global event tracks retain sequence-zero lookup for inherited animations");
+        fixture.event.m_enabled.m_sequenceTimes.m_count = 0;
+        Check(!fixture.event.TimesForSequence(71), "empty global event tracks are skipped");
+    }
+    {
+        namespace centaur = Retail::Centaur;
+        Retail::Db2::appearance::Recipe recipe;
+        Check(centaur::Race(73) && centaur::Race(74) && !centaur::Race(72), "Centaur faction boundaries");
+        Check(centaur::BeltLayer(55, 55) && !centaur::BeltLayer(0, 0) && !centaur::BeltLayer(33, 55),
+            "belt composition excludes pants and anonymous tabard layers");
+        Retail::Image belt{2, 4, std::vector<uint8_t>(32, 0)};
+        belt.rgba[11] = 255; belt.rgba[23] = 128;
+        const auto beltRows = std::vector<uint8_t>(belt.rgba.begin() + 8, belt.rgba.begin() + 24);
+        Check(centaur::CropBeltRows(belt) && belt.width == 2 && belt.height == 2 && belt.rgba == beltRows,
+            "belt strip crops only transparent rows and preserves the complete horizontal buckle design");
+        Retail::Image blankBelt{2, 4, std::vector<uint8_t>(32, 0)}, malformedBelt{2, 4, {0}};
+        Check(centaur::CropBeltRows(blankBelt) && blankBelt.height == 4 && !centaur::CropBeltRows(malformedBelt),
+            "transparent belts remain transparent and malformed image bounds are rejected");
+        Check(centaur::EquipmentSection(6, 55, 55, false) == 7
+            && centaur::EquipmentSection(6, 55, 55, true) == -1
+            && centaur::EquipmentSection(5, 55, 55, false) == -1
+            && centaur::EquipmentSection(6, 33, 55, false) == 6,
+            "Centaur boots paint only hooves while trouser textures retain their leg regions");
+        for (uint32_t sex = 0; sex < 2; ++sex) for (uint32_t skin = 0; skin < 16; ++skin) {
+            const uint32_t choice = centaur::FirstSkin + skin;
+            Check(centaur::Build(sex, &choice, 1, recipe), "both Centaur bodies expose all sixteen skins");
+            Check(recipe.modelFileDataId == centaur::Bodies[sex] && recipe.textureLayoutId == 141,
+                "Centaur model IDs and clothing layout match the requested source");
+            Check(recipe.layers[0].fileDataId == centaur::Skins[sex][skin], "Centaur sex-specific skin mapping");
+            Check((std::find(recipe.geosets.begin(), recipe.geosets.end(), 6101) != recipe.geosets.end()) == (sex == 1),
+                "female arms remain visible independently of equipment");
+            Check((std::find(recipe.geosets.begin(), recipe.geosets.end(), centaur::FemaleChestWrap)
+                != recipe.geosets.end()) == (sex == 1)
+                && std::find(recipe.geosets.begin(), recipe.geosets.end(), 6202) == recipe.geosets.end(),
+                "female chest wrap never selects the armored chest and waist outfit");
+        }
+        const uint32_t invalid = centaur::FirstSkin + 16;
+        Check(!centaur::Build(2, nullptr, 0, recipe) && !centaur::Build(0, nullptr, 1, recipe)
+            && !centaur::Build(0, &invalid, 1, recipe), "Centaur rejects malformed sex and skin selections");
+        for (uint32_t sex = 0; sex < 2; ++sex)
+        for (uint32_t head = 0; head < (sex ? 14u : 9u); ++head)
+        for (uint32_t beard = 0; beard < (sex ? 1u : 8u); ++beard) {
+            const uint32_t choices[] = {centaur::FirstSkin + 15,
+                (sex ? centaur::FemaleHead : centaur::MaleHead) + head, centaur::Beard + beard};
+            Check(centaur::Build(sex, choices, sex ? 2 : 3, recipe), "every authored Centaur head/beard combination resolves");
+            const bool helmet = head >= centaur::VisibleHeads(sex);
+            Check(centaur::CreationAllowed(centaur::Profile + sex, choices[1]) == !helmet,
+                "helmet head options are unavailable without reordering the retained source IDs");
+            if (head) Check((std::find(recipe.geosets.begin(), recipe.geosets.end(), 7000 + head)
+                != recipe.geosets.end()) == !helmet, "saved removed helmets render as None");
+            if (beard) Check(std::find(recipe.geosets.begin(), recipe.geosets.end(), 6100 + beard)
+                != recipe.geosets.end(), "selected Centaur facial hair geometry is retained");
+        }
+        const uint32_t wrongSex = centaur::MaleHead + 1;
+        Check(!centaur::Build(1, &wrongSex, 1, recipe), "female cannot select male-only head choices");
+        Check(centaur::PathModel(centaur::Path(centaur::Bodies[0])) == centaur::Bodies[0]
+            && !centaur::PathModel("retail/4036647.m2"), "Centaur adapter cannot change ordinary NPC consumers");
+        std::vector<uint8_t> skin(48 + 2 * 48);
+        std::memcpy(skin.data(), "SKIN", 4); Put(skin, 0x1c, 2); Put(skin, 0x20, 48);
+        skin[96] = 101;
+        std::string error;
+        Check(centaur::PrepareSkin(skin, error) && Retail::SlimeGiant::Half(skin, 48) == 0
+            && Retail::SlimeGiant::Half(skin, 96) == 6101, "Centaur anatomy and item selector namespaces stay separate");
+        Check(!centaur::PrepareSkin(skin, error), "Centaur skin adaptation rejects accidental double processing");
+        std::vector<uint8_t> chestSkin(48 + 4 * 48 + 4 * 24);
+        std::memcpy(chestSkin.data(), "SKIN", 4);
+        Put(chestSkin, 0x1c, 4); Put(chestSkin, 0x20, 48);
+        Put(chestSkin, 0x24, 4); Put(chestSkin, 0x28, 48 + 4 * 48);
+        for (uint16_t i = 0; i < 4; ++i) {
+            const uint16_t source = i < 2 ? 201 : 202;
+            const uint16_t material = i % 2 ? 0 : 3;
+            std::memcpy(chestSkin.data() + 48 + size_t(i) * 48, &source, 2);
+            const size_t at = 48 + 4 * 48 + size_t(i) * 24;
+            std::memcpy(chestSkin.data() + at + 4, &i, 2);
+            std::memcpy(chestSkin.data() + at + 10, &material, 2);
+        }
+        Check(centaur::PrepareSkin(chestSkin, error, true), "female chest selector fixture adapts");
+        const uint16_t chestIds[] = {6201, centaur::FemaleChestWrap, 6202, 6202};
+        for (uint32_t i = 0; i < 4; ++i)
+            Check(Retail::SlimeGiant::Half(chestSkin, 48 + i * 48) == chestIds[i],
+                "native chest wrap cannot collide with either section of source chest outfit 202");
+        const auto accessorySkin = [] {
+            std::vector<uint8_t> bytes(48 + 7 * 48 + 7 * 24);
+            std::memcpy(bytes.data(), "SKIN", 4);
+            Put(bytes, 0x1c, 7); Put(bytes, 0x20, 48);
+            Put(bytes, 0x24, 7); Put(bytes, 0x28, 48 + 7 * 48);
+            const uint16_t geosets[] = {0, 101, 201, 601, 602, 701, 902};
+            for (uint16_t i = 0; i < 7; ++i) {
+                std::memcpy(bytes.data() + 48 + size_t(i) * 48, &geosets[i], 2);
+                std::memcpy(bytes.data() + 48 + 7 * 48 + size_t(i) * 24 + 4, &i, 2);
+            }
+            return bytes;
+        };
+        auto femaleSkin = accessorySkin();
+        const auto originalFemale = femaleSkin;
+        Check(centaur::PrepareSkin(femaleSkin, error, true), "female accessory filtering succeeds");
+        Check(Retail::SlimeGiant::Word(femaleSkin, 0x24) == 4,
+            "all female source belt and quiver batches are removed");
+        const uint16_t retained[] = {0, 1, 2, 5};
+        for (uint32_t i = 0; i < 4; ++i)
+            Check(!std::memcmp(femaleSkin.data() + Retail::SlimeGiant::Word(femaleSkin, 0x28) + i * 24,
+                originalFemale.data() + 48 + 7 * 48 + size_t(retained[i]) * 24, 24),
+                "body, arms, chest and tail batches retain their original bytes and indices");
+        auto maleSkin = accessorySkin();
+        Check(centaur::PrepareSkin(maleSkin, error) && Retail::SlimeGiant::Word(maleSkin, 0x24) == 7,
+            "female accessory policy cannot remove male source geometry");
+        auto badSkin = accessorySkin();
+        badSkin[48 + 7 * 48 + 4] = 7;
+        const auto originalBad = badSkin;
+        Check(!centaur::PrepareSkin(badSkin, error, true) && badSkin == originalBad,
+            "invalid accessory batch indices fail before mutating the source");
+    }
+    {
+        namespace sg = Retail::SlimeGiant;
+        Retail::Db2::appearance::Recipe recipe;
+        Check(sg::Count(sg::ColorOption) == 35 && sg::Count(sg::DripOption) == 2,
+            "thirty new colors retain the original five and independent drip control");
+        for (uint32_t index = 0; index < sg::Colors; ++index)
+        for (uint32_t drip : {sg::Off, sg::On}) {
+            const uint32_t color = sg::ColorId(index);
+            const uint32_t choices[] = {color, drip};
+            Check(sg::Build(0, choices, 2, recipe), "all seventy Slime Giant appearances resolve");
+            Check(recipe.modelFileDataId == sg::Body && recipe.textureLayoutId == 141,
+                "all palettes retain the correct body and Kul Tiran armor layout");
+            const uint32_t texture = index < sg::OriginalColors ? 3491663 + index * 2
+                : sg::LocalTexture + (index - sg::OriginalColors) * 2;
+            Check(recipe.layers.size() == 2 && recipe.layers[0].fileDataId == texture
+                && recipe.layers[1].fileDataId == texture + 1, "each skin resolves its matching slime pair");
+            Check(sg::TexturePath(texture).empty() == (index < sg::OriginalColors),
+                "original CASC textures and new local textures have separate namespaces");
+            Retail::Db2::appearance::ChrChoice choice{};
+            Check(sg::Choice(sg::ColorOption, index, choice) && choice.id == color
+                && !sg::ChoiceName(color).empty(), "saved color index maps to its named stable choice");
+            Check(recipe.geosets.empty() == (drip == sg::Off), "drip is independent of color");
+        }
+        Check(sg::ColorId(0) == sg::Green && sg::ColorId(4) == sg::Gold, "existing saved skins keep their IDs");
+        uint32_t ignored = 0;
+        Check(!sg::ColorIndex(sg::Off, ignored) && !sg::ColorIndex(sg::On, ignored)
+            && !sg::ColorIndex(sg::ExtraColor + sg::ExtraColors, ignored), "color IDs cannot overlap drip or overflow");
+        Check(sg::TexturePath(sg::LocalTexture - 1).empty()
+            && sg::TexturePath(sg::LocalTexture + sg::ExtraColors * 2).empty(), "local texture range is bounded");
+        Check(!sg::Build(1, nullptr, 0, recipe), "reject unprovided Slime Giant female body");
+        const uint32_t duplicate[] = {sg::Green, sg::Amber};
+        Check(!sg::Build(0, duplicate, 2, recipe), "reject contradictory colors");
+        Check(!sg::Build(0, nullptr, 1, recipe), "reject missing choice payload");
+        Check(sg::PathModel(sg::Path(sg::Body)) == sg::Body && !sg::PathModel("retail/3490792.m2"),
+            "player adaptation cannot affect the ordinary creature path");
+        std::vector<uint8_t> skin(48 + 4 * 48);
+        std::memcpy(skin.data(), "SKIN", 4); Put(skin, 0x1c, 4); Put(skin, 0x20, 48);
+        const auto original = skin;
+        std::string error;
+        Check(sg::PrepareSkin(skin, error), "prepare isolated player mesh selector");
+        Check(sg::Half(skin, 48 + 3 * 48) == sg::DripGeoset, "viewer section three gets its own selector");
+        skin[48 + 3 * 48] = skin[48 + 3 * 48 + 1] = 0;
+        Check(skin == original, "all other original skin bytes are preserved");
+        skin.resize(47);
+        const auto truncated = skin;
+        Check(!sg::PrepareSkin(skin, error) && skin == truncated, "reject truncated skin without mutation");
+        std::vector<uint8_t> model(0x130 + 208 * 88 + 3 * 16);
+        Put(model, 0x2c, 208); Put(model, 0x30, 0x130);
+        Put(model, 0x50, 3); Put(model, 0x54, 0x130 + 208 * 88);
+        Put(model, 0x130 + 208 * 88, 11); Put(model, 0x130 + 208 * 88 + 32, 12);
+        const auto source = model;
+        Check(sg::PrepareModel(model, sg::Body, error), "prepare independent armor and cloak slots");
+        Check(sg::Word(model, 0x50) == 5 && sg::Word(model, 0xf0) == sg::Word(source, 0xf0),
+            "append only material slots; retain original equipment sockets");
+        Check(std::equal(source.begin() + 0x130, source.begin() + 0x130 + 208 * 88, model.begin() + 0x130),
+            "player preparation preserves every authored bone and track");
+        model = source; Put(model, 0x2c, 207);
+        const auto changedRig = model;
+        Check(!sg::PrepareModel(model, sg::Body, error) && model == changedRig, "changed source rig fails before mutation");
+    }
     {
         using Retail::AllowCreationChoice;
         using Retail::SourceKind;
@@ -747,7 +1070,71 @@ int main(int argc, char** argv) {
     // Remove only the individual files created here; no recursive cleanup of computed paths.
     for (const char* file : {"aliases.csv", "listfile.csv", "equipment.csv", "RetailCasc.ini", "bad.ini", "offline.ini", "42.bin"}) std::filesystem::remove(temp / file);
     std::filesystem::remove(temp);
-    if (argc == 3 && std::string(argv[1]) == "--shader-bls") {
+    if (argc == 3 && std::string(argv[1]) == "--slime-source") {
+        const std::filesystem::path root(argv[2]);
+        const auto read = [](const std::filesystem::path& path) {
+            std::ifstream stream(path, std::ios::binary);
+            Check(stream.good(), "open SlimeSkeleton source fixture");
+            return std::vector<uint8_t>((std::istreambuf_iterator<char>(stream)), {});
+        };
+        const auto original = read(root / "correct-source/3490792.m2");
+        Retail::ModelFiles graph;
+        std::vector<uint8_t> before, player;
+        Check(Retail::PrepareModel(original, before, graph, error), error.c_str());
+        player = before;
+        Check(Retail::SlimeGiant::PrepareModel(player, Retail::SlimeGiant::Body, error), error.c_str());
+        for (const size_t field : {size_t(0x1c), size_t(0x2c), size_t(0x34), size_t(0x3c), size_t(0xf0), size_t(0xf8)})
+            Check(Get(before, field) == Get(player, field) && Get(before, field + 4) == Get(player, field + 4),
+                "retain original animations, bones, vertices and sockets");
+        Check(std::equal(before.begin() + 0x130, before.end(), player.begin() + 0x130),
+            "retain all original source payload bytes");
+        for (size_t i = 0; i < std::min<size_t>(graph.skins.size(), Get(player, 0x44)); ++i) {
+            const uint32_t skinId = graph.skins[i];
+            auto skin = read(root / "correct-source" / (std::to_string(skinId) + ".skin"));
+            Check(Retail::SlimeGiant::PrepareSkin(skin, error), error.c_str());
+            Check(Retail::PrepareSkin(skin, player, error, true), error.c_str());
+        }
+        const auto clothing = read(root / "stage/assets/custom/slimegiant/3490792-clothing.m2");
+        auto skin = read(root / "stage/assets/custom/slimegiant/3490792-clothing00.skin");
+        Check(Retail::PrepareSkin(skin, clothing, error), error.c_str());
+        Check(Get(clothing, 0x2c) == Get(player, 0x2c), "collection uses the full source rig");
+        for (uint32_t i = 0; i < Get(clothing, 0x2c); ++i) {
+            const size_t a = Get(clothing, 0x30) + size_t(i) * 88, b = Get(player, 0x30) + size_t(i) * 88;
+            Check(!std::memcmp(clothing.data() + a, player.data() + b, 16) &&
+                !std::memcmp(clothing.data() + a + 76, player.data() + b + 76, 12),
+                "collection bind identity permits native parent-pose skinning");
+        }
+        const auto fetch = [](uint32_t id, std::vector<uint8_t>& bytes, void* context) {
+            const auto& fixture = *static_cast<const std::filesystem::path*>(context);
+            const auto local = Retail::SlimeGiant::TexturePath(id);
+            const auto path = local.empty() ? fixture / "correct-source" / (std::to_string(id) + ".blp")
+                : fixture / "color-expansion-30/assets" / local;
+            std::ifstream input(path, std::ios::binary);
+            if (!input.good()) return false;
+            bytes.assign(std::istreambuf_iterator<char>(input), {});
+            return true;
+        };
+        for (uint32_t color = 0; color < Retail::SlimeGiant::Colors; ++color)
+        for (uint32_t drip : {Retail::SlimeGiant::Off, Retail::SlimeGiant::On}) {
+            const uint32_t choices[] = {Retail::SlimeGiant::ColorId(color), drip};
+            Retail::Db2::appearance::Recipe recipe;
+            Check(Retail::SlimeGiant::Build(0, choices, 2, recipe), "build fixture appearance");
+            std::vector<Retail::ComposedTexture> textures;
+            auto context = root;
+            Check(Retail::ComposeTextures(recipe, fetch, &context, textures, error), error.c_str());
+            Check(textures.size() == 2, "both skin and animated slime compose");
+            for (size_t part = 0; part < textures.size(); ++part) {
+                std::vector<uint8_t> bytes;
+                Retail::Image expected;
+                Check(fetch(recipe.layers[part].fileDataId, bytes, &context)
+                    && Retail::DecodeBlp(bytes, expected, error), "decode original palette dimensions");
+                Check(textures[part].image.width == expected.width && textures[part].image.height == expected.height,
+                    "all seventy appearances retain each source texture's native dimensions");
+            }
+        }
+        std::puts("All 35 Slime Giant colors and both drip states composed from their real texture pairs.");
+        std::puts("SlimeSkeleton original payload, engine skin profiles and clothing rig validated.");
+    } else if (argc == 3 && std::string(argv[1]) == "--shader-bls") {
         std::ifstream input(argv[2], std::ios::binary);
         std::vector<uint8_t> bls((std::istreambuf_iterator<char>(input)), {});
         Check(bls.size() >= 12 && Get(bls, 0) == 0x47585348 && Get(bls, 8) == 16, "stock shader fixture header");

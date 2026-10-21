@@ -87,15 +87,16 @@ int ComposeCase(int argc, char** argv) {
         return 2;
     }
     _putenv_s(Retail::currentSource == Retail::SourceKind::Forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
-    const uint32_t race = uint32_t(std::atoi(argv[2])), sex = uint32_t(std::atoi(argv[3]));
+    const uint32_t race = uint32_t(std::strtoul(argv[2], nullptr, 10)), sex = uint32_t(std::atoi(argv[3]));
     std::vector<uint32_t> choices;
     // Arguments are choice IDs, or "optionId:index" to pick the index-th choice of an option (others default to 0).
     std::vector<std::pair<uint32_t, uint32_t>> picks;
     for (int i = 5; i < argc; ++i) {
         const std::string arg = argv[i];
         const size_t colon = arg.find(':');
-        if (colon != std::string::npos) picks.emplace_back(uint32_t(std::atoi(arg.c_str())), uint32_t(std::atoi(arg.c_str() + colon + 1)));
-        else choices.push_back(uint32_t(std::atoi(arg.c_str())));
+        if (colon != std::string::npos) picks.emplace_back(uint32_t(std::strtoul(arg.c_str(), nullptr, 10)),
+            uint32_t(std::strtoul(arg.c_str() + colon + 1, nullptr, 10)));
+        else choices.push_back(uint32_t(std::strtoul(arg.c_str(), nullptr, 10)));
     }
     if (choices.empty()) {
         const uint32_t model = app::ChrModelForRace(race, sex);

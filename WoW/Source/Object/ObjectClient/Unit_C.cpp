@@ -1,3 +1,4 @@
+#include "Engine/Source/Retail/BodyShape.h"
 #include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Unit_C.h"
@@ -1516,6 +1517,8 @@ void CGUnit_C::PreAnimate(CGWorldFrame* frame) {
     float absDelta = fabsf(delta);
     float turn = 0.0f;
     bool clearTwist = absDelta < 0.001f;
+    bool twistSet[2] = { false, false }; // spine, head: written below, stacked on by the body sliders
+    C44Matrix twistBase[2];
 
     if (!clearTwist) {
         if (1.5707964f < absDelta) {
@@ -1549,7 +1552,9 @@ void CGUnit_C::PreAnimate(CGWorldFrame* frame) {
                 this->m_worldModel->SetBoneFlags(4, 0x80, 0x80);
                 CM2Model* model = this->m_worldModel;
                 C3Vector axis(0.0f, 0.0f, 1.0f);
-                model->SetBoneProceduralTransform(4, C44Matrix::Rotation(angle, axis, true));
+                twistBase[0] = C44Matrix::Rotation(angle, axis, true);
+                twistSet[0] = true;
+                model->SetBoneProceduralTransform(4, twistBase[0]);
                 remaining = remaining - twist;
             }
 
@@ -1559,7 +1564,9 @@ void CGUnit_C::PreAnimate(CGWorldFrame* frame) {
                 this->m_worldModel->SetBoneFlags(6, 0x80, 0x80);
                 CM2Model* model = this->m_worldModel;
                 C3Vector axis(0.0f, 0.0f, 1.0f);
-                model->SetBoneProceduralTransform(6, C44Matrix::Rotation(angle, axis, true));
+                twistBase[1] = C44Matrix::Rotation(angle, axis, true);
+                twistSet[1] = true;
+                model->SetBoneProceduralTransform(6, twistBase[1]);
             }
         }
     }
@@ -1573,7 +1580,29 @@ void CGUnit_C::PreAnimate(CGWorldFrame* frame) {
         this->m_worldModel->SetBoneFlags(4, 0x80, 0x80);
         C3Vector axis(0.0f, 1.0f, 0.0f);
         CM2Model* model = this->m_worldModel;
-        model->SetBoneProceduralTransform(4, C44Matrix::Rotation(-this->GetPitch(), axis, true));
+        twistBase[0] = C44Matrix::Rotation(-this->GetPitch(), axis, true);
+        twistSet[0] = true;
+        model->SetBoneProceduralTransform(4, twistBase[0]);
+    }
+
+    if (this->m_worldModel) {
+        if (this->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
+            BodyShape::ApplyEdited(this->m_worldModel, twistSet, twistBase);
+        } else if (this->m_obj->m_type & TYPEMASK_PLAYER) {
+            // Other players: the sliders the server sent for them. Past MeshRange yards only the bone sliders apply.
+            const BodyShape::UnitShape* shape = BodyShape::UnitFor(this->m_obj->m_guid.m_guid);
+
+            if (shape || BodyShape::HasApplier(this->m_worldModel)) {
+                static const BodyShape::Values none;
+                constexpr float MeshRange = 40.0f;
+                CGObject_C* self = ClntObjMgrObjectPtr(ClntObjMgrGetActivePlayer(), TYPEMASK_PLAYER, __FILE__, __LINE__);
+                C3Vector mine = self ? self->GetPosition() : C3Vector(0.0f, 0.0f, 0.0f);
+                C3Vector there = this->GetPosition();
+                float dx = mine.x - there.x, dy = mine.y - there.y, dz = mine.z - there.z;
+                bool isClose = self && dx * dx + dy * dy + dz * dz < MeshRange * MeshRange;
+                BodyShape::Apply(this->m_worldModel, shape ? (isClose ? shape->full : shape->distant) : none, twistSet, twistBase);
+            }
+        }
     }
 
     this->RotateWheels();
@@ -7915,7 +7944,23 @@ float CGUnit_C::GetStandHeight() const {
 // OFFSET: 0x00717B20
 int32_t CGUnit_C::GetModelFileName(const char** name) const {
     // Players of a race mapped to Retail data use the Retail character model.
-    if ((this->m_obj->m_type & TYPEMASK_PLAYER) && this->m_displayId == this->m_unit->m_unitFieldNativedisplayid) {
+    if (this->m_obj->m_type & TYPEMASK_PLAYER) {
+        char line[200];
+        std::snprintf(line, sizeof(line), "model: player guid=%llx race=%u sex=%u display=%u native=%u active=%d",
+            static_cast<unsigned long long>(this->m_obj->m_guid.m_guid), unsigned(this->m_unit->m_unitFieldBytes0[0]),
+            unsigned(this->m_unit->m_unitFieldBytes0[2]), unsigned(this->m_displayId), unsigned(this->m_unit->m_unitFieldNativedisplayid),
+            int(this->m_obj->m_guid == ClntObjMgrGetActivePlayer()));
+        BodyShape::Log(line);
+    }
+
+    // Same display the stock GetModelData resolves: players in view start with m_displayId 0, which means "use the
+    // display field". Comparing the raw value left every remote player on the stock model.
+    int32_t effectiveDisplay = this->m_displayId;
+    if (!effectiveDisplay || this->m_unit->m_unitFieldNativedisplayid != this->m_unit->m_unitFieldDisplayid) {
+        effectiveDisplay = this->m_unit->m_unitFieldDisplayid;
+    }
+
+    if ((this->m_obj->m_type & TYPEMASK_PLAYER) && effectiveDisplay == static_cast<int32_t>(this->m_unit->m_unitFieldNativedisplayid)) {
         static thread_local char retailPath[260];
 
         if (RetailRaceModelPath(this->m_unit->m_unitFieldBytes0[0], this->m_unit->m_unitFieldBytes0[2], retailPath, sizeof(retailPath))) {
@@ -13965,6 +14010,15 @@ int32_t CGUnit_C::InitializeComponent() {
         }
     } else if ((this->m_obj->m_type & TYPEMASK_PLAYER) && (this->m_modelData->m_flags & 0x4)) {
         this->InitializeExtendedDisplay(static_cast<CGPlayer_C*>(this), 0);
+    }
+
+    // Returning from a form creates a fresh Retail body; restore its full appearance before item refresh.
+    if (this->m_characterComponent && this->m_unit->m_unitFieldDisplayid == this->m_unit->m_unitFieldNativedisplayid &&
+        RetailRaceActive(this->m_characterComponent)) {
+        this->m_characterComponent->m_flags |= 0x4;
+        this->m_characterComponent->m_dirtySections = 0xFFFFFFFF;
+        RetailRaceGeometry(this->m_characterComponent);
+        RetailRaceBody(this->m_characterComponent);
     }
 
     if (!(this->m_obj->m_type & TYPEMASK_PLAYER) || !static_cast<CGPlayer_C*>(this)->RefreshVisibleItems()) {

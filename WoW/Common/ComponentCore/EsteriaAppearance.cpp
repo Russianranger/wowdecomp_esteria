@@ -1,3 +1,5 @@
+#include "Engine/Source/Retail/RetailLookWire.h"
+#include "Engine/Source/Retail/BodyShape.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Engine/Source/Retail/EyeEffects.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
@@ -1956,6 +1958,8 @@ bool EsteriaKeepsAppearance(uint32_t race) {
 
 void EsteriaEnumExtra(CDataStore* packet) {
     g_roster.clear();
+    BodyShape::Roster().clear();
+    RetailRaceClearLooks();
     if (!packet || Disabled()) {
         return;
     }
@@ -1968,9 +1972,11 @@ void EsteriaEnumExtra(CDataStore* packet) {
 
     uint8_t* bytes = packet->m_data;
     uint32_t size = length - base;
-    for (uint32_t tail = 0; tail < 3 && size >= 8; tail++) {
+    for (uint32_t tail = 0; tail < 6 && size >= 8; tail++) {
         uint32_t magic = *reinterpret_cast<uint32_t*>(bytes + size - 4);
-        uint32_t stride = magic == 0x31455848 ? 9 : magic == 0x32455848 ? 16 : magic == 0x31475743 ? 12 : 0;
+        uint32_t stride = magic == 0x31455848 ? 9 : magic == 0x32455848 ? 16 : magic == 0x31475743 ? 12
+            : magic == CharacterBodyShape::EnumMagic ? CharacterBodyShape::EnumStride
+            : magic == CharacterRetailLook::EnumMagic ? CharacterRetailLook::EnumStride : 0;
         if (!stride) {
             break;
         }
@@ -1987,6 +1993,16 @@ void EsteriaEnumExtra(CDataStore* packet) {
                 g_roster[guid] = bytes[start + i * stride + 8];
             } else if (stride == 16) {
                 g_roster[guid] = *reinterpret_cast<uint64_t*>(bytes + start + i * stride + 8);
+            } else if (stride == CharacterRetailLook::EnumStride) {
+                CharacterRetailLook::Look look;
+                if (CharacterRetailLook::ReadPayload(bytes + start + i * stride + 8, CharacterRetailLook::PayloadSize, look)) {
+                    RetailRaceSetLook(guid, look);
+                }
+            } else if (stride == CharacterBodyShape::EnumStride) {
+                CharacterBodyShape::Values wire{};
+                if (CharacterBodyShape::ReadPayload(bytes + start + i * stride + 8, CharacterBodyShape::PayloadSize, wire)) {
+                    BodyShape::Roster()[guid] = BodyShape::FromWire(wire);
+                }
             }
         }
 
@@ -2002,6 +2018,7 @@ bool EsteriaEyeLightning(uint64_t guid) {
 
 void EsteriaSelectCharacter(CCharacterComponent* character, uint64_t guid, uint32_t skin, uint32_t face, uint32_t hairStyle, uint32_t hairColor, uint32_t facialHair) {
     RetailRaceEyeLightning(character, EsteriaEyeLightning(guid));
+    RetailRaceApplyLookTo(character, guid, false);
     if (Disabled() || !character || !ExtendedRace(character->m_data.m_preferences.m_raceID)) {
         return;
     }

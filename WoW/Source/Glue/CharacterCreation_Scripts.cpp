@@ -6,6 +6,8 @@
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/FrameScript/FrameScript_Object.h"
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
+#include "WoW/Common/ComponentCore/RetailRace.h"
+#include "WoW/Source/Ui/BodyShapeScripts.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
@@ -313,6 +315,20 @@ static int32_t Script_GetSelectedClass(lua_State* L) {
 
 // VERIFY: 8c236267 manual
 // OFFSET: 0x004E0B50
+// BodyShapeLoadExisting(): when customizing an existing character, start the sliders from its saved values.
+static int32_t Script_BodyShapeLoadExisting(lua_State* L) {
+    int32_t index = CCharacterCreation::m_existingCharacterIndex;
+
+    if (index >= 0 && index < static_cast<int32_t>(CCharacterSelection::s_characterList.Count())) {
+        const uint64_t guid = CCharacterSelection::s_characterList[index].m_characterInfo.m_guid.m_guid;
+        const BodyShape::Values* saved = BodyShape::RosterFor(guid);
+        BodyShape::Local() = saved ? *saved : BodyShape::Values();
+        RetailRaceApplyLookTo(CCharacterCreation::m_character, guid, true);
+    }
+
+    return 0;
+}
+
 static int32_t Script_CycleCharCustomization(lua_State* L) {
     // Esteria: GlueXML multiplexes EsteriaAppearance commands ("EA_PREVIEW_SCALE", "EA_SET", ...) through this
     // function. The appearance system is not ported, so they are ignored instead of raising a usage error.
@@ -671,11 +687,14 @@ static FrameScript_Method s_scriptFunctions[] = {
     { "IsRaceClassValid", &Script_IsRaceClassValid },
     { "IsRaceClassRestricted", &Script_IsRaceClassRestricted },
     { "GetCreateBackgroundModel", &Script_GetCreateBackgroundModel },
+    { "BodyShapeLoadExisting", &Script_BodyShapeLoadExisting },
+    BODY_SHAPE_SCRIPT_ENTRIES
 };
 
 // VERIFY: 88b9bf9d auto
 // OFFSET: 0x004DFD00
 void CharacterCreateRegisterScriptFunctions() {
+    BodyShape::Log("creator: registering script functions (BodyShapeLog included)");
     for (uint32_t i = 0; i < sizeof(s_scriptFunctions) / sizeof(s_scriptFunctions[0]); i++) {
         FrameScript_RegisterFunction(s_scriptFunctions[i].m_name, s_scriptFunctions[i].m_method);
     }

@@ -211,7 +211,7 @@ bool ComposeTextures(const Db2::appearance::Recipe& recipe, BlpFetch fetch, void
     }
     std::map<uint32_t, ComposedTexture> byType;
     for (const app::TextureLayer& layer : recipe.layers) { // recipe.layers is ordered by layer
-        const uint32_t file = app::MaterialFileDataId(layer.materialResourcesId, 0);
+        const uint32_t file = layer.fileDataId ? layer.fileDataId : app::MaterialFileDataId(layer.materialResourcesId, 0);
         std::vector<uint8_t> bytes;
         Image image;
         std::string error;

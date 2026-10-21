@@ -13,6 +13,8 @@ inline uint32_t CharacterModel(uint32_t race, uint32_t sex, uint32_t defaultMode
 // target custom races above 31 cannot index the installed 32-bit HelmetGeosetVisData directly.
 inline uint32_t HelmetMaskRace(uint32_t retailRace) {
     switch (retailRace) {
+        case 0xf0010000u: return 1;          // SlimeSkeleton shares Kul Tiran's Human helmet-mask alias.
+        case 0xf0020000u: return 11;         // Centaur legacy helmets use the fitted Draenei family.
         case 27: return 4;                  // Nightborne -> Night Elf
         case 28: return 6;                  // Highmountain -> Tauren
         case 29: return 10;                 // Void Elf -> Blood Elf

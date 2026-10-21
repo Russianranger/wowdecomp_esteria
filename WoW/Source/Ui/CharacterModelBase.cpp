@@ -11,6 +11,7 @@
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Source/Object/ObjectClient/Unit_C.h"
 #include "WoW/Source/ObjectMgrClient/ObjectMgrClient.h"
 #include "WoW/Source/UIUtil/PortraitButton.h"
@@ -151,7 +152,9 @@ CM2Model* CGCharacterModelBase::GetDuplicateUnitCharacterModel(CGUnit_C* unit) {
         return nullptr;
     }
 
-    return this->GetScene()->DuplicateModel(unit->m_worldModel, 0);
+    CM2Model* model = this->GetScene()->DuplicateModel(unit->m_worldModel, 0);
+    RetailRaceDuplicateCollections(unit->m_worldModel, model);
+    return model;
 }
 
 // VERIFY: 4219f365 auto

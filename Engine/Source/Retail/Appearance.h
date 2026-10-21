@@ -10,7 +10,10 @@
 
 namespace Retail::Db2::appearance
 {
-    struct TextureLayer { uint32_t textureType, layer, blendMode, sectionMask, materialResourcesId; };
+    struct TextureLayer {
+        uint32_t textureType, layer, blendMode, sectionMask, materialResourcesId;
+        uint32_t fileDataId = 0; // Creature palettes already name the original file, without a material resource.
+    };
     struct AttachedModel { uint32_t fileDataId; uint16_t geoset; };
     struct ChrOption { uint32_t id, optionType, orderIndex, flags; };
     struct ChrChoice { uint32_t id, orderIndex, uiOrderIndex, flags, swatchColor; };

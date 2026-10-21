@@ -36,6 +36,7 @@
 // until the next present.
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <new>
 #include "Engine/Source/Gx/CGxDeviceVulkan/CGxDeviceVulkan.h"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Context.hpp"
@@ -91,7 +92,7 @@ namespace {
         bool           drawnAll    = false;     ///< the range list overflowed
         Range          drawn[kMaxDrawnRanges];
 
-        ~PoolRec() { delete[] shadow; }
+        ~PoolRec() { std::free(shadow); }
     };
 
     struct Lock {
@@ -222,15 +223,12 @@ namespace {
             return;
         }
 
-        r.shadow = new (std::nothrow) uint8_t[r.size];
-
-        if (r.shadow) {
-            memset(r.shadow, 0, r.size);
-        }
+        // Storm's global new exits on failure even through std::nothrow; this optional shadow may fail.
+        r.shadow = static_cast<uint8_t*>(std::calloc(r.size, 1));
     }
 
     void DropShadow(PoolRec& r) {
-        delete[] r.shadow;
+        std::free(r.shadow);
         r.shadow = nullptr;
     }
 

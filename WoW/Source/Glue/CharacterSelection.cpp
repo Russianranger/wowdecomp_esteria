@@ -1,3 +1,4 @@
+#include "Engine/Source/Retail/BodyShape.h"
 #include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "CharacterSelection.h"
@@ -322,6 +323,17 @@ int32_t CCharacterSelection::Idle(const void* data, void* param) {
     }
 
     CGlueLoading::Idle(CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component);
+
+    // Saved body sliders of the selected character (none = defaults, which also releases a previous character's).
+    CharacterSelectionDisplay& selected = CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex];
+    if (selected.m_component && selected.m_component->m_data.m_model) {
+        static const bool noTwist[2] = { false, false };
+        static const C44Matrix noBase[2];
+        static const BodyShape::Values none;
+        const BodyShape::Values* saved = BodyShape::RosterFor(selected.m_characterInfo.m_guid.m_guid);
+        BodyShape::Apply(selected.m_component->m_data.m_model, saved ? *saved : none, noTwist, noBase);
+    }
+
     return 1;
 }
 

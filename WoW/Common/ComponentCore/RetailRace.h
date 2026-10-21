@@ -6,6 +6,7 @@
 
 class CCharacterComponent;
 class CGUnit_C;
+class CM2Model;
 struct lua_State;
 class CDataStore;
 
@@ -23,6 +24,8 @@ uint32_t RetailRaceHelmetMask(uint32_t race);
 // True if the component's model is a Retail model of a mapped race. Retail geoset/texture logic must only run
 // on such components: NPCs and other humanoids of the same race keep their stock models.
 bool RetailRaceActive(CCharacterComponent* character);
+void RetailRaceDuplicateCollections(CM2Model* source, CM2Model* target);
+float RetailRacePreviewScale(uint32_t race);
 
 // True if the race/sex is mapped and its Retail tables loaded.
 bool RetailRaceOwns(uint32_t race, uint32_t sex);
@@ -59,8 +62,23 @@ void RetailRaceBindOwner(CCharacterComponent* character, CGUnit_C* owner);
 
 // Independent per-character cosmetic, transported separately from frozen appearance codecs.
 bool RetailRaceEyeLightning(CCharacterComponent* character);
+bool RetailRaceLegArmorHidden(CCharacterComponent* character);
 void RetailRaceEyeLightning(CCharacterComponent* character, bool enabled);
 void RetailRaceCreateEyeEffects(CDataStore* packet);
+// Appends the creator's body sliders (BSH1 footer) after everything else. A new character only carries one when
+// a slider is set; customization and race/faction changes always carry it so a reset reaches the server.
+void BodyShapeCreateFooter(CDataStore* packet, bool always);
+
+// The full Retail customization (one choice index per option, stock bytes included) travels like the body sliders:
+// a footer on create / customize / faction / race change, a tail block on the character list, and one message per
+// player in view. Looks are kept by guid; a component applies its owner's look once per update.
+namespace CharacterRetailLook { struct Look; }
+void RetailLookCreateFooter(CDataStore* packet);
+void RetailRaceSetLook(uint64_t guid, const CharacterRetailLook::Look& look);
+void RetailRaceClearLooks();
+// Applies the look saved for `guid` to a component (character select, creator). False when there is none or it
+// does not fit the component's race and sex.
+bool RetailRaceApplyLookTo(CCharacterComponent* character, uint64_t guid, bool refresh);
 
 // Once per frame: keeps retail components moving through the stock section pipeline in the world. Stock drives that
 // pipeline from the dynamic base-skin texture, which retail components deliberately do not bind.

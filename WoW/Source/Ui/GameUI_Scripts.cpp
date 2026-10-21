@@ -1,4 +1,6 @@
 #include "GameUI.h"
+#include "WoW/Source/Ui/BodyShapeScripts.h"
+#include "Engine/Source/Retail/CentaurAppearance.h"
 #include <cmath>
 #include <cstdarg>
 #include <cstring>
@@ -4849,6 +4851,27 @@ static int32_t Script_ShowHelm(lua_State* L) {
 
 // VERIFY: 35a04815 manual
 // OFFSET: 0x0051C100
+static int32_t Script_ShowingLegArmor(lua_State* L) {
+    const auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!player || (player->m_unit->m_unitFieldBytes0[0] != 73 && player->m_unit->m_unitFieldBytes0[0] != 74))
+        lua_pushnil(L);
+    else lua_pushboolean(L, !CentaurAppearance::Hidden(player->m_unit->m_unitFieldBytes0[0], player->m_player->m_playerFlags));
+    return 1;
+}
+
+static int32_t Script_ShowLegArmor(lua_State* L) {
+    const auto* player = ClntObjMgrGetActivePlayerObj();
+    if (!player || (player->m_unit->m_unitFieldBytes0[0] != 73 && player->m_unit->m_unitFieldBytes0[0] != 74)) return 0;
+    CDataStore msg;
+    msg.Put(static_cast<uint32_t>(CMSG_MESSAGECHAT));
+    msg.Put(static_cast<uint32_t>(CHAT_MSG_SAY));
+    msg.Put(uint32_t(player->m_unit->m_unitFieldBytes0[0] == 74 ? 1 : 7));
+    msg.PutString(StringToBOOL(L, 1, 1) ? ".centaurlegs on" : ".centaurlegs off");
+    msg.Finalize();
+    ClientServices::Send2(&msg);
+    return 0;
+}
+
 static int32_t Script_ShowCloak(lua_State* L) {
     CGPlayer_C* player = ClntObjMgrGetActivePlayerObj();
 
@@ -6346,6 +6369,7 @@ static FrameScript_Method s_ScriptFunctions[] = {
     { "GetRestState", &Script_GetRestState },
     { "GetXPExhaustion", &Script_GetXPExhaustion },
     { "GetTimeToWellRested", &Script_GetTimeToWellRested },
+    BODY_SHAPE_SCRIPT_ENTRIES
     { "GMRequestPlayerInfo", &Script_GMRequestPlayerInfo },
     { "GetCoinIcon", &Script_GetCoinIcon },
     { "GetCoinText", &Script_GetCoinText },
@@ -6373,6 +6397,8 @@ static FrameScript_Method s_ScriptFunctions[] = {
     { "ShowingCloak", &Script_ShowingCloak },
     { "ShowHelm", &Script_ShowHelm },
     { "ShowCloak", &Script_ShowCloak },
+    { "ShowingLegArmor", &Script_ShowingLegArmor },
+    { "ShowLegArmor", &Script_ShowLegArmor },
     { "SetEuropeanNumbers", &Script_SetEuropeanNumbers },
     { "GetAreaSpiritHealerTime", &Script_GetAreaSpiritHealerTime },
     { "AcceptAreaSpiritHeal", &Script_AcceptAreaSpiritHeal },

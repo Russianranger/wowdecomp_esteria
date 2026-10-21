@@ -3,6 +3,8 @@
 #include "Engine/Source/Retail/SourceContext.h"
 #include "Engine/Source/Retail/RacePolicy.h"
 #include "Engine/Source/Retail/CreationPolicy.h"
+#include "Engine/Source/Retail/SlimeGiant.h"
+#include "Engine/Source/Retail/Centaur.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -503,6 +505,10 @@ namespace Retail::Db2::appearance
     bool BuildForCharacter(uint32_t chrRaceId, uint32_t sex, const uint32_t* choiceIds,
                            uint32_t choiceCount, Recipe& out)
     {
+        if (currentSource == SourceKind::Retail && chrRaceId == Centaur::Profile)
+            return Centaur::Build(sex, choiceIds, choiceCount, out);
+        if (currentSource == SourceKind::Retail && chrRaceId == SlimeGiant::Profile)
+            return SlimeGiant::Build(sex, choiceIds, choiceCount, out);
         out.Clear();
         EnsureLoaded();
         if (!State().status.loaded) return false;
@@ -554,6 +560,10 @@ namespace Retail::Db2::appearance
 
     uint32_t ChrModelForRace(uint32_t chrRaceId, uint32_t sex)
     {
+        if (currentSource == SourceKind::Retail && chrRaceId == Centaur::Profile)
+            return sex < 2 ? Centaur::Profile + sex : 0;
+        if (currentSource == SourceKind::Retail && chrRaceId == SlimeGiant::Profile)
+            return sex == 0 ? SlimeGiant::Profile : 0;
         EnsureLoaded();
         if (!State().status.loaded) return 0;
         const auto pair = State().modelByRaceSex.find(RaceSexKey(chrRaceId, sex));
@@ -562,6 +572,10 @@ namespace Retail::Db2::appearance
 
     bool CreationChoiceAllowed(uint32_t chrModelId, uint32_t choiceId)
     {
+        if (currentSource == SourceKind::Retail && Centaur::ProfileModel(chrModelId))
+            return Centaur::CreationAllowed(chrModelId, choiceId);
+        if (currentSource == SourceKind::Retail && chrModelId == SlimeGiant::Profile)
+            return !SlimeGiant::ChoiceName(choiceId).empty();
         EnsureLoaded();
         if (!State().status.loaded) return false;
         const auto* choice = State().choice.Find(choiceId);
@@ -575,6 +589,20 @@ namespace Retail::Db2::appearance
     {
         assets = {};
         error.clear();
+        if (currentSource == SourceKind::Retail && race == Centaur::Profile) {
+            if (sex > 1) { error = "Centaur sex is out of range"; return false; }
+            assets.models = {Centaur::Bodies[sex]};
+            assets.textures.assign(std::begin(Centaur::Skins[sex]), std::end(Centaur::Skins[sex]));
+            assets.textures.push_back(sex ? 4081389 : 4036660);
+            return true;
+        }
+        if (currentSource == SourceKind::Retail && race == SlimeGiant::Profile) {
+            if (sex) { error = "Slime Giant has one authored body"; return false; }
+            assets.models = {SlimeGiant::Body};
+            assets.textures = {3491663, 3491664, 3491665, 3491666, 3491667,
+                               3491668, 3491669, 3491670, 3491671, 3491672};
+            return true;
+        }
         Recipe base;
         if (!BuildForCharacter(race, sex, nullptr, 0, base)) { error = "No character model for requested race/sex"; return false; }
         std::set<uint32_t> models{base.modelFileDataId}, textures, skeletons, choices;
@@ -616,6 +644,9 @@ namespace Retail::Db2::appearance
 
     uint32_t OptionCount(uint32_t chrModelId)
     {
+        if (currentSource == SourceKind::Retail && Centaur::ProfileModel(chrModelId))
+            return chrModelId == Centaur::Profile ? 3 : 2;
+        if (currentSource == SourceKind::Retail && chrModelId == SlimeGiant::Profile) return 2;
         EnsureLoaded();
         if (!State().status.loaded) return 0;
         const auto options = State().optionsByModel.find(chrModelId);
@@ -624,6 +655,16 @@ namespace Retail::Db2::appearance
 
     bool OptionAt(uint32_t chrModelId, uint32_t index, ChrOption& out)
     {
+        if (currentSource == SourceKind::Retail && Centaur::ProfileModel(chrModelId)) {
+            if (index >= (chrModelId == Centaur::Profile ? 3u : 2u)) return false;
+            out = {Centaur::Option(chrModelId, index), 0, index, 0};
+            return true;
+        }
+        if (currentSource == SourceKind::Retail && chrModelId == SlimeGiant::Profile) {
+            if (index >= 2) return false;
+            out = {index == 0 ? SlimeGiant::ColorOption : SlimeGiant::DripOption, 0, index, 0};
+            return true;
+        }
         EnsureLoaded();
         if (!State().status.loaded) return false;
         const auto options = State().optionsByModel.find(chrModelId);
@@ -639,6 +680,10 @@ namespace Retail::Db2::appearance
 
     uint32_t ChoiceCount(uint32_t chrCustomizationOptionId)
     {
+        if (currentSource == SourceKind::Retail && Centaur::Count(chrCustomizationOptionId))
+            return Centaur::Count(chrCustomizationOptionId);
+        if (currentSource == SourceKind::Retail && SlimeGiant::Count(chrCustomizationOptionId))
+            return SlimeGiant::Count(chrCustomizationOptionId);
         EnsureLoaded();
         if (!State().status.loaded) return 0;
         const auto choices = State().choicesByOption.find(chrCustomizationOptionId);
@@ -647,6 +692,10 @@ namespace Retail::Db2::appearance
 
     bool ChoiceAt(uint32_t chrCustomizationOptionId, uint32_t index, ChrChoice& out)
     {
+        if (currentSource == SourceKind::Retail && Centaur::Count(chrCustomizationOptionId))
+            return Centaur::Choice(chrCustomizationOptionId, index, out);
+        if (currentSource == SourceKind::Retail && SlimeGiant::Count(chrCustomizationOptionId))
+            return SlimeGiant::Choice(chrCustomizationOptionId, index, out);
         EnsureLoaded();
         if (!State().status.loaded) return false;
         const auto choices = State().choicesByOption.find(chrCustomizationOptionId);
@@ -663,6 +712,7 @@ namespace Retail::Db2::appearance
 
     uint32_t LayoutForModel(uint32_t chrModelId)
     {
+        if (currentSource == SourceKind::Retail && Centaur::ProfileModel(chrModelId)) return 141;
         EnsureLoaded();
         if (!State().status.loaded) return 0;
         const wdc5::Row* model = State().chrModel.Find(chrModelId);
@@ -723,6 +773,10 @@ namespace Retail::Db2::appearance
 
     std::string OptionName(uint32_t optionId)
     {
+        if (currentSource == SourceKind::Retail && !Centaur::OptionName(optionId).empty())
+            return Centaur::OptionName(optionId);
+        if (currentSource == SourceKind::Retail && optionId == SlimeGiant::ColorOption) return "Slime Color";
+        if (currentSource == SourceKind::Retail && optionId == SlimeGiant::DripOption) return "Slime Drip";
         EnsureLoaded();
         if (!State().status.loaded) return {};
         const wdc5::Row* row = State().option.Find(optionId);
@@ -731,6 +785,10 @@ namespace Retail::Db2::appearance
 
     std::string ChoiceName(uint32_t choiceId)
     {
+        if (currentSource == SourceKind::Retail && !Centaur::ChoiceName(choiceId).empty())
+            return Centaur::ChoiceName(choiceId);
+        if (currentSource == SourceKind::Retail && !SlimeGiant::ChoiceName(choiceId).empty())
+            return SlimeGiant::ChoiceName(choiceId);
         EnsureLoaded();
         if (!State().status.loaded) return {};
         const wdc5::Row* row = State().choice.Find(choiceId);

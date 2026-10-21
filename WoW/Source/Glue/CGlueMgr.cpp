@@ -2334,6 +2334,8 @@ void CGlueMgr::CustomizeCharacter(WOWGUID guid, const CHARACTER_CREATE_INFO* inf
     msg.Put(info->m_facialHairStyleID);
     msg.Put(info->m_faceID);
     RetailRaceCreateEyeEffects(&msg);
+    BodyShapeCreateFooter(&msg, true);
+    RetailLookCreateFooter(&msg);
     msg.Finalize();
     ClientServices::Send2(&msg);
 }
@@ -2360,6 +2362,8 @@ void CGlueMgr::FactionChange(WOWGUID guid, const CHARACTER_CREATE_INFO* info) {
     msg.Put(info->m_faceID);
     msg.Put(info->m_raceID);
     RetailRaceCreateEyeEffects(&msg);
+    BodyShapeCreateFooter(&msg, true);
+    RetailLookCreateFooter(&msg);
     msg.Finalize();
     ClientServices::Send2(&msg);
 }
@@ -2386,6 +2390,8 @@ void CGlueMgr::RaceChange(WOWGUID guid, const CHARACTER_CREATE_INFO* info) {
     msg.Put(info->m_faceID);
     msg.Put(info->m_raceID);
     RetailRaceCreateEyeEffects(&msg);
+    BodyShapeCreateFooter(&msg, true);
+    RetailLookCreateFooter(&msg);
     msg.Finalize();
     ClientServices::Send2(&msg);
 }

@@ -1371,6 +1371,8 @@ void ClientConnection::RequestCharacterCreate(const CHARACTER_CREATE_INFO& info)
     msg.Put(info.m_outfitID);
     EsteriaCreateExtra(&msg);
     RetailRaceCreateEyeEffects(&msg);
+    BodyShapeCreateFooter(&msg, false);
+    RetailLookCreateFooter(&msg);
     msg.Finalize();
     this->Send(&msg);
 }

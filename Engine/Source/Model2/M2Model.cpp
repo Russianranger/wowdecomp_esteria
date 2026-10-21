@@ -16,6 +16,10 @@
 #include <alloca.h>
 #endif
 #include "Engine/Source/Model2/M2Model.h"
+#include "Engine/Source/Retail/BodyShape.h"
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+#include "Engine/Source/Retail/Centaur.h"
+#endif
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/Base/SIMD.h"
@@ -63,6 +67,7 @@ struct AttachmentFrame {
     const M2Data* parentData;
     uint32_t bone;
     C3Vector position;
+    float scale;
 };
 std::map<const CM2Model*, AttachmentFrame> s_attachmentFrames;
 
@@ -91,6 +96,7 @@ void ApplyAttachmentFrame(CM2Model* child, CM2Model* parent, C44Matrix& matrix) 
     }
     matrix = parent->m_boneMatrices[frame.bone];
     matrix.Translate(frame.position);
+    matrix.Scale(frame.scale);
 }
 
 bool SameSkinPivot(const C3Vector& a, const C3Vector& b) {
@@ -1173,6 +1179,9 @@ int32_t CM2Model::HasSequence(uint32_t id) {
 // VERIFY: cf5b210a auto
 // OFFSET: 0x00825F40
 uint32_t CM2Model::ResolveSequenceFallback(uint32_t id) {
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    id = Retail::Centaur::PickupSequence(this->m_shared ? this->m_shared->m_fileName : nullptr, id);
+#endif
     if (id >= ANIM_COUNT) {
         return 0xFFFFFFFF;
     }
@@ -1336,6 +1345,9 @@ uint32_t CM2Model::GetSequenceVariationCount(uint32_t id) {
 // VERIFY: 0ce274db manual
 // OFFSET: 0x00826350
 M2SequenceFallback* CM2Model::SequenceFallbackById(M2SequenceFallback* result, uint32_t id) {
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    id = Retail::Centaur::PickupSequence(this->m_shared ? this->m_shared->m_fileName : nullptr, id);
+#endif
     M2Data* data = this->m_shared->m_data;
     uint32_t defaultId;
 
@@ -1973,6 +1985,151 @@ void CM2Model::SetBoneProceduralTransform(uint32_t boneId, const C44Matrix& matr
     }
 
     if (index >= data->m_bones.m_count) {
+        return;
+    }
+
+    M2ModelBone* bone = &this->m_bones[index];
+
+    if (!bone->m_proceduralTransform) {
+        bone->m_proceduralTransform = static_cast<C44Matrix*>(SIMD::AllocA16(sizeof(C44Matrix), __FILE__, __LINE__));
+    }
+
+    *bone->m_proceduralTransform = matrix;
+}
+
+bool CM2Model::IsLoaded() const {
+    return (this->m_fFlags & 1) != 0;
+}
+
+uint32_t CM2Model::GetBoneCount() {
+    return this->IsLoaded() ? this->m_shared->m_data->m_bones.m_count : 0;
+}
+
+uint32_t CM2Model::FindBoneIndexByKey(uint32_t boneId) {
+    if (!this->IsLoaded()) {
+        return 0xFFFFFFFF;
+    }
+
+    M2Data* data = this->m_shared->m_data;
+
+    if (boneId >= data->m_boneIndicesById.m_count || data->m_boneIndicesById[boneId] >= data->m_bones.m_count) {
+        return 0xFFFFFFFF;
+    }
+
+    return data->m_boneIndicesById[boneId];
+}
+
+bool CM2Model::GetBoneInfoByIndex(uint32_t index, int32_t& boneId, int32_t& parent, C3Vector& pivot) {
+    if (index >= this->GetBoneCount()) {
+        return false;
+    }
+
+    const M2CompBone& bone = this->m_shared->m_data->m_bones[index];
+    boneId = static_cast<int32_t>(bone.m_boneId);
+    parent = bone.m_parentIndex == 0xFFFF ? -1 : bone.m_parentIndex;
+    pivot = bone.m_pivot;
+    return true;
+}
+
+uint32_t CM2Model::GetBindVertexCount() {
+    return this->IsLoaded() ? this->m_shared->m_data->m_vertices.m_count : 0;
+}
+
+bool CM2Model::GetBindVertex(uint32_t index, C3Vector& position, C3Vector& normal) {
+    if (index >= this->GetBindVertexCount()) {
+        return false;
+    }
+
+    const M2Vertex& vertex = this->m_shared->m_data->m_vertices[index];
+    position = vertex.m_position;
+    normal = vertex.m_normal;
+    return true;
+}
+
+void CM2Model::SetBodyShapeVertices(float* vertices) {
+    this->ReleaseBodyShapeBuffer();
+    delete[] this->m_bodyShapeVertices;
+    this->m_bodyShapeVertices = vertices;
+}
+
+void CM2Model::ReleaseBodyShapeBuffer() {
+    if (!g_theGxDevicePtr) {
+        return;
+    }
+
+    if (this->m_bodyShapeBuf) {
+        g_theGxDevicePtr->BufDestroy(this->m_bodyShapeBuf);
+        this->m_bodyShapeBuf = nullptr;
+    }
+
+    if (this->m_bodyShapePool) {
+        g_theGxDevicePtr->PoolDestroy(this->m_bodyShapePool);
+        this->m_bodyShapePool = nullptr;
+    }
+}
+
+// Same layout CM2Shared::SetVertices builds for the shader renderer (instance 0), with the reshaped bind pose.
+int32_t CM2Model::BindBodyShapeVertices() {
+    if (!this->m_bodyShapeVertices || !this->IsLoaded()) {
+        return 0;
+    }
+
+    M2Data* data = this->m_shared->m_data;
+    M2SkinProfile* skin = this->m_shared->m_skinData;
+    uint32_t count = skin->m_vertices.m_count;
+
+    if (!this->m_bodyShapePool) {
+        this->m_bodyShapePool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Vertex, GxPoolUsage_Static, sizeof(M2Vertex) * count, GxPoolHintBit_Unk1, "BodyShape");
+        this->m_bodyShapeBuf = this->m_bodyShapePool ? g_theGxDevicePtr->BufCreate(this->m_bodyShapePool, sizeof(M2Vertex), count, 0) : nullptr;
+
+        if (!this->m_bodyShapePool || !this->m_bodyShapeBuf) {
+            this->ReleaseBodyShapeBuffer();
+            return 0;
+        }
+    }
+
+    if (!this->m_bodyShapeBuf->m_hasData || !this->m_bodyShapeBuf->m_valid) {
+        M2Vertex* vertices = reinterpret_cast<M2Vertex*>(g_theGxDevicePtr->BufLock(this->m_bodyShapeBuf));
+
+        if (!vertices) {
+            return 0;
+        }
+
+        for (uint32_t i = 0; i < skin->m_skinSections.m_count; i++) {
+            M2SkinSection* section = &skin->m_skinSections[i];
+            uint32_t end = section->m_vertexStart + section->m_vertexCount;
+
+            for (uint32_t j = section->m_vertexStart; j < end; j++) {
+                uint32_t source = skin->m_vertices[j];
+                const float* shaped = this->m_bodyShapeVertices + 6 * source;
+                memcpy(&vertices[j], &data->m_vertices[source], sizeof(M2Vertex));
+                vertices[j].m_position = C3Vector(shaped[0], shaped[1], shaped[2]);
+                vertices[j].m_normal = C3Vector(shaped[3], shaped[4], shaped[5]);
+                *reinterpret_cast<uint32_t*>(&vertices[j].m_indices) = *reinterpret_cast<uint32_t*>(&skin->m_bones[j]);
+            }
+        }
+
+        CGxBuf* buf = this->m_bodyShapeBuf;
+        g_theGxDevicePtr->BufUnlock(buf, 0);
+        buf->m_hasData = 1;
+    }
+
+    GxPrimVertexPtr(this->m_bodyShapeBuf, GxVBF_PBNT2);
+    return 1;
+}
+
+uint32_t CM2Model::GetBoneNameCrcByIndex(uint32_t index) {
+    return index < this->GetBoneCount() ? this->m_shared->m_data->m_bones[index].m_boneNameCRC : 0;
+}
+
+void CM2Model::SetBoneFlagsByIndex(uint32_t index, uint32_t flags, uint32_t mask) {
+    if (index < this->GetBoneCount()) {
+        this->m_bones[index].m_flags = (mask & flags) | (this->m_bones[index].m_flags & ~mask);
+    }
+}
+
+void CM2Model::SetBoneProceduralTransformByIndex(uint32_t index, const C44Matrix& matrix) {
+    if (index >= this->GetBoneCount()) {
         return;
     }
 
@@ -3181,6 +3338,15 @@ void CM2Model::TransformVertices_cpp(CM2Model* model, M2SkinSection* section, ui
     float* out = reinterpret_cast<float*>(vertices);
 
     for (; vertex < end; vertex++, out += 8) {
+        C3Vector bodyPosition = vertex->m_position;
+        C3Vector bodyNormal = vertex->m_normal;
+
+        if (model->m_bodyShapeVertices) {
+            const float* shaped = model->m_bodyShapeVertices + 6 * (vertex - &model->m_shared->m_data->m_vertices[0]);
+            bodyPosition = C3Vector(shaped[0], shaped[1], shaped[2]);
+            bodyNormal = C3Vector(shaped[3], shaped[4], shaped[5]);
+        }
+
         if (*reinterpret_cast<uint32_t*>(&vertex->m_weights) != weights || *reinterpret_cast<uint32_t*>(&vertex->m_indices) != indices) {
             weights = *reinterpret_cast<uint32_t*>(&vertex->m_weights);
             indices = *reinterpret_cast<uint32_t*>(&vertex->m_indices);
@@ -3218,13 +3384,13 @@ void CM2Model::TransformVertices_cpp(CM2Model* model, M2SkinSection* section, ui
             }
         }
 
-        C3Vector position = vertex->m_position * matrix;
+        C3Vector position = bodyPosition * matrix;
         out[0] = position.x;
         out[1] = position.y;
         out[2] = position.z;
-        out[3] = vertex->m_normal.y * matrix.b0 + matrix.c0 * vertex->m_normal.z + matrix.a0 * vertex->m_normal.x;
-        out[4] = vertex->m_normal.y * matrix.b1 + matrix.c1 * vertex->m_normal.z + matrix.a1 * vertex->m_normal.x;
-        out[5] = vertex->m_normal.y * matrix.b2 + matrix.c2 * vertex->m_normal.z + matrix.a2 * vertex->m_normal.x;
+        out[3] = bodyNormal.y * matrix.b0 + matrix.c0 * bodyNormal.z + matrix.a0 * bodyNormal.x;
+        out[4] = bodyNormal.y * matrix.b1 + matrix.c1 * bodyNormal.z + matrix.a1 * bodyNormal.x;
+        out[5] = bodyNormal.y * matrix.b2 + matrix.c2 * bodyNormal.z + matrix.a2 * bodyNormal.x;
         out[6] = vertex->m_texcoord[texCoord].x;
         out[7] = vertex->m_texcoord[texCoord].y;
     }
@@ -3239,13 +3405,22 @@ void CM2Model::TransformVerticesOneBone_cpp(CM2Model* model, M2SkinSection* sect
     float* out = reinterpret_cast<float*>(vertices);
 
     for (; vertex < end; vertex++, out += 8) {
+        C3Vector bodyPosition = vertex->m_position;
+        C3Vector bodyNormal = vertex->m_normal;
+
+        if (model->m_bodyShapeVertices) {
+            const float* shaped = model->m_bodyShapeVertices + 6 * (vertex - &model->m_shared->m_data->m_vertices[0]);
+            bodyPosition = C3Vector(shaped[0], shaped[1], shaped[2]);
+            bodyNormal = C3Vector(shaped[3], shaped[4], shaped[5]);
+        }
+
         const C44Matrix& bone = bones[vertex->m_indices.b[0]];
-        out[0] = bone.c0 * vertex->m_position.z + vertex->m_position.y * bone.b0 + vertex->m_position.x * bone.a0 + bone.d0;
-        out[1] = vertex->m_position.x * bone.a1 + vertex->m_position.y * bone.b1 + bone.c1 * vertex->m_position.z + bone.d1;
-        out[2] = vertex->m_position.x * bone.a2 + vertex->m_position.y * bone.b2 + bone.c2 * vertex->m_position.z + bone.d2;
-        out[3] = vertex->m_normal.x * bone.a0 + bone.c0 * vertex->m_normal.z + bone.b0 * vertex->m_normal.y;
-        out[4] = bone.c1 * vertex->m_normal.z + bone.b1 * vertex->m_normal.y + bone.a1 * vertex->m_normal.x;
-        out[5] = bone.c2 * vertex->m_normal.z + bone.b2 * vertex->m_normal.y + bone.a2 * vertex->m_normal.x;
+        out[0] = bone.c0 * bodyPosition.z + bodyPosition.y * bone.b0 + bodyPosition.x * bone.a0 + bone.d0;
+        out[1] = bodyPosition.x * bone.a1 + bodyPosition.y * bone.b1 + bone.c1 * bodyPosition.z + bone.d1;
+        out[2] = bodyPosition.x * bone.a2 + bodyPosition.y * bone.b2 + bone.c2 * bodyPosition.z + bone.d2;
+        out[3] = bodyNormal.x * bone.a0 + bone.c0 * bodyNormal.z + bone.b0 * bodyNormal.y;
+        out[4] = bone.c1 * bodyNormal.z + bone.b1 * bodyNormal.y + bone.a1 * bodyNormal.x;
+        out[5] = bone.c2 * bodyNormal.z + bone.b2 * bodyNormal.y + bone.a2 * bodyNormal.x;
         out[6] = vertex->m_texcoord[texCoord].x;
         out[7] = vertex->m_texcoord[texCoord].y;
     }
@@ -3254,7 +3429,7 @@ void CM2Model::TransformVerticesOneBone_cpp(CM2Model* model, M2SkinSection* sect
 // VERIFY: edef765a manual
 // OFFSET: 0x0082A600
 void CM2Model::TransformVertices_sse(CM2Model* model, M2SkinSection* section, uint8_t* vertices, int32_t texCoord) {
-    if (reinterpret_cast<uintptr_t>(vertices) & 0xF) {
+    if ((reinterpret_cast<uintptr_t>(vertices) & 0xF) || model->m_bodyShapeVertices) {
         CM2Model::TransformVertices_cpp(model, section, vertices, texCoord);
         return;
     }
@@ -3306,7 +3481,7 @@ void CM2Model::TransformVertices_sse(CM2Model* model, M2SkinSection* section, ui
 // VERIFY: 9d870aa4 manual
 // OFFSET: 0x0082AC10
 void CM2Model::TransformVerticesOneBone_sse(CM2Model* model, M2SkinSection* section, uint8_t* vertices, int32_t texCoord) {
-    if (reinterpret_cast<uintptr_t>(vertices) & 0xF) {
+    if ((reinterpret_cast<uintptr_t>(vertices) & 0xF) || model->m_bodyShapeVertices) {
         CM2Model::TransformVerticesOneBone_cpp(model, section, vertices, texCoord);
         return;
     }
@@ -3940,6 +4115,9 @@ CM2Model::CM2Model() {
     this->m_hitTestNext = nullptr;
     this->m_hitTestOwner = nullptr;
     this->m_hitTestGroup = 0;
+    this->m_bodyShapeVertices = nullptr;
+    this->m_bodyShapeBuf = nullptr;
+    this->m_bodyShapePool = nullptr;
 
     if (!CM2Model::s_transformVertices[0]) {
         CM2Model::s_transformVertices[0] = CM2Model::TransformVertices_cpp;
@@ -5484,7 +5662,22 @@ void CM2Model::AnimateMT(const C44Matrix* view, const C3Vector& diffuse, const C
             }
 
             if ((boneFlags & 0x80) && bone->m_proceduralTransform) {
-                local *= *bone->m_proceduralTransform;
+                const C44Matrix& procedural = *bone->m_proceduralTransform;
+
+                if (boneFlags & 0x100) {
+                    // Body shape: apply the linear part before the animation so a limb scales along its own
+                    // bind axes at any pose; the translation stays in model space.
+                    C44Matrix linear = procedural;
+                    linear.d0 = 0.0f;
+                    linear.d1 = 0.0f;
+                    linear.d2 = 0.0f;
+                    local = linear * local;
+                    local.d0 += procedural.d0;
+                    local.d1 += procedural.d1;
+                    local.d2 += procedural.d2;
+                } else {
+                    local *= procedural;
+                }
             }
 
             C3Vector offset = boneData->m_pivot;
@@ -6002,16 +6195,14 @@ uint32_t CM2Model::ProcessEventCallbacks(uint32_t boneIndex, uint32_t sequenceIn
     for (uint32_t i = 0; i < data->m_events.m_count; i++) {
         M2Event* event = &data->m_events[i];
 
-        if (!event->m_enabled.m_sequenceTimes.m_count) {
+        // Retail child models can have fewer event tracks than their inherited skeleton has sequences.
+        M2Array<uint32_t>* times = event->TimesForSequence(sequenceIndex);
+
+        if (!times || !times->m_count) {
             continue;
         }
 
-        M2Array<uint32_t>* times = &event->m_enabled.m_sequenceTimes[event->m_enabled.m_loopIndex != 0xFFFF ? 0 : sequenceIndex];
         uint32_t count = times->m_count;
-
-        if (!count) {
-            continue;
-        }
 
         if (boneIndex) {
             uint16_t parentIndex = data->m_bones[event->m_bone].m_parentIndex;
@@ -6754,6 +6945,9 @@ void CM2Model::ProcessCallbacksRecursive() {
 // VERIFY: d96ccadd manual
 // OFFSET: 0x00832640
 CM2Model::~CM2Model() {
+    BodyShape::Forget(this);
+    this->ReleaseBodyShapeBuffer();
+    delete[] this->m_bodyShapeVertices;
     ClearSkinParents(this);
     // Not in the original: the instance is still complete here.
     sExtensionMgr->OnModelDestroy(this);
@@ -7967,7 +8161,7 @@ int32_t CM2Model::Initialize(CM2Scene* scene, CM2Shared* shared, CM2Model* sourc
             CM2Model* copy = this->m_scene->DuplicateModel(child, 0);
 
             if (copy) {
-                copy->AttachToParent(this, child->m_attachmentId, nullptr, 0);
+                copy->AttachToParent(this, child->m_attachmentId, nullptr, (child->m_fFlags & 0x40000) != 0);
 
                 if (copy->m_refCount-- == 1) {
                     g_modelPool->Delete(copy);
@@ -7982,12 +8176,24 @@ int32_t CM2Model::Initialize(CM2Scene* scene, CM2Shared* shared, CM2Model* sourc
     return this->m_shared->CallbackWhenLoaded(this);
 }
 
-bool CM2Model::SetAttachmentFrame(uint32_t bone, const C3Vector& position) {
+bool CM2Model::CopyAttachmentFrameFrom(const CM2Model* source) {
+    AttachmentFrame frame;
+    {
+        std::lock_guard<std::mutex> lock(s_skinParentMutex);
+        const auto found = s_attachmentFrames.find(source);
+        if (found == s_attachmentFrames.end()) return false;
+        frame = found->second;
+    }
+    return this->SetAttachmentFrame(frame.bone, frame.position, frame.scale);
+}
+
+bool CM2Model::SetAttachmentFrame(uint32_t bone, const C3Vector& position, float scale) {
     CM2Model* parent = this->m_attachParent;
     if (!parent || !(parent->m_fFlags & 1) || this->m_attachmentIndex == 0xffff ||
         !this->m_shared || !parent->m_shared || !parent->m_shared->m_data ||
         bone >= parent->m_shared->m_data->m_bones.m_count ||
-        !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)) return false;
+        !std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z) ||
+        !std::isfinite(scale) || scale <= 0) return false;
     std::lock_guard<std::mutex> lock(s_skinParentMutex);
     const M2Data* data = parent->m_shared->m_data;
     const auto found = s_attachmentFrames.find(this);
@@ -7995,9 +8201,9 @@ bool CM2Model::SetAttachmentFrame(uint32_t bone, const C3Vector& position) {
         const auto& old = found->second;
         if (old.parent == parent && old.childShared == this->m_shared && old.parentData == data &&
             old.bone == bone && old.position.x == position.x && old.position.y == position.y &&
-            old.position.z == position.z) return false;
+            old.position.z == position.z && old.scale == scale) return false;
     }
-    s_attachmentFrames.insert_or_assign(this, AttachmentFrame{parent, this->m_shared, data, bone, position});
+    s_attachmentFrames.insert_or_assign(this, AttachmentFrame{parent, this->m_shared, data, bone, position, scale});
     // The replacement socket carries the full correction; discard a previous local socket shift.
     this->m_worldTransform.Identity();
     this->m_fFlags |= 0x8000;

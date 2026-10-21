@@ -3,6 +3,8 @@
 #include "Engine/Source/Retail/DecodedCache.h"
 #include "Engine/Source/Retail/RetailModel.h"
 #include "Engine/Source/Retail/ClientTables.h"
+#include "Engine/Source/Retail/SlimeGiant.h"
+#include "Engine/Source/Retail/Centaur.h"
 #include <CascLib.h>
 #include <algorithm>
 #include <charconv>
@@ -78,6 +80,9 @@ struct Model {
     std::vector<uint8_t> bytes;
     ModelFiles files;
     bool character = false;
+    bool slimeGiant = false;
+    bool centaur = false;
+    bool centaurFemale = false;
 };
 struct Reference {
     uint32_t id = 0;
@@ -138,6 +143,8 @@ struct CascSource::Impl {
         if (dep != dependencies.end()) { ref = dep->second; return true; }
         const auto alias = names.find(name);
         if (alias != names.end()) { ref.id = alias->second; return true; }
+        if (kind == SourceKind::Retail && (ref.id = SlimeGiant::PathModel(name))) return true;
+        if (kind == SourceKind::Retail && (ref.id = Centaur::PathModel(name))) return true;
         if (name.compare(0, Prefix().size(), Prefix()) != 0) return Failure(error, "No CDN alias for this path");
         internal = name.substr(Prefix().size());
         const auto dot = internal.find('.');
@@ -515,7 +522,10 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
     bool success = true;
     if (ext == ".m2" || ext == ".mdx") {
         auto model = std::make_shared<Model>();
-        model->character = s.characterModels.count(ref.id) != 0;
+        model->slimeGiant = s.kind == SourceKind::Retail && SlimeGiant::PathModel(key) == ref.id;
+        model->centaur = s.kind == SourceKind::Retail && Centaur::PathModel(key) == ref.id;
+        model->centaurFemale = model->centaur && ref.id == Centaur::Bodies[1];
+        model->character = model->slimeGiant || model->centaur || s.characterModels.count(ref.id) != 0;
         // A shared skeleton lives in its own file; fetch it before the model is prepared.
         ModelFiles inspected;
         std::vector<uint8_t> skeleton;
@@ -524,6 +534,8 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
             success = s.LoadSkeleton(inspected.skeleton, skeleton, error, chain);
         }
         success = success && PrepareModel(bytes, model->bytes, model->files, error, skeleton.empty() ? nullptr : &skeleton);
+        if (success && model->slimeGiant) success = SlimeGiant::PrepareModel(model->bytes, ref.id, error);
+        if (success && model->centaur) success = Centaur::PrepareModel(model->bytes, ref.id, error);
         std::map<std::string, Reference> pending;
         const auto base = key.substr(0, key.find_last_of('.'));
         // Check every advertised profile before exposing the model to the renderer.
@@ -531,7 +543,10 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
             if (i >= 4 || i >= (model->bytes.size() > 0x44 ? model->bytes[0x44] : 0)) break;
             Reference skin{model->files.skins[i], model};
             std::vector<uint8_t> raw;
-            success = s.Fetch(skin, "", raw, error) && PrepareSkin(raw, model->bytes, error, model->character || model->files.skeleton != 0);
+            success = s.Fetch(skin, "", raw, error);
+            if (success && model->slimeGiant) success = SlimeGiant::PrepareSkin(raw, error);
+            if (success && model->centaur) success = Centaur::PrepareSkin(raw, error, model->centaurFemale);
+            success = success && PrepareSkin(raw, model->bytes, error, model->character || model->files.skeleton != 0);
             char suffix[16];
             std::snprintf(suffix, sizeof(suffix), "%02u.skin", static_cast<unsigned>(i));
             pending.emplace(base + suffix, std::move(skin));
@@ -555,7 +570,11 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
             bytes = model->bytes;
         }
     } else if (ext == ".skin") {
-        success = ref.owner ? PrepareSkin(bytes, ref.owner->bytes, error, ref.owner->character || ref.owner->files.skeleton != 0) : Failure(error, "Open the Retail model before its skin");
+        success = ref.owner != nullptr;
+        if (!success) error = "Open the Retail model before its skin";
+        if (success && ref.owner->slimeGiant) success = SlimeGiant::PrepareSkin(bytes, error);
+        if (success && ref.owner->centaur) success = Centaur::PrepareSkin(bytes, error, ref.owner->centaurFemale);
+        success = success && PrepareSkin(bytes, ref.owner->bytes, error, ref.owner->character || ref.owner->files.skeleton != 0);
     } else if (ext == ".anim") {
         success = ref.owner ? (StripAnimationChunk(bytes, error) && ValidateAnimation(bytes, ref.owner->bytes, ref.animation, ref.variation, error)) :
             Failure(error, "Open the Retail model before its animation");

@@ -24,6 +24,8 @@ from pathlib import Path
 MARKER = "-- Retail race customization (wowdecomp)"
 ENTRY = "Interface" + chr(92) + "GlueXML" + chr(92) + "CharacterCreate.lua"
 ARCHIVES = (Path("Data") / "patch-Z.MPQ", Path("Data") / "enUS" / "patch-enUS-Z.MPQ")
+BODY_MARKER = "-- Body sliders page (wowdecomp)"
+BODY_PAGE = Path(__file__).with_name("body_page.lua")
 
 
 def replace_once(text, old, new):
@@ -105,6 +107,36 @@ def patch(text):
     return text.replace("\n", nl)
 
 
+def patch_body_page(text):
+    """Adds the Body sliders page: hides the appearance rows while it is open, then appends the page itself.
+
+    Re-running replaces an older copy of the page (everything from the marker to the end of the file).
+    """
+    nl = "\r\n" if "\r\n" in text else "\n"
+    text = text.replace("\r\n", "\n")
+    guard = "    if BodyShapePage_Active and BodyShapePage_Active() then\n"
+    if guard not in text:
+        text = replace_once(text, "local function EA_REFRESH()\n    if not CharacterCustomizationButtonFrame1 then return; end\n",
+            "local function EA_REFRESH()\n    if not CharacterCustomizationButtonFrame1 then return; end\n"
+            + guard +
+            "        for i=1,64 do\n"
+            "            local row = _G[\"CharacterCustomizationButtonFrame\"..i];\n"
+            "            if row then row:Hide(); end\n"
+            "        end\n"
+            "        return;\n"
+            "    end\n")
+    if BODY_MARKER in text:
+        text = text[:text.index(BODY_MARKER)].rstrip("\n") + "\n"
+    page = BODY_PAGE.read_text(encoding="utf-8").replace("\r\n", "\n")
+    if not text.endswith("\n"):
+        text += "\n"
+    return (text + "\n" + page).replace("\n", nl)
+
+
+def patch_all(text):
+    return patch_body_page(patch(text))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--client", type=Path, required=True)
@@ -112,6 +144,9 @@ def main():
                         help="EsteriaWoW tools folder (provides the StormLib wrapper)")
     parser.add_argument("--stage", type=Path, default=Path(__file__).with_name("staged"))
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--no-backup", action="store_true",
+                        help="skip the archive backup (each is several GB); only when an earlier backup of the "
+                             "unpatched archives already exists")
     args = parser.parse_args()
 
     sys.path.insert(0, str(args.tools))
@@ -129,7 +164,7 @@ def main():
             original = storm.read(handle, ENTRY)
         finally:
             storm.dll.SFileCloseArchive(handle)
-        result = patch(original.decode("utf-8")).encode("utf-8")
+        result = patch_all(original.decode("utf-8")).encode("utf-8")
         (args.stage / (path.stem + "-CharacterCreate.lua")).write_bytes(result)
         patched[path] = (original, result)
         print(path.name, "already patched" if result == original else "patched: %d -> %d bytes" % (len(original), len(result)))
@@ -141,12 +176,16 @@ def main():
     if "wowclient" in running or "wow.exe" in running or "wow64.exe" in running or "eclipse" in running:
         raise SystemExit("Close the game first; the archives are in use.")
     backup = args.client / "_backups" / ("retail-glue-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
-    backup.mkdir(parents=True)
+    if not args.no_backup:
+        backup.mkdir(parents=True)
     for path, (original, result) in patched.items():
         if result == original:
             continue
-        shutil.copy2(path, backup / path.name)
-        print("backup", backup / path.name, hashlib.sha256((backup / path.name).read_bytes()).hexdigest()[:16])
+        if args.no_backup:
+            print("no backup of", path.name, "(--no-backup)")
+        else:
+            shutil.copy2(path, backup / path.name)
+            print("backup", backup / path.name, hashlib.sha256((backup / path.name).read_bytes()).hexdigest()[:16])
         storm.replace_archive_entries(path, {ENTRY: result})
         handle = H()
         storm.dll.SFileOpenArchive(str(path), 0, 0x100, ctypes.byref(handle))
