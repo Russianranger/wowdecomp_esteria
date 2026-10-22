@@ -341,6 +341,14 @@ static int32_t Script_CycleCharCustomization(lua_State* L) {
             CCharacterCreation::ZoomCamera(static_cast<float>(lua_tonumber(L, 2)));
             return 0;
         }
+        if (!strcmp(lua_tolstring(L, 1, nullptr), "EA_PAN") && lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
+            CCharacterCreation::PanCamera(static_cast<float>(lua_tonumber(L, 2)), static_cast<float>(lua_tonumber(L, 3)));
+            return 0;
+        }
+        if (!strcmp(lua_tolstring(L, 1, nullptr), "EA_PAN_RESET")) {
+            CCharacterCreation::ResetPanCamera();
+            return 0;
+        }
         if (!strcmp(lua_tolstring(L, 1, nullptr), "EA_PREVIEW_SCALE") && lua_isnumber(L, 2)) {
             // Index 0 is the create-screen character, 1.. are character-select rows.
             double index = lua_tonumber(L, 2);

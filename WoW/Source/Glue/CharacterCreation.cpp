@@ -86,6 +86,9 @@ CNameGen CCharacterCreation::m_nameGen;
 
 namespace {
 float s_creatorZoom = 0.0f;
+// Camera pan in view distances (right, up); the screen-relative drag keeps the grabbed point under the cursor.
+float s_creatorPanX = 0.0f;
+float s_creatorPanY = 0.0f;
 CCamera* s_creatorCamera = nullptr;
 }
 
@@ -96,8 +99,20 @@ void CCharacterCreation::ZoomCamera(float delta) {
     }
 }
 
+void CCharacterCreation::PanCamera(float dx, float dy) {
+    if (!std::isfinite(dx) || !std::isfinite(dy)) return;
+    // Dragging moves the character with the cursor, so the camera moves the other way.
+    s_creatorPanX = std::clamp(s_creatorPanX - dx, -1.0f, 1.0f);
+    s_creatorPanY = std::clamp(s_creatorPanY - dy, -1.0f, 1.0f);
+}
+
+void CCharacterCreation::ResetPanCamera() {
+    s_creatorPanX = s_creatorPanY = 0.0f;
+}
+
 void CCharacterCreation::ResetZoomCamera() {
     s_creatorZoom = 0.0f;
+    ResetPanCamera();
     if (m_charCustomizeFrame && m_charCustomizeFrame->m_camera == s_creatorCamera && s_creatorCamera) {
         m_charCustomizeFrame->SetCameraByIndex(0);
     }
@@ -112,7 +127,7 @@ void CCharacterCreation::UpdateZoomCamera() {
     auto* body = m_character ? m_character->m_data.m_model : nullptr;
     if (!frame || !frame->m_model || !body || !(body->m_fFlags & 1)
         || !(frame->m_model->m_fFlags & 1)) return;
-    if (s_creatorZoom == 0.0f) {
+    if (s_creatorZoom == 0.0f && s_creatorPanX == 0.0f && s_creatorPanY == 0.0f) {
         if (s_creatorCamera && frame->m_camera == s_creatorCamera) frame->SetCameraByIndex(0);
         return;
     }
@@ -134,6 +149,18 @@ void CCharacterCreation::UpdateZoomCamera() {
     const auto offset = position - target;
     target += (face - target) * s_creatorZoom;
     position = target + offset * std::pow(0.18f, s_creatorZoom);
+    // Screen axes of the view; the pan scales with the zoomed distance so closeups drag at the same feel.
+    const C3Vector forward = target - position;
+    const float distance = std::sqrt(forward.SquaredMag());
+    C3Vector right = C3Vector::Cross(forward, C3Vector(0.0f, 0.0f, 1.0f));
+    if (distance > 0.0f && right.SquaredMag() > 1e-8f) {
+        right.Normalize();
+        C3Vector up = C3Vector::Cross(right, forward);
+        up.Normalize();
+        const C3Vector pan = (right * s_creatorPanX + up * s_creatorPanY) * distance;
+        position += pan;
+        target += pan;
+    }
     if (!std::isfinite(position.x) || !std::isfinite(position.y) || !std::isfinite(position.z)
         || !std::isfinite(target.x) || !std::isfinite(target.y) || !std::isfinite(target.z)) return;
     if (!s_creatorCamera) s_creatorCamera = CameraCreate();

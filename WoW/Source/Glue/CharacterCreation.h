@@ -49,6 +49,8 @@ class CCharacterCreation {
     static void ResetCharCustomizeInfo();
     static void SetCharacterFacing(float facing);
     static void ZoomCamera(float delta);
+    static void PanCamera(float dx, float dy);
+    static void ResetPanCamera();
     static void UpdateZoomCamera();
     static void ResetZoomCamera();
     static void SetCharCustomizeModel(const char* modelName);

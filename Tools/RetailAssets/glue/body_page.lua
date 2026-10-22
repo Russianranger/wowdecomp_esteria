@@ -73,10 +73,12 @@ local function BS_Install()
     buttonRandom:SetScript("OnClick", function()
         PlaySound("gsCharacterCreationLook");
         BodyShapeRandomize();
+        if BS.ResetTriangle then BS.ResetTriangle(); end
     end);
     buttonReset:SetScript("OnClick", function()
         PlaySound("gsCharacterCreationCancel");
         ResetBodyShape();
+        if BS.ResetTriangle then BS.ResetTriangle(); end
     end);
 
     local columnTitle = {};
@@ -85,6 +87,123 @@ local function BS_Install()
         title:SetText(side);
         columnTitle[side] = title;
     end
+
+    -- Body-type triangle: Muscular (top), Large (bottom left), Thin (bottom right). The knob's
+    -- barycentric weights blend three presets over a few body sliders. Its contribution is added on
+    -- top of the sliders, so manual fine-tuning survives moving the knob.
+    local TRI_W, TRI_H, TRI_SPACE = 180, 156, 200;
+    local TRI_PRESETS = {
+        { ShoulderWidth = 0.8, ArmGirth = 0.8, ChestSize = 0.7, WaistWidth = -0.2, HipWidth = -0.1, LegGirth = 0.4 },
+        { ShoulderWidth = 0.2, ArmGirth = 0.4, ChestSize = 0.5, WaistWidth = 0.9, HipWidth = 0.7, LegGirth = 0.7 },
+        { ShoulderWidth = -0.2, ArmGirth = -0.4, ChestSize = -0.3, WaistWidth = -0.35, HipWidth = -0.25, LegGirth = -0.35 },
+    };
+    local CORNERS = { { TRI_W / 2, TRI_H }, { 0, 0 }, { TRI_W, 0 } };
+    BS.tri = { w = { 1 / 3, 1 / 3, 1 / 3 }, applied = {} };
+
+    local tri = CreateFrame("Frame", "BodyShapeTriangle", panel);
+    tri:SetSize(TRI_W, TRI_H);
+    tri:EnableMouse(true);
+    local STRIP = 3;
+    for y = 0, TRI_H - STRIP, STRIP do
+        local width = TRI_W * (1 - (y + STRIP / 2) / TRI_H);
+        local edge = tri:CreateTexture(nil, "BACKGROUND");
+        edge:SetTexture(0.75, 0.85, 0.8, 0.55);
+        edge:SetSize(width + 4, STRIP);
+        edge:SetPoint("BOTTOM", tri, "BOTTOMLEFT", TRI_W / 2, y);
+        if width > 6 and y > 1 then
+            local fill = tri:CreateTexture(nil, "BORDER");
+            fill:SetTexture(0.04, 0.07, 0.09, 0.85);
+            fill:SetSize(width - 4, STRIP);
+            fill:SetPoint("BOTTOM", tri, "BOTTOMLEFT", TRI_W / 2, y);
+        end
+    end
+    local function CornerLabel(text, point, x, y)
+        local label = tri:CreateFontString(nil, "ARTWORK", "GlueFontNormalSmall");
+        label:SetText(text);
+        label:SetPoint(point, tri, "BOTTOMLEFT", x, y);
+    end
+    CornerLabel("Muscular", "BOTTOM", TRI_W / 2, TRI_H + 4);
+    CornerLabel("Large", "TOPLEFT", -6, -4);
+    CornerLabel("Thin", "TOPRIGHT", TRI_W + 6, -4);
+
+    local knob = tri:CreateTexture(nil, "OVERLAY");
+    knob:SetTexture("Interface\\Buttons\\UI-RadioButton");
+    knob:SetTexCoord(0.25, 0.5, 0, 1);
+    knob:SetSize(18, 18);
+
+    local function PlaceKnob()
+        local w = BS.tri.w;
+        local x = w[1] * CORNERS[1][1] + w[2] * CORNERS[2][1] + w[3] * CORNERS[3][1];
+        local y = w[1] * CORNERS[1][2] + w[2] * CORNERS[2][2] + w[3] * CORNERS[3][2];
+        knob:ClearAllPoints();
+        knob:SetPoint("CENTER", tri, "BOTTOMLEFT", x, y);
+    end
+
+    -- Weights for a local point, clamped onto the triangle.
+    local function Weights(x, y)
+        local ax, ay = CORNERS[1][1], CORNERS[1][2];
+        local bx, by = CORNERS[2][1], CORNERS[2][2];
+        local cx, cy = CORNERS[3][1], CORNERS[3][2];
+        local d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+        local a = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / d;
+        local b = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / d;
+        local w = { math.max(a, 0), math.max(b, 0), math.max(1 - a - b, 0) };
+        local sum = w[1] + w[2] + w[3];
+        return { w[1] / sum, w[2] / sum, w[3] / sum };
+    end
+
+    local function ApplyTriangle()
+        local w = BS.tri.w;
+        local wanted = {};
+        -- Each corner's preset fades in from the centre (0) to its corner (1), so a corner shows
+        -- exactly its own preset rather than also subtracting the other two.
+        for k = 1, 3 do
+            local share = math.max(0, (w[k] - 1 / 3) * 1.5);
+            for name, amount in pairs(TRI_PRESETS[k]) do
+                wanted[name] = (wanted[name] or 0) + share * amount;
+            end
+        end
+        for name, value in pairs(wanted) do
+            if GetBodyShapeSupport(name) ~= false then
+                local lo, hi = GetBodyShapeRange(name);
+                local base = GetBodyShape(name) - (BS.tri.applied[name] or 0);
+                local target = math.max(lo or -1, math.min(hi or 1, base + value));
+                SetBodyShape(name, target);
+                BS.tri.applied[name] = target - base;
+            end
+        end
+        PlaceKnob();
+    end
+
+    -- Back to the centre without touching the sliders (used after Reset/Randomize/new character).
+    function BS.ResetTriangle()
+        BS.tri.w = { 1 / 3, 1 / 3, 1 / 3 };
+        BS.tri.applied = {};
+        PlaceKnob();
+    end
+
+    local function TrackCursor()
+        local scale = tri:GetEffectiveScale();
+        local cx, cy = GetCursorPosition();
+        BS.tri.w = Weights(cx / scale - tri:GetLeft(), cy / scale - tri:GetBottom());
+        ApplyTriangle();
+    end
+    tri:SetScript("OnMouseDown", function(self, button)
+        if button == "RightButton" then
+            BS.tri.w = { 1 / 3, 1 / 3, 1 / 3 };
+            ApplyTriangle();
+            return;
+        end
+        self.dragging = true;
+        TrackCursor();
+    end);
+    tri:SetScript("OnMouseUp", function(self) self.dragging = false; end);
+    tri:SetScript("OnHide", function(self) self.dragging = false; end);
+    tri:SetScript("OnUpdate", function(self)
+        if self.dragging then TrackCursor(); end
+    end);
+    BS.triangle = tri;
+    PlaceKnob();
 
     local function BuildRows()
         local index = 0;
@@ -103,7 +222,7 @@ local function BS_Install()
 
                 local value = row:CreateFontString(nil, "ARTWORK", "GlueFontNormalSmall");
                 value:SetPoint("RIGHT", 0, 0);
-                value:SetWidth(40);
+                value:SetWidth(52);
                 value:SetJustifyH("RIGHT");
 
                 local slider = CreateFrame("Slider", "BodyShapeSlider" .. index, row);
@@ -158,8 +277,17 @@ local function BS_Install()
                 shown[#shown + 1] = row;
             end
         end
+        local triShown = false;
+        for name in pairs({ ShoulderWidth = 1, ArmGirth = 1, ChestSize = 1, WaistWidth = 1, HipWidth = 1, LegGirth = 1 }) do
+            if GetBodyShapeSupport(name) ~= false then triShown = true; end
+        end
+        BS.triangle:ClearAllPoints();
+        BS.triangle:SetPoint("TOPLEFT", CharacterCreateFrame, "TOPLEFT", 105, -160);
+        if triShown then BS.triangle:Show(); else BS.triangle:Hide(); end
+        local bodyTop = triShown and 200 or 0;
         local tallest = math.max(counts.body, counts.face, 1);
         local spacing = math.min(34, math.max(22, math.floor((GetScreenHeight() - 240) / tallest)));
+        local bodySpacing = math.min(spacing, math.max(20, math.floor((GetScreenHeight() - 240 - bodyTop) / math.max(counts.body, 1))));
         local placed = { body = 0, face = 0 };
         for _, row in ipairs(shown) do
             local right = row.group == "face";
@@ -167,7 +295,7 @@ local function BS_Install()
             placed[row.group] = n + 1;
             row:ClearAllPoints();
             row:SetPoint(right and "TOPRIGHT" or "TOPLEFT", CharacterCreateFrame, right and "TOPRIGHT" or "TOPLEFT",
-                right and -55 or 55, -140 - n * spacing);
+                right and -55 or 55, -140 - (right and 0 or bodyTop) - n * (right and spacing or bodySpacing));
             Sync(row);
             row:Show();
         end
@@ -217,6 +345,7 @@ local function BS_Install()
     local onShow = CharacterCreate_OnShow;
     function CharacterCreate_OnShow(...)
         if ResetBodyShape then ResetBodyShape(); end
+        if BS.ResetTriangle then BS.ResetTriangle(); end
         BS.page = false;
         local a, b = onShow(...);
         -- Customizing an existing character: start from its saved sliders (the stock handler just selected it).

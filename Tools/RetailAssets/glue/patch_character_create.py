@@ -2,8 +2,9 @@
 
 The creator already draws up to 29 option rows from CycleCharCustomization("EA_GET", i). This patch makes any
 race mapped to Retail data (native "EA_RETAIL" command) use that panel, shows the real choice names and
-routes the randomizer to the native EA_RANDOM, and binds viewport wheel input to
-the native face zoom. It is idempotent.
+routes the randomizer to the native EA_RANDOM, binds viewport wheel input to
+the native face zoom and right-drag to the native camera pan, then appends the Body page and the creator skin.
+It is idempotent.
 
 Default is a dry run that writes the patched files to --stage. With --apply it backs up and rewrites
 Data\\patch-Z.MPQ and Data\\enUS\\patch-enUS-Z.MPQ. Close the game first.
@@ -21,11 +22,15 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import body_triangle
+
 MARKER = "-- Retail race customization (wowdecomp)"
 ENTRY = "Interface" + chr(92) + "GlueXML" + chr(92) + "CharacterCreate.lua"
 ARCHIVES = (Path("Data") / "patch-Z.MPQ", Path("Data") / "enUS" / "patch-enUS-Z.MPQ")
 BODY_MARKER = "-- Body sliders page (wowdecomp)"
 BODY_PAGE = Path(__file__).with_name("body_page.lua")
+SKIN_MARKER = "-- Creator skin (wowdecomp)"
+SKIN = Path(__file__).with_name("creator_skin.lua")
 
 
 def replace_once(text, old, new):
@@ -107,6 +112,41 @@ def patch(text):
     return text.replace("\n", nl)
 
 
+def patch_pan(text):
+    """Right-drag on the viewport pans the creator camera (native EA_PAN); right-click without moving resets it."""
+    marker = "-- Creator right-drag camera pan (wowdecomp)"
+    if marker in text:
+        return text
+    nl = "\r\n" if "\r\n" in text else "\n"
+    text = text.replace("\r\n", "\n")
+    text = replace_once(text, "function CharacterCreateFrame_OnMouseDown(button)\n",
+        marker + "\n"
+        "function CharacterCreateFrame_OnMouseDown(button)\n"
+        "    if ( button == \"RightButton\" ) then\n"
+        "        CHARACTER_CREATE_PAN_X, CHARACTER_CREATE_PAN_Y = GetCursorPosition();\n"
+        "        CHARACTER_CREATE_PAN_MOVED = false;\n"
+        "    end\n")
+    text = replace_once(text, "function CharacterCreateFrame_OnMouseUp(button)\n",
+        "function CharacterCreateFrame_OnMouseUp(button)\n"
+        "    if ( button == \"RightButton\" and CHARACTER_CREATE_PAN_X ) then\n"
+        "        if ( not CHARACTER_CREATE_PAN_MOVED ) then CycleCharCustomization(\"EA_PAN_RESET\", 1); end\n"
+        "        CHARACTER_CREATE_PAN_X = nil;\n"
+        "    end\n")
+    text = replace_once(text, "function CharacterCreateFrame_OnUpdate()\n",
+        "function CharacterCreateFrame_OnUpdate()\n"
+        "    if ( CHARACTER_CREATE_PAN_X ) then\n"
+        "        -- Glue GetCursorPosition and GetScreenHeight share units: pass screen-height fractions.\n"
+        "        local x, y = GetCursorPosition();\n"
+        "        local dx, dy = x - CHARACTER_CREATE_PAN_X, y - CHARACTER_CREATE_PAN_Y;\n"
+        "        if ( dx ~= 0 or dy ~= 0 ) then\n"
+        "            CHARACTER_CREATE_PAN_MOVED = true;\n"
+        "            CycleCharCustomization(\"EA_PAN\", dx / GetScreenHeight(), dy / GetScreenHeight());\n"
+        "            CHARACTER_CREATE_PAN_X, CHARACTER_CREATE_PAN_Y = x, y;\n"
+        "        end\n"
+        "    end\n")
+    return text.replace("\n", nl)
+
+
 def patch_body_page(text):
     """Adds the Body sliders page: hides the appearance rows while it is open, then appends the page itself.
 
@@ -133,8 +173,19 @@ def patch_body_page(text):
     return (text + "\n" + page).replace("\n", nl)
 
 
+def patch_skin(text):
+    """Appends the creator skin after the Body page (re-running replaces an older copy, marker to end of file)."""
+    nl = "\r\n" if "\r\n" in text else "\n"
+    text = text.replace("\r\n", "\n")
+    if SKIN_MARKER in text:
+        text = text[:text.index(SKIN_MARKER)].rstrip("\n") + "\n"
+    skin = SKIN.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return (text + "\n" + skin).replace("\n", nl)
+
+
 def patch_all(text):
-    return patch_body_page(patch(text))
+    # The Body page strips from its marker to the end of the file, so the skin is always appended after it.
+    return patch_skin(patch_body_page(patch_pan(patch(text))))
 
 
 def main():
@@ -154,6 +205,7 @@ def main():
 
     storm = Storm(DLL_DEFAULT)
     args.stage.mkdir(parents=True, exist_ok=True)
+    triangle, _ = body_triangle.build()
     patched = {}
     for relative in ARCHIVES:
         path = args.client / relative
@@ -161,13 +213,22 @@ def main():
         if not storm.dll.SFileOpenArchive(str(path), 0, 0x100, ctypes.byref(handle)):
             raise SystemExit("Cannot open " + str(path))
         try:
-            original = storm.read(handle, ENTRY)
+            original = {ENTRY: storm.read(handle, ENTRY)}
+            # Textures are locale-independent: the body triangle ships in the general archive only.
+            if relative == ARCHIVES[0]:
+                try:
+                    original[body_triangle.ENTRY] = storm.read(handle, body_triangle.ENTRY)
+                except OSError:
+                    original[body_triangle.ENTRY] = b""
         finally:
             storm.dll.SFileCloseArchive(handle)
-        result = patch_all(original.decode("utf-8")).encode("utf-8")
-        (args.stage / (path.stem + "-CharacterCreate.lua")).write_bytes(result)
+        result = {ENTRY: patch_all(original[ENTRY].decode("utf-8")).encode("utf-8")}
+        if body_triangle.ENTRY in original:
+            result[body_triangle.ENTRY] = triangle
+        (args.stage / (path.stem + "-CharacterCreate.lua")).write_bytes(result[ENTRY])
         patched[path] = (original, result)
-        print(path.name, "already patched" if result == original else "patched: %d -> %d bytes" % (len(original), len(result)))
+        changed = [name.rsplit(chr(92), 1)[-1] for name in result if result[name] != original[name]]
+        print(path.name, "already patched" if not changed else "patched: " + ", ".join(changed))
 
     if not args.apply:
         print("Dry run. Staged files are in", args.stage)
@@ -186,11 +247,11 @@ def main():
         else:
             shutil.copy2(path, backup / path.name)
             print("backup", backup / path.name, hashlib.sha256((backup / path.name).read_bytes()).hexdigest()[:16])
-        storm.replace_archive_entries(path, {ENTRY: result})
+        storm.replace_archive_entries(path, result)
         handle = H()
         storm.dll.SFileOpenArchive(str(path), 0, 0x100, ctypes.byref(handle))
         try:
-            ok = storm.read(handle, ENTRY) == result
+            ok = all(storm.read(handle, name) == data for name, data in result.items())
         finally:
             storm.dll.SFileCloseArchive(handle)
         print(path.name, "verified" if ok else "VERIFY FAILED")
