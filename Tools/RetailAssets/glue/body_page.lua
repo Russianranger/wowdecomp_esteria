@@ -239,6 +239,8 @@ local function BS_Install()
                 local lo, hi = GetBodyShapeRange(name);
                 slider:SetMinMaxValues(lo or -1, hi or 1);
                 slider:SetValueStep(0.05);
+                -- The client only places the knob once a value has been set; Sync skips unchanged values.
+                slider:SetValue(GetBodyShape(name) or 0);
                 slider:EnableMouse(true);
                 slider:SetScript("OnValueChanged", function(self, v)
                     v = math.floor(v * 20 + 0.5) / 20;
