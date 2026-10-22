@@ -1,3 +1,7 @@
+#include <memory>
+#include <unordered_set>
+#include "WoW/Source/DB/Rec/ItemDisplayInfoRec.h"
+#include "WoW/Source/DB/DBClient/DBClient.h"
 #include "Engine/Source/Retail/RetailLookWire.h"
 #include "Engine/Source/Retail/BodyShape.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
@@ -141,9 +145,13 @@ const std::vector<Selection>& RaceSelections(uint32_t race) {
     static const std::vector<Selection> highmountain = ReadSelections(L"EsteriaHighmountain.bin");
     static const std::vector<Selection> earthen = ReadSelections(L"EsteriaEarthen.bin");
     static const std::vector<Selection> haranir = ReadSelections(L"EsteriaHaranir.bin");
+    static const auto kyrian = ReadSelections(L"EsteriaKyrian.bin");
+    static const auto venthyr = ReadSelections(L"EsteriaVenthyr.bin");
     static const std::vector<Selection> none;
 
     switch (race) {
+        case 75: return kyrian;
+        case 76: return venthyr;
         case 20: return vulpera;
         case 46: return highmountain;
         case 48:
@@ -832,7 +840,7 @@ bool ClothingPixel(const BLPHeader* blp, uint32_t size, uint32_t x, uint32_t y, 
     uint32_t offset = blp->m_mipOffsets[0];
     uint32_t length = blp->m_mipSizes[0];
     const uint8_t* data = reinterpret_cast<const uint8_t*>(blp);
-    if (size < 1172 || blp->m_magic != 0x32504C42 || !width || !height || width > 512 || height > 512 || x >= width || y >= height || offset > size || length > size - offset) {
+    if (size < 1172 || blp->m_magic != 0x32504C42 || !width || !height || width > 2048 || height > 2048 || x >= width || y >= height || offset > size || length > size - offset) {
         return false;
     }
 
@@ -1071,6 +1079,8 @@ bool DecodeDxtBlp(const BLPHeader* blp, uint32_t size, std::vector<uint8_t>& rgb
     return true;
 }
 
+#include "EsteriaNativeEquipment.inl"
+
 // Retail HD player atlases (layout 103) hold the classic component regions at exactly twice their Wrath position and size
 // in the left 1024x1024 of the 2048x1024 skin, so equipped item layers are pasted into a copy of the chosen skin.
 void ComposeHdBody(CCharacterComponent* character) {
@@ -1214,7 +1224,13 @@ static bool Disabled();
 template <class Visitor>
 static bool VisitRace(const CharacterPreferences& prefs, Visitor&& visit) {
     uint32_t race = prefs.m_raceID;
-    if (race == 69 || race == 70) {
+    if (race == 75) {
+        if (prefs.m_sexID) visit(CreatureAppearance::KyrianFemaleControls, RaceSelections(race));
+        else visit(CreatureAppearance::KyrianMaleControls, RaceSelections(race));
+    } else if (race == 76) {
+        if (prefs.m_sexID) visit(CreatureAppearance::VenthyrFemaleControls, RaceSelections(race));
+        else visit(CreatureAppearance::VenthyrMaleControls, RaceSelections(race));
+    } else if (race == 69 || race == 70) {
         visit(CreatureAppearance::DrakonidControls, RaceSelections(race));
     } else if (race == 63) {
         visit(CreatureAppearance::GnollControls, RaceSelections(race));
@@ -1701,6 +1717,14 @@ int EsteriaCycleCommand(lua_State* L, CCharacterComponent* character, const char
     static const std::array<const char*, 5> saberon = { "Fur Color", "Outfit Style", "Armor Color", "Cloth Color", "Facial Features" };
     static const std::array<VulperaAppearance::Requirement, 0> none = {};
 
+    if (race == 75) {
+        if (gender) return OptionControl(L, command, character, CreatureAppearance::KyrianFemaleControls, CreatureAppearance::KyrianFemaleLabels, none);
+        return OptionControl(L, command, character, CreatureAppearance::KyrianMaleControls, CreatureAppearance::KyrianMaleLabels, none);
+    }
+    if (race == 76) {
+        if (gender) return OptionControl(L, command, character, CreatureAppearance::VenthyrFemaleControls, CreatureAppearance::VenthyrFemaleLabels, none);
+        return OptionControl(L, command, character, CreatureAppearance::VenthyrMaleControls, CreatureAppearance::VenthyrMaleLabels, none);
+    }
     if (race == 54) {
         return OptionControl(L, command, character, CreatureAppearance::Options(54, gender), gender ? nagaFemale : nagaMale, none);
     }
@@ -2083,5 +2107,20 @@ void EsteriaCreateExtra(CDataStore* packet) {
 }
 
 void EsteriaForgetCharacter(CCharacterComponent* character) {
+    selectorOutfits.erase(character);
+    pendingSelectorBind.erase(character);
     g_extraFields.erase(character);
+}
+
+void EsteriaNativeEquipment(CCharacterComponent* character) {
+    if (!character || !character->m_data.m_model || !character->m_data.m_model->m_shared
+        || !character->m_data.m_model->m_shared->m_data || !(character->m_data.m_model->m_fFlags & 1)) return;
+    BindSelectorOutfit(character);
+}
+bool EsteriaNativeEquipmentPending(CCharacterComponent* character) {
+    return pendingSelectorBind.count(character) != 0;
+}
+void EsteriaClearNativeEquipment() {
+    selectorOutfits.clear();
+    pendingSelectorBind.clear();
 }

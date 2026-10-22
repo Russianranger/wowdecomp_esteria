@@ -1,5 +1,9 @@
 #include "CharacterCreation.h"
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <string>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/Frame/CScriptObject.h"
 #include "Engine/Source/Frame/CSimpleModel.h"
@@ -649,8 +653,55 @@ static int32_t Script_GetClassCapacity(lua_State* L) {
 }
 #endif
 
+// Esteria: glue has no SavedVariables, so the character-select roster (order, notes, favorites)
+// is kept in WTF\Esteria\<name>.txt. Names are restricted to [A-Za-z0-9_-] so Lua cannot
+// reach outside that folder.
+static std::filesystem::path EsteriaStorePath(lua_State* L) {
+    const char* name = lua_tolstring(L, 1, nullptr);
+    if (!name || !*name) return {};
+    std::string safe;
+    for (const char* c = name; *c && safe.size() < 64; c++) {
+        if (isalnum(static_cast<unsigned char>(*c)) || *c == '_' || *c == '-') safe += *c;
+    }
+    if (safe.empty()) return {};
+    return std::filesystem::path("WTF") / "Esteria" / (safe + ".txt");
+}
+
+static int32_t Script_EsteriaStoreRead(lua_State* L) {
+    std::ifstream in(EsteriaStorePath(L), std::ios::binary);
+    if (!in) return 0;
+    std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    lua_pushlstring(L, text.data(), text.size());
+    return 1;
+}
+
+static int32_t Script_EsteriaStoreWrite(lua_State* L) {
+    const auto path = EsteriaStorePath(L);
+    size_t length = 0;
+    const char* text = lua_tolstring(L, 2, &length);
+    bool ok = !path.empty() && text && length <= 1 << 20;
+    if (ok) {
+        // Write a temp file then replace, so a crash mid-write cannot wipe the old store.
+        std::error_code error;
+        std::filesystem::create_directories(path.parent_path(), error);
+        auto temp = path;
+        temp += ".tmp";
+        {
+            std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+            out.write(text, static_cast<std::streamsize>(length));
+            ok = static_cast<bool>(out);
+        }
+        if (ok) std::filesystem::rename(temp, path, error);
+        ok = ok && !error;
+    }
+    lua_pushboolean(L, ok);
+    return 1;
+}
+
 // STATIC: 0x00AC4228
 static FrameScript_Method s_scriptFunctions[] = {
+    { "EsteriaStoreRead", &Script_EsteriaStoreRead },
+    { "EsteriaStoreWrite", &Script_EsteriaStoreWrite },
 #if WOWDECOMP_MAX_CLASSES > 32
     { "GetClassCapacity", &Script_GetClassCapacity },
 #endif

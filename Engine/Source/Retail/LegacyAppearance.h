@@ -414,6 +414,7 @@ inline constexpr Option Options[] = {
     {47, 1, 8567, 4, 3, 20, 2206},
 };
 inline bool IsPackedRace(uint32_t race) {
+    if (race == 75 || race == 76) return true;
     for (const auto& option : Options) if (option.race == race) return true;
     return false;
 }

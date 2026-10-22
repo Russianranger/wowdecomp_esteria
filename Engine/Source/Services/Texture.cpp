@@ -1793,7 +1793,10 @@ int32_t PumpBlpTextureAsync(CTexture* texture, void* data) {
 
     PIXEL_FORMAT pixelFormat;
     EGxTexFormat gxTexFormat;
-    TextureGetTextureFormats(pixelFormat, gxTexFormat, static_cast<PIXEL_FORMAT>(image.m_header.m_preferredFormat), image.m_header.m_alphaSize);
+    // Raw BLP2 pixels are BGRA even when an imported file retains a DXT format hint.
+    TextureGetTextureFormats(pixelFormat, gxTexFormat,
+        image.m_header.m_colorEncoding == 3 ? PIXEL_ARGB8888
+            : static_cast<PIXEL_FORMAT>(image.m_header.m_preferredFormat), image.m_header.m_alphaSize);
 
     s_pumping = 1;
 

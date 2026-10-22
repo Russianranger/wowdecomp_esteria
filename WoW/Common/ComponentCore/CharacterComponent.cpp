@@ -481,7 +481,9 @@ int32_t CCharacterComponent::ComposeHelmModelFilePath(const ChrRacesRec* raceRec
     }
 
     *ext = '_';
-    strcpy(ext + 1, raceRec->m_clientPrefix);
+    const uint32_t race = this->m_data.m_preferences.m_raceID;
+    // Native fitting uses the Human helmet mesh; Ky/Ve have no Wrath equipment variants.
+    strcpy(ext + 1, race == 75 || race == 76 ? "Hu" : raceRec->m_clientPrefix);
     strcat(path, s_fileDecorations[this->m_data.m_preferences.m_sexID]);
     strcat(path, ".mdx");
     strcpy(buffer, path);
@@ -3610,6 +3612,7 @@ void CCharacterComponent::GeosRenderPrep() {
     }
 
     RetailRaceEquipment(this);
+    EsteriaNativeEquipment(this);
     this->m_data.m_model->OptimizeVisibleGeometry();
     this->m_flags &= ~0x4;
 }
@@ -5186,6 +5189,7 @@ void CCharacterComponent::RenderPrepSections() {
 // VERIFY: e78118c6 manual
 // OFFSET: 0x004F1520
 bool CCharacterComponent::RenderPrep(int32_t wait) {
+    if (EsteriaNativeEquipmentPending(this)) this->m_flags |= 0x4;
     if (this->m_data.m_flags & 0x1) {
         if (this->m_flags & 0x4) {
             this->GeosRenderPrep();
@@ -5535,6 +5539,7 @@ void CCharacterComponent::AddCape() {
 // VERIFY: c90ee445 manual
 // OFFSET: 0x004F2320
 bool CCharacterComponent::Destroy() {
+    EsteriaClearNativeEquipment();
     if (CCharacterComponent::m_activePlayerComponent) {
         CCharacterComponent::FreeComponent(CCharacterComponent::m_activePlayerComponent);
         CCharacterComponent::m_activePlayerComponent = nullptr;

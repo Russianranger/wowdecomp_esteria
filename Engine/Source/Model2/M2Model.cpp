@@ -2436,7 +2436,11 @@ uint32_t CM2Model::GetNumGeometryBatches() {
         }
 
         if (batch->m_textureCount) {
-            alpha *= this->m_textureWeights[data->m_textureWeightCombos[batch->m_textureWeightComboIndex]].m_currentValue;
+            if (this->m_textureWeights && batch->m_textureWeightComboIndex < data->m_textureWeightCombos.m_count) {
+                auto opacityIndex = data->m_textureWeightCombos[batch->m_textureWeightComboIndex];
+                if (opacityIndex < data->m_textureWeights.m_count)
+                    alpha *= this->m_textureWeights[opacityIndex].m_currentValue;
+            }
         }
 
         if (alpha >= 0.000099999997f) {
@@ -2489,7 +2493,11 @@ uint32_t CM2Model::GetNumCombinableDoodadBatches() {
         }
 
         if (batch->m_textureCount) {
-            alpha *= this->m_textureWeights[data->m_textureWeightCombos[batch->m_textureWeightComboIndex]].m_currentValue;
+            if (this->m_textureWeights && batch->m_textureWeightComboIndex < data->m_textureWeightCombos.m_count) {
+                auto opacityIndex = data->m_textureWeightCombos[batch->m_textureWeightComboIndex];
+                if (opacityIndex < data->m_textureWeights.m_count)
+                    alpha *= this->m_textureWeights[opacityIndex].m_currentValue;
+            }
         }
 
         if (alpha >= 0.000099999997f && this->IsBatchDoodadCompatible(batch)) {
@@ -2541,7 +2549,11 @@ uint32_t CM2Model::GetNumPrimitives() {
         }
 
         if (batch->m_textureCount) {
-            alpha *= this->m_textureWeights[this->m_shared->m_data->m_textureWeightCombos[batch->m_textureWeightComboIndex]].m_currentValue;
+            if (this->m_textureWeights && batch->m_textureWeightComboIndex < data->m_textureWeightCombos.m_count) {
+                auto opacityIndex = data->m_textureWeightCombos[batch->m_textureWeightComboIndex];
+                if (opacityIndex < data->m_textureWeights.m_count)
+                    alpha *= this->m_textureWeights[opacityIndex].m_currentValue;
+            }
         }
 
         if (alpha >= 0.000099999997f) {
@@ -8126,7 +8138,11 @@ void CM2Model::GatherModelBatchesShadowMap(CModelBatchList& untextured, CModelBa
         }
 
         if (batch->m_textureCount) {
-            alpha *= this->m_textureWeights[data->m_textureWeightCombos[batch->m_textureWeightComboIndex]].m_currentValue;
+            if (this->m_textureWeights && batch->m_textureWeightComboIndex < data->m_textureWeightCombos.m_count) {
+                auto opacityIndex = data->m_textureWeightCombos[batch->m_textureWeightComboIndex];
+                if (opacityIndex < data->m_textureWeights.m_count)
+                    alpha *= this->m_textureWeights[opacityIndex].m_currentValue;
+            }
         }
 
         if (alpha >= 0.55000001f) {

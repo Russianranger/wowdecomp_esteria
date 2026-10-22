@@ -102,10 +102,17 @@ int32_t CBLPFile::Source(void* data) {
 
     this->m_inMemoryNeedsFree = 0;
     this->m_inMemoryImage = data;
-    memcpy(&this->m_header, data, sizeof(this->m_header));
+    // The 1024-byte palette exists only in indexed BLP2 files, not compressed or raw BGRA files.
+    memset(&this->m_header, 0, sizeof(this->m_header));
+    memcpy(&this->m_header, data, offsetof(BLPHeader, m_extended));
 
     if (!CBLPFile::ValidateHeader(this->m_header)) {
         return 0;
+    }
+
+    if (this->m_header.m_colorEncoding == 1) {
+        memcpy(&this->m_header.m_extended, static_cast<const uint8_t*>(data) + offsetof(BLPHeader, m_extended),
+            sizeof(this->m_header.m_extended.m_palette));
     }
 
     if (this->HasMips()) {

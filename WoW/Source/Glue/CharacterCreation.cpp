@@ -25,6 +25,7 @@
 #include "WoW/Source/DB/Rec/ChrRacesRec.h"
 #include "WoW/Source/DB/Rec/CreatureModelDataRec.h"
 #include "WoW/Source/DB/Rec/ItemDisplayInfoRec.h"
+#include "WoW/Source/DB/Rec/ItemRec.h"
 #include "WoW/Source/Game/GameClient/CDrawBowString.h"
 #include "WoW/Source/Glue/CGlueLoading.h"
 #include "WoW/Source/Glue/CGlueMgr.h"
@@ -569,6 +570,33 @@ void CCharacterCreation::Dress() {
     CCharacterComponent::RemoveHandItem(CCharacterCreation::m_character->m_data.m_model, INVSLOT_OFFHAND, SHEATHE_NONE, true);
     CCharacterComponent::RemoveHandItem(CCharacterCreation::m_character->m_data.m_model, INVSLOT_RANGED, SHEATHE_NONE, false);
 
+    // Visual class sets are creator-only. The create packet still uses outfit
+    // zero, so these previews do not grant items or alter starter equipment.
+    struct ClassPreviewSet { int32_t classID; int32_t items[7]; };
+    static ClassPreviewSet const classSets[] = {
+        {1,{50078,50079,50081,50082,49906,16861,16864}}, // Ymirjar
+        {2,{50328,50327,50325,50324,49907,16857,16858}}, // Lightsworn
+        {3,{50118,50114,50116,50117,49897,16850,16851}}, // Ahn'Kahar
+        {4,{50087,50088,50090,50105,49895,16825,16827}}, // Shadowblade
+        {5,{50768,50766,50769,50767,49893,16819,16817}}, // Crimson Acolyte
+        {7,{50830,50831,50833,50834,49896,16840,16838}}, // Frost Witch
+        {8,{50278,50275,50277,50279,49890,16799,16802}}, // Bloodmage
+        {9,{50243,50240,50242,50244,49890,16804,16806}}, // Dark Coven
+        {11,{50823,50822,50820,50819,49894,16830,16828}} // Lasherweave
+    };
+    bool classArmor=false;
+    const auto race = CCharacterCreation::m_character->m_data.m_preferences.m_raceID;
+    if (race == 75 || race == 76) for (auto const& set:classSets) {
+        if (set.classID!=CCharacterCreation::m_selectedClassID)continue;
+        for (int32_t itemID:set.items) {
+            auto const* item=g_itemDB.GetRecord(itemID);
+            if (!item||item->m_displayInfoID<=0||item->m_inventoryType==INVTYPE_HEAD)continue;
+            CCharacterCreation::m_character->AddItemByType(static_cast<INVENTORY_TYPES>(item->m_inventoryType),item->m_displayInfoID);
+            classArmor=true;
+        }
+        break;
+    }
+
     for (int32_t i = 0; i < g_charStartOutfitDB.m_numRecords; i++) {
         CharStartOutfitRec* outfit = i >= 0 && i < g_charStartOutfitDB.m_numRecords ? &g_charStartOutfitDB.m_records[i] : nullptr;
 
@@ -583,6 +611,10 @@ void CCharacterCreation::Dress() {
             if (displayID <= 0 || type == INVTYPE_HEAD) {
                 continue;
             }
+
+            if (classArmor && (type == INVTYPE_SHOULDERS || type == INVTYPE_CHEST || type == INVTYPE_ROBE
+                || type == INVTYPE_WAIST || type == INVTYPE_LEGS || type == INVTYPE_FEET
+                || type == INVTYPE_WRISTS || type == INVTYPE_HANDS)) continue;
 
             if (CCharacterCreation::m_selectedClassID == 3) {
                 switch (type) {

@@ -203,9 +203,15 @@ struct OptionInfo {
     uint32_t id = 0;
     std::string name;
     uint32_t count = 0;
+    uint32_t extra = 0; // trailing client-only choices past the DB2 ones
     Stock stock = Stock::None;
     std::vector<uint32_t> creationIndices; // UI positions map to the unchanged raw choice indexes.
 };
+
+// Blood Elf ears staged as Human-rigged collections (EsteriaWoW/tools/human_elf_ears.py), offered after the
+// Human "Ears" choices. The DB2 recipe keeps its default ears; the geometry pass swaps them for the collection.
+constexpr uint16_t ElfEarGeosets[] = {702, 703, 704};
+constexpr const char* ElfEarNames[] = {"Elven (Long)", "Elven (Swept)", "Elven (Short)"};
 
 Stock StockFor(const std::string& name, uint32_t retailRace, uint32_t sex) {
     const auto matches = [&](uint32_t variation, bool colors) {
@@ -238,6 +244,11 @@ const std::vector<OptionInfo>& OptionsFor(uint32_t retailRace, uint32_t sex) {
             app::ChrChoice choice{};
             if (app::ChoiceAt(info.id, index, choice) && app::CreationChoiceAllowed(model, choice.id))
                 info.creationIndices.push_back(index);
+        }
+        if (retailRace == 1 && info.name == "Ears" && Retail::currentSource == Retail::SourceKind::Retail) {
+            info.extra = uint32_t(std::size(ElfEarGeosets));
+            for (uint32_t extra = 0; extra < info.extra; ++extra) info.creationIndices.push_back(info.count + extra);
+            info.count += info.extra;
         }
         options.push_back(std::move(info));
     }
@@ -348,9 +359,21 @@ std::vector<uint32_t> Choices(uint32_t retailRace, CCharacterComponent* characte
                 StoreIndex(character, options, i, index);
             }
         }
-        if (options[i].count && app::ChoiceAt(options[i].id, index, choice)) choices.push_back(choice.id);
+        if (index < options[i].count - options[i].extra && app::ChoiceAt(options[i].id, index, choice))
+            choices.push_back(choice.id);
     }
     return choices;
+}
+
+// The collection geoset of a selected client-only elf ear choice, or 0.
+uint16_t ElfEarGeoset(CCharacterComponent* character, uint32_t retailRace) {
+    const std::vector<OptionInfo>& options = OptionsFor(retailRace, character->m_data.m_preferences.m_sexID);
+    for (size_t i = 0; i < options.size(); ++i) {
+        if (!options[i].extra) continue;
+        const uint32_t index = IndexOf(character, options, i), first = options[i].count - options[i].extra;
+        return index >= first ? ElfEarGeosets[index - first] : 0;
+    }
+    return 0;
 }
 
 // The shared model remembers the name it was created from; Retail models are created from "retail/<id>.m2".
@@ -421,6 +444,18 @@ void FinishCollections(CCharacterComponent* character, bool refresh = false) {
     }
 }
 
+// Whether the equipped helmet hides HelmetGeosetVisData slot `slot` (0 hair, 1..3 facial, 4 ears, 5..6 other) for
+// the race's helmet-mask donor.
+bool HelmetHides(CCharacterComponent* character, uint32_t slot) {
+    const uint32_t sex = character->m_data.m_preferences.m_sexID;
+    const uint32_t maskRace = Retail::HelmetMaskRace(RetailRaceId(character->m_data.m_preferences.m_raceID));
+    ItemDisplayInfoRec display;
+    if (!maskRace || maskRace >= 32 || sex > 1 || slot >= 7 || !character->m_itemDisplayID[ITEMSLOT_HEAD]
+        || !g_itemDisplayInfoDB.GetRecord(character->m_itemDisplayID[ITEMSLOT_HEAD], &display)) return false;
+    const auto* visibility = g_helmetGeosetVisDataDB.GetRecord(display.m_helmetGeosetVisID[sex]);
+    return visibility && (uint32_t(visibility->m_hideGeoset[slot]) & (uint32_t{1} << maskRace));
+}
+
 void SyncCollections(CCharacterComponent* character, const app::Recipe& recipe) {
     CM2Model* parent = character->m_data.m_model;
     auto& state = g_collections[character];
@@ -430,6 +465,9 @@ void SyncCollections(CCharacterComponent* character, const app::Recipe& recipe) 
         state.geosets["custom/slimegiant/" + std::to_string(recipe.modelFileDataId) + "-clothing.m2"] = {1};
     if (Retail::Centaur::Race(character->m_data.m_preferences.m_raceID))
         state.geosets["custom/centaur/" + std::to_string(recipe.modelFileDataId) + "-clothing.m2"] = {1};
+    const uint16_t ears = ElfEarGeoset(character, RetailRaceId(character->m_data.m_preferences.m_raceID));
+    if (ears && !HelmetHides(character, 4)) // geometry and equipment share one refresh, so this follows the helm
+        state.geosets["custom/humanears/" + std::to_string(recipe.modelFileDataId) + "-ears.m2"] = {ears};
     for (const auto& part : recipe.attached)
         if (part.fileDataId && part.geoset % 100) { // group*100 is an explicitly hidden collection.
             Retail::Source().RegisterCharacterModel(part.fileDataId);
@@ -598,6 +636,54 @@ struct Look {
     std::map<uint32_t, CTexture*> textures; // finished GPU textures for types that carry no equipment
 };
 
+// Paints the Blood Elf ear texture for the elf ear collections into an area of the Human body sheet that no Human
+// mesh samples. The .ear file (EsteriaWoW/tools/human_elf_ears.py) is 'HEAR', u16 x, y, w, h, u16 n, n * (u16 x, y)
+// tone samples, then w*h RGBA texels: rgb is detail relative to skin (128 = 1.0), alpha is coverage. The samples are
+// the head skin around the ear opening, so the ears match the skin they join for every face and skin colour.
+void PaintElfEars(uint32_t modelFileDataId, Retail::Image& sheet) {
+    const std::string name = "custom/humanears/" + std::to_string(modelFileDataId) + "-ears.ear";
+    void* data = nullptr;
+    uint32_t size = 0;
+    if (!SFile::LoadFile(name.c_str(), &data, &size, 0, nullptr)) return;
+    const auto* bytes = static_cast<const uint8_t*>(data);
+    uint16_t header[5] = {};
+    if (size >= 14 && !std::memcmp(bytes, "HEAR", 4)) std::memcpy(header, bytes + 4, sizeof(header));
+    const uint32_t x = header[0], y = header[1], w = header[2], h = header[3], n = header[4];
+    const auto* points = bytes + 14;
+    bool valid = w && h && n && size == 14 + size_t(n) * 4 + size_t(w) * h * 4 && x + w <= sheet.width
+        && y + h <= sheet.height && sheet.rgba.size() == size_t(sheet.width) * sheet.height * 4;
+    for (uint32_t i = 0; valid && i < n; ++i)
+        valid = uint32_t(points[i * 4] | points[i * 4 + 1] << 8) < sheet.width
+            && uint32_t(points[i * 4 + 2] | points[i * 4 + 3] << 8) < sheet.height;
+    if (!valid) {
+        Log("elf ears: invalid %s", name.c_str());
+        SFile::Unload(data);
+        return;
+    }
+    uint32_t tone[3] = {};
+    std::vector<uint8_t> samples(n);
+    for (uint32_t channel = 0; channel < 3; ++channel) {
+        for (uint32_t i = 0; i < n; ++i) {
+            const uint32_t column = points[i * 4] | points[i * 4 + 1] << 8, row = points[i * 4 + 2] | points[i * 4 + 3] << 8;
+            samples[i] = sheet.rgba[(size_t(row) * sheet.width + column) * 4 + channel];
+        }
+        std::nth_element(samples.begin(), samples.begin() + n / 2, samples.end());
+        tone[channel] = samples[n / 2];
+    }
+    const uint8_t* texel = points + size_t(n) * 4;
+    for (uint32_t row = 0; row < h; ++row) {
+        for (uint32_t column = 0; column < w; ++column, texel += 4) {
+            if (!texel[3]) continue;
+            uint8_t* pixel = &sheet.rgba[(size_t(y + row) * sheet.width + x + column) * 4];
+            for (uint32_t channel = 0; channel < 3; ++channel) {
+                const uint32_t colour = std::min<uint32_t>(255, texel[channel] * tone[channel] / 128);
+                pixel[channel] = uint8_t((pixel[channel] * (255 - texel[3]) + colour * texel[3]) / 255);
+            }
+        }
+    }
+    SFile::Unload(data);
+}
+
 Look& LookFor(uint32_t retail, uint32_t sex, const std::vector<uint32_t>& choices, std::string& key) {
     static std::map<std::string, Look> looks;
     static std::deque<std::string> order;
@@ -622,6 +708,9 @@ Look& LookFor(uint32_t retail, uint32_t sex, const std::vector<uint32_t>& choice
     if (app::BuildForCharacter(retail, sex, choices.data(), uint32_t(choices.size()), look.recipe)) {
         std::string warnings;
         Retail::ComposeTextures(look.recipe, FetchBlp, nullptr, look.composed, warnings);
+        if (retail == 1 && Retail::currentSource == Retail::SourceKind::Retail)
+            for (auto& texture : look.composed)
+                if (texture.textureType == 1) PaintElfEars(look.recipe.modelFileDataId, texture.image);
         if (retail == Retail::SlimeGiant::Profile || retail == Retail::Centaur::Profile) {
             uint32_t width = 0, height = 0;
             if (app::LayoutSize(look.recipe.textureLayoutId, width, height))
@@ -841,6 +930,8 @@ bool RetailRaceMapped(uint32_t race) {
 }
 
 float RetailRacePreviewScale(uint32_t race) {
+    if (race == 75) return 0.56f;
+    if (race == 76) return 0.75f;
     return Retail::Centaur::Race(race) ? .75f : 1.0f;
 }
 
@@ -859,6 +950,7 @@ void RetailRaceDuplicateCollections(CM2Model* source, CM2Model* target) {
 }
 
 uint32_t RetailRaceHelmetMask(uint32_t race) {
+    if (race == 75 || race == 76) return uint32_t{1} << 1;
     const uint32_t retail = RetailRaceId(race);
     const uint32_t donor = retail ? Retail::HelmetMaskRace(retail) : race;
     return donor && donor < 32 ? uint32_t{1} << donor : 0;
@@ -933,6 +1025,11 @@ bool RetailRaceGeometry(CCharacterComponent* character) {
         model->SetGeometryVisible(geoset, geoset, 1);
         if (geoset / 100 < 19) character->m_data.m_geosets[geoset / 100] = geoset;
     }
+    if (ElfEarGeoset(character, retail)) {
+        // The collection's ear root seals the head opening itself; no Human ear geometry may show.
+        model->SetGeometryVisible(700, 799, 0);
+        character->m_data.m_geosets[7] = 700;
+    }
 
     // Hair, eyes and other single-layer types are cached per look; the body also carries equipment.
     for (const auto& texture : look.composed) {
@@ -981,15 +1078,9 @@ void RetailRaceEquipment(CCharacterComponent* character) {
     // helmet hides last; otherwise retail hair and facial hair reappear underneath the helm.
     const uint32_t race = character->m_data.m_preferences.m_raceID;
     const uint32_t sex = character->m_data.m_preferences.m_sexID;
-    ItemDisplayInfoRec display;
-    const uint32_t maskRace = Retail::HelmetMaskRace(RetailRaceId(race));
-    if (!maskRace || maskRace >= 32 || sex > 1 || !character->m_itemDisplayID[ITEMSLOT_HEAD]
-        || !g_itemDisplayInfoDB.GetRecord(character->m_itemDisplayID[ITEMSLOT_HEAD], &display)) return;
-    const auto* visibility = g_helmetGeosetVisDataDB.GetRecord(display.m_helmetGeosetVisID[sex]);
-    if (!visibility) return;
     constexpr uint32_t groups[] = {0, 1, 2, 3, 7, 16, 17};
     for (uint32_t i = 0; i < 7; ++i) {
-        if (!(uint32_t(visibility->m_hideGeoset[i]) & (uint32_t{1} << maskRace))) continue;
+        if (!HelmetHides(character, i)) continue;
         const uint32_t group = groups[i];
         if (Retail::Centaur::Race(race)) {
             if (group == 0) model->SetGeometryVisible(7001, 7099, 0);
@@ -1222,8 +1313,10 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
     if (!std::strcmp(command, "EA_CHOICE_NAME")) {
         app::ChrChoice choice{};
         const double which = lua_isnumber(L, 3) ? lua_tonumber(L, 3) : -1;
-        const std::string name = which >= 0 && which < count && which == std::floor(which) &&
-            app::ChoiceAt(option.id, eligible[size_t(which)], choice) ? app::ChoiceName(choice.id) : std::string();
+        const bool valid = which >= 0 && which < count && which == std::floor(which);
+        const uint32_t raw = valid ? eligible[size_t(which)] : 0, authored = option.count - option.extra;
+        const std::string name = !valid ? std::string() : raw >= authored ? ElfEarNames[raw - authored]
+            : app::ChoiceAt(option.id, raw, choice) ? app::ChoiceName(choice.id) : std::string();
         lua_pushstring(L, name.c_str());
         return 1;
     }

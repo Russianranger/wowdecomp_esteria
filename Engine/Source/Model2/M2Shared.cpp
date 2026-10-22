@@ -4,6 +4,7 @@
 #include <vector>
 #include <malloc.h>
 #include <new>
+#include <limits>
 #include <typeinfo>
 #include "Engine/Source/Model2/M2Shared.h"
 #include "Engine/Source/Base/Handle.h"
@@ -364,8 +365,22 @@ static void ConvertTextureComboEntry(TextureComboList* list, int32_t adjust, uin
 // OFFSET: 0x008360A0
 int32_t CM2Shared::SetIndices() {
     if (!this->m_indexPool) {
-        this->m_indexPool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Index, GxPoolUsage_Dynamic, sizeof(uint16_t) * this->m_instances * this->m_skinData->m_indices.m_count, GxPoolHintBit_Unk1, this->m_fileNameWithoutPath);
-        this->m_indexBuf = g_theGxDevicePtr->BufCreate(this->m_indexPool, sizeof(uint16_t), this->m_instances * this->m_skinData->m_indices.m_count, 0);
+        uint64_t indexCount = 0;
+        for (uint32_t i = 0; i < this->m_skinData->m_skinSections.m_count; ++i) {
+            const M2SkinSection& section = this->m_skinData->m_skinSections[i];
+            const uint32_t start = M2WideIndexStart(&section, this->m_skinData->m_indices.m_count);
+            if (start > this->m_skinData->m_indices.m_count
+                || section.m_indexCount > this->m_skinData->m_indices.m_count - start) return 0;
+            indexCount += section.m_indexCount;
+        }
+        const uint32_t maxIndexCount = std::numeric_limits<uint32_t>::max() / sizeof(uint16_t);
+        if (!indexCount || !this->m_instances || indexCount > maxIndexCount / this->m_instances) return 0;
+
+        // Sections may share source triangles; the packed output still emits each section for every instance.
+        const uint32_t packedCount = static_cast<uint32_t>(indexCount * this->m_instances);
+        this->m_indexPool = g_theGxDevicePtr->PoolCreate(GxPoolTarget_Index, GxPoolUsage_Dynamic,
+            sizeof(uint16_t) * packedCount, GxPoolHintBit_Unk1, this->m_fileNameWithoutPath);
+        this->m_indexBuf = g_theGxDevicePtr->BufCreate(this->m_indexPool, sizeof(uint16_t), packedCount, 0);
 
         if (!this->m_indexPool || !this->m_indexBuf) {
             return 0;

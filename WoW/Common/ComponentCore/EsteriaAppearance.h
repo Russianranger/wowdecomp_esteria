@@ -63,4 +63,8 @@ bool EsteriaRetailStoreChoice(CCharacterComponent* character, uint32_t optionId,
 std::array<uint8_t, 13> EsteriaRetailFields(CCharacterComponent* character);
 void EsteriaRetailFields(CCharacterComponent* character, const std::array<uint8_t, 13>& fields);
 
+void EsteriaNativeEquipment(CCharacterComponent* character);
+bool EsteriaNativeEquipmentPending(CCharacterComponent* character);
+void EsteriaClearNativeEquipment();
+
 #endif
