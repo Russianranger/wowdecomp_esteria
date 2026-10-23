@@ -70,6 +70,7 @@ def main(argv):
     ap.add_argument('--print', action='store_true', help='print the GLSL of each emitted record')
     ap.add_argument('--glslang', default=None, help='glslang.exe (also $GLSLANG)')
     ap.add_argument('--extra-pixel', default=None, help='folder of raw ps_3_0 token streams (*.bin) to translate as extra pixel records, e.g. the native Retail glow permutations')
+    ap.add_argument('--extra-vertex', default=None, help='folder of raw vs_3_0 token streams (*.bin) to translate as extra vertex records')
     ap.add_argument('--no-compile', action='store_true', help='emit GLSL only')
     args = ap.parse_args(argv)
 
@@ -90,6 +91,8 @@ def main(argv):
     recs = archive.enumerate_records(args.data)
     if args.extra_pixel:
         recs += archive.extra_pixel_records(args.extra_pixel)
+    if args.extra_vertex:
+        recs += archive.extra_vertex_records(args.extra_vertex)
     # Fold byte-identical records: one module per md5, every Name:perm that has it listed.
     by_md5 = collections.OrderedDict()
     names = collections.defaultdict(list)

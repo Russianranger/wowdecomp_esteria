@@ -48,7 +48,7 @@ namespace
         VkDescriptorBufferInfo info = {};
         info.buffer = b.handle;
         info.offset = 0;
-        info.range  = kSliceBytesLarge;
+        info.range  = kSliceBytesExtra;
         VkWriteDescriptorSet write = {};
         write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet          = set;
@@ -83,7 +83,8 @@ namespace gxvk::vk::pipelines::detail
         if (slot >= frame::kFramesInFlight || !draw.vertexRegs || !draw.pixelRegs) return false;
         SlotSets& ss = s.slots[slot];
         const uint32_t rows  = draw.vertexRows == kVertexRowsLarge ? kVertexRowsLarge : kVertexRowsSmall;
-        const uint32_t bytes = kSliceHeadBytes + rows * 16;
+        const uint32_t extra = draw.pixelExtra && draw.pixelExtraRows ? (draw.pixelExtraRows < kPixelExtraRows ? draw.pixelExtraRows : kPixelExtraRows) : 0;
+        const uint32_t bytes = extra ? kSliceExtraOffset + extra * 16 : kSliceHeadBytes + rows * 16;
 
         if (ss.regsSerial != serial)
         {
@@ -94,10 +95,16 @@ namespace gxvk::vk::pipelines::detail
             ss.lastSliceSet   = VK_NULL_HANDLE;
         }
 
-        uint8_t slice[kSliceBytesLarge];
+        uint8_t slice[kSliceBytesExtra];
         std::memcpy(slice, draw.pixelRegs, kPixelRows * 16);
         std::memcpy(slice + kPixelRows * 16, draw.misc, 16);
         std::memcpy(slice + kSliceHeadBytes, draw.vertexRegs, rows * 16);
+        if (extra)
+        {
+            // The unused vertex rows stay zero so that equal draws compare equal below.
+            std::memset(slice + kSliceHeadBytes + rows * 16, 0, kSliceExtraOffset - kSliceHeadBytes - rows * 16);
+            std::memcpy(slice + kSliceExtraOffset, draw.pixelExtra, extra * 16);
+        }
 
         if (ss.lastSliceSet != VK_NULL_HANDLE && ss.lastSliceBytes == bytes && std::memcmp(ss.lastSlice, slice, bytes) == 0)
         {
@@ -115,7 +122,7 @@ namespace gxvk::vk::pipelines::detail
             if (ss.regsUsed > 0)
             {
                 const uint32_t at = (ss.regsCursor + s.regsAlign - 1) / s.regsAlign * s.regsAlign;
-                if (at + kSliceBytesLarge <= kRegsChunkBytes)
+                if (at + kSliceBytesExtra <= kRegsChunkBytes)
                 {
                     memory::Buffer& b = ss.regs[ss.regsUsed - 1];
                     std::memcpy(static_cast<uint8_t*>(b.block.mapped) + at, slice, bytes);

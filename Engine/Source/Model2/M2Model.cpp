@@ -16,6 +16,7 @@
 #include <alloca.h>
 #endif
 #include "Engine/Source/Model2/M2Model.h"
+#include "Extensions/ASECM3/client/UnitWorldBinding.h"
 #include "Engine/Source/Retail/BodyShape.h"
 #if defined(WOWDECOMP_RETAIL_ASSETS)
 #include "Engine/Source/Retail/Centaur.h"
@@ -924,6 +925,7 @@ CAaBox CM2Model::GetMaxBoundingBoxPlusAttachments() {
     }
 
     CAaBox box = this->m_shared->m_data->m_bounds.m_extent;
+    ASECM3::Client::UnitModelBounds(this, box, false, true);
 
     for (CM2Model* model = this->m_attachList; model; model = model->m_attachNext) {
         CAaBox child = model->GetMaxBoundingBoxPlusAttachments();
@@ -990,6 +992,12 @@ CAaBox CM2Model::GetCurrentBoundingBox() {
         result.t.y = -FLT_MAX;
         result.t.z = -FLT_MAX;
         return result;
+    }
+
+    CAaBox m3Box;
+
+    if (ASECM3::Client::UnitModelBounds(this, m3Box, true, false)) {
+        return m3Box;
     }
 
     M2Data* data = this->m_shared->m_data;
@@ -4216,6 +4224,10 @@ CAaSphere CM2Model::GetCurrentBoundingSphere() {
     if (!(this->m_fFlags & 1) || !(this->m_fFlags & 0x8000)) {
         result.c = C3Vector(0.0f, 0.0f, 0.0f);
         result.r = 0.0f;
+        return result;
+    }
+
+    if (ASECM3::Client::UnitModelSphere(this, result, true, false)) {
         return result;
     }
 

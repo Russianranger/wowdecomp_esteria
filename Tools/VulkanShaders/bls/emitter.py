@@ -33,11 +33,17 @@ from . import dx9ir as ir
 # ---- the interface contract -------------------------------------------------------------------
 VIN_LOCATION = {'position0': 0, 'normal0': 1, 'color0': 2, 'color1': 3, 'texcoord0': 4,
                 'texcoord1': 5, 'blendweight0': 6, 'blendindices0': 7}
+# texcoord2..7 sit at 8..13, where the device's pipeline puts them (Pipelines/Build.cpp LocationOfSemantic).
+for _i in range(2, 8):
+    VIN_LOCATION['texcoord%d' % _i] = 8 + _i - 2
 VARYING_LOCATION = {'color0': 0, 'color1': 1, 'fog0': 10}
 for _i in range(8):
     VARYING_LOCATION['texcoord%d' % _i] = 2 + _i
 VARYING_TYPE = {'fog0': 'float'}
 PCONST = 20
+# A pixel record may read constants c20..c(20+PEXT-1) from regs.x[], a block placed after v[512] at a fixed offset,
+# so a record that does not use them keeps the old layout. The device fills it only for records with `pext=`.
+PEXT = 96
 VCONST_SMALL, VCONST_LARGE = 64, 512
 
 # vs_2_0 fixed-function output registers -> semantic
@@ -100,6 +106,7 @@ class Emitter(object):
         self.uses_aL = False
         self.relative = False
         self.cmax = -1
+        self.pext_used = False
         self.flags = set()
         self.helpers = set()
         self.body = []
@@ -139,7 +146,10 @@ class Emitter(object):
                 raise Refused('vertex constant c%d beyond the 512-row window' % o.index)
             return 'regs.v[%d]' % o.index
         if o.index >= PCONST:
-            raise Refused('pixel constant c%d beyond the 16-row window' % o.index)
+            if o.index >= PCONST + PEXT:
+                raise Refused('pixel constant c%d beyond the extended window' % o.index)
+            self.pext_used = True
+            return 'regs.x[%d]' % (o.index - PCONST)
         return 'regs.p[%d]' % o.index
 
     def base_expr(self, o):
@@ -626,7 +636,11 @@ class Emitter(object):
         P('layout(std140, set = 1, binding = 0) uniform Regs {')
         P('    vec4 p[%d];     // pixel c0..c%d' % (PCONST, PCONST - 1))
         P('    vec4 misc;       // misc.x = alphaRef / 255 (fixed-function alpha test, 0 = off)')
-        P('    vec4 v[%d];     // vertex c0..c%d' % (self.vconst, self.vconst - 1))
+        if self.pext_used and not self.vs:
+            P('    vec4 v[%d];     // vertex c0..c%d (not read here; the extension block follows the large class)' % (VCONST_LARGE, VCONST_LARGE - 1))
+            P('    vec4 x[%d];     // pixel c%d..c%d' % (PEXT, PCONST, PCONST + PEXT - 1))
+        else:
+            P('    vec4 v[%d];     // vertex c0..c%d' % (self.vconst, self.vconst - 1))
         P('} regs;')
         if self.defs or self.defi:
             P('')
@@ -846,8 +860,8 @@ def companion_block(md5, meta, names, spv_rel):
 
 
 def manifest_block(em, rec, spv_rel, companion=None):
-    L = ['record %s %s %s %s vconst=%d pconst=%d'
-         % (rec.md5, rec.kind, em.sh.profile, spv_rel, em.vconst, PCONST)]
+    L = ['record %s %s %s %s vconst=%d pconst=%d%s'
+         % (rec.md5, rec.kind, em.sh.profile, spv_rel, em.vconst, PCONST, ' pext=%d' % PEXT if em.pext_used else '')]
     for n in rec.names:
         L.append('name %s' % n)
     if rec.kind == 'pixel':

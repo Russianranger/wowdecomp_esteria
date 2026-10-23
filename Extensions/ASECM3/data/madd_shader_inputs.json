@@ -1,0 +1,383 @@
+{
+  "cacheSHA256": "0d8e3756051c3399ae4f9c8461450bc736f2e0feae261437ffafc3d75a362143",
+  "verifiedQualitySections": 4,
+  "groups": [
+    {
+      "id": 1543313946,
+      "name": "DiffuseTeamColor",
+      "fields": [
+        {
+          "id": 3326357529,
+          "name": "TexDiffuse",
+          "kind": 65553
+        },
+        {
+          "id": 1489241411,
+          "name": "DiffuseUVSelection",
+          "kind": 65564
+        },
+        {
+          "id": 3117647929,
+          "name": "DiffuseUVTransform",
+          "kind": 65562
+        },
+        {
+          "id": 4059969973,
+          "name": "DiffuseChannelSelection",
+          "kind": 65559
+        },
+        {
+          "id": 1543313946,
+          "name": "DiffuseTeamColor",
+          "kind": 2
+        },
+        {
+          "id": 2870100149,
+          "name": "MaterialAlpha",
+          "kind": 0
+        }
+      ]
+    },
+    {
+      "id": 2960949241,
+      "name": "ECSpec",
+      "fields": []
+    },
+    {
+      "id": 3099704664,
+      "name": "EmissiveFast",
+      "fields": [
+        {
+          "id": 3220250856,
+          "name": "TexEmissive",
+          "kind": 65553
+        },
+        {
+          "id": 2313362992,
+          "name": "EmissiveUVSelection",
+          "kind": 65564
+        },
+        {
+          "id": 1760858954,
+          "name": "EmissiveUVTransform",
+          "kind": 65562
+        },
+        {
+          "id": 1840633615,
+          "name": "EmissiveChannelSelection",
+          "kind": 65559
+        },
+        {
+          "id": 565215152,
+          "name": "EmissiveControl",
+          "kind": 65565
+        },
+        {
+          "id": 1459454945,
+          "name": "EmissiveMultiplier",
+          "kind": 0
+        }
+      ]
+    },
+    {
+      "id": 2322457026,
+      "name": "EnvioBlurred",
+      "fields": [
+        {
+          "id": 987848926,
+          "name": "EnvironmentMapUVWTransform",
+          "kind": 65563
+        },
+        {
+          "id": 509495122,
+          "name": "EnvironmentMapChannelSelection",
+          "kind": 65559
+        },
+        {
+          "id": 1826685231,
+          "name": "EnvioControl",
+          "kind": 65565
+        },
+        {
+          "id": 998080161,
+          "name": "TexEnvironmentMap",
+          "kind": 65555
+        },
+        {
+          "id": 2513077781,
+          "name": "EnvioTextureSize",
+          "kind": 32
+        },
+        {
+          "id": 1371063981,
+          "name": "EyePos",
+          "kind": 2
+        }
+      ]
+    },
+    {
+      "id": 4065658978,
+      "name": "EnvioMask",
+      "fields": [
+        {
+          "id": 2498315462,
+          "name": "TexEnvioMask",
+          "kind": 65553
+        },
+        {
+          "id": 3135099996,
+          "name": "EnvioMaskUVSelection",
+          "kind": 65564
+        },
+        {
+          "id": 1539987750,
+          "name": "EnvioMaskUVTransform",
+          "kind": 65562
+        },
+        {
+          "id": 4061785739,
+          "name": "EnvioMaskChannelSelection",
+          "kind": 65559
+        }
+      ]
+    },
+    {
+      "id": 3135613939,
+      "name": "Fog",
+      "fields": [
+        {
+          "id": 2204796701,
+          "name": "FogColor",
+          "kind": 2
+        },
+        {
+          "id": 1475445454,
+          "name": "BlendModeInfo",
+          "kind": 1
+        }
+      ]
+    },
+    {
+      "id": 163102717,
+      "name": "FOW",
+      "fields": [
+        {
+          "id": 2448220977,
+          "name": "FOWControl",
+          "kind": 2
+        },
+        {
+          "id": 206817059,
+          "name": "FOWBlackMaskColor",
+          "kind": 3
+        },
+        {
+          "id": 4266770952,
+          "name": "FOWTexture",
+          "kind": 17
+        },
+        {
+          "id": 1475445454,
+          "name": "BlendModeInfo",
+          "kind": 1
+        },
+        {
+          "id": 2847519687,
+          "name": "FOWTransform",
+          "kind": 3
+        }
+      ]
+    },
+    {
+      "id": 3549740369,
+      "name": "Gloss",
+      "fields": [
+        {
+          "id": 2668070135,
+          "name": "TexGloss",
+          "kind": 65553
+        },
+        {
+          "id": 4192914687,
+          "name": "GlossUVSelection",
+          "kind": 65564
+        },
+        {
+          "id": 419250565,
+          "name": "GlossUVTransform",
+          "kind": 65562
+        },
+        {
+          "id": 2856557422,
+          "name": "GlossChannelSelection",
+          "kind": 65559
+        }
+      ]
+    },
+    {
+      "id": 679644940,
+      "name": "LightingDeferred",
+      "fields": [
+        {
+          "id": 3045879648,
+          "name": "Specularity",
+          "kind": 65536
+        },
+        {
+          "id": 1884973207,
+          "name": "NumLights",
+          "kind": 3
+        },
+        {
+          "id": 1392048141,
+          "name": "DirectionalLights[6]",
+          "kind": 3
+        },
+        {
+          "id": 1133245371,
+          "name": "PointLights[6]",
+          "kind": 3
+        },
+        {
+          "id": 3511244579,
+          "name": "AmbientLight",
+          "kind": 2
+        },
+        {
+          "id": 3197060571,
+          "name": "SpecularLight",
+          "kind": 2
+        },
+        {
+          "id": 389694025,
+          "name": "RotationTexture",
+          "kind": 17
+        },
+        {
+          "id": 2841089534,
+          "name": "ShadowMap",
+          "kind": 33
+        },
+        {
+          "id": 2804358302,
+          "name": "TransparentShadowColorMap",
+          "kind": 17
+        },
+        {
+          "id": 1427282241,
+          "name": "TransparentShadowDepthMap",
+          "kind": 33
+        },
+        {
+          "id": 3653779885,
+          "name": "SoftShadowTapOffsets[6]",
+          "kind": 3
+        },
+        {
+          "id": 1371063981,
+          "name": "EyePos",
+          "kind": 2
+        },
+        {
+          "id": 1786516171,
+          "name": "LightMADShadows",
+          "kind": 2
+        },
+        {
+          "id": 2345943008,
+          "name": "ShadowMatrix",
+          "kind": 22
+        }
+      ]
+    },
+    {
+      "id": 239194354,
+      "name": "MaterialFinalize",
+      "fields": [
+        {
+          "id": 3704312695,
+          "name": "HDRScaling",
+          "kind": 0
+        },
+        {
+          "id": 105513039,
+          "name": "HDRScalingMaterial",
+          "kind": 0
+        },
+        {
+          "id": 2870100149,
+          "name": "MaterialAlpha",
+          "kind": 0
+        },
+        {
+          "id": 1834719934,
+          "name": "MaterialTint",
+          "kind": 2
+        }
+      ]
+    },
+    {
+      "id": 640249298,
+      "name": "Normal",
+      "fields": [
+        {
+          "id": 433125430,
+          "name": "TexNormal",
+          "kind": 65553
+        },
+        {
+          "id": 1180184012,
+          "name": "NormalUVSelection",
+          "kind": 65564
+        },
+        {
+          "id": 2807013558,
+          "name": "NormalUVTransform",
+          "kind": 65562
+        },
+        {
+          "id": 1289295755,
+          "name": "NormalMapTypeSelection",
+          "kind": 0
+        }
+      ]
+    },
+    {
+      "id": 193544207,
+      "name": "Specular",
+      "fields": [
+        {
+          "id": 2986225365,
+          "name": "TexSpecular",
+          "kind": 65553
+        },
+        {
+          "id": 3202872699,
+          "name": "SpecularUVSelection",
+          "kind": 65564
+        },
+        {
+          "id": 1609594881,
+          "name": "SpecularUVTransform",
+          "kind": 65562
+        },
+        {
+          "id": 3571871878,
+          "name": "SpecularChannelSelection",
+          "kind": 65559
+        }
+      ]
+    },
+    {
+      "id": 1077224882,
+      "name": "TwoSided",
+      "fields": [
+        {
+          "id": 2466637497,
+          "name": "VFaceConstant",
+          "kind": 0
+        }
+      ]
+    }
+  ]
+}

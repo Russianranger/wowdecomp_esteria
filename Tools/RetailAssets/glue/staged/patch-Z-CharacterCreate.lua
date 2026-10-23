@@ -2637,7 +2637,7 @@ local function EA_REFRESH()
         for i=1,5 do
             local frame = _G["CharacterCustomizationButtonFrame"..i];
             frame:ClearAllPoints();
-            frame:SetPoint("CENTER", parent, "CENTER", 900, 200-i*50);
+            frame:SetPoint("RIGHT", CharacterCreateFrame, "RIGHT", -55, 200-i*50);
         end
     end
 end
@@ -3635,6 +3635,18 @@ local function UpdateRow(row, skin)
         if EA_IS_RETAIL() then
             local ok, choiceName = pcall(CycleCharCustomization, "EA_CHOICE_NAME", row:GetID(), tonumber(value) - 1);
             if ok and type(choiceName) == "string" and choiceName ~= "" and not string.match(choiceName, "^%d+$") then
+                shown = choiceName;
+            end
+        end
+    end
+    -- Races on the stock option layout write only the label into the row; read the value from the native selector so
+    -- they show the same "n / total" (or the choice's name) as the other races.
+    if shown == "" then
+        local ok, current, total = pcall(CycleCharCustomization, EA_ACTIVE() and "EA_GET" or "EA_STOCK_GET", row:GetID());
+        if ok and type(current) == "number" and type(total) == "number" and total > 0 then
+            shown = (current + 1) .. " / " .. total;
+            local named, choiceName = pcall(ChoiceText, row:GetID(), current, label);
+            if named and type(choiceName) == "string" and choiceName ~= "" and choiceName ~= label .. " " .. (current + 1) then
                 shown = choiceName;
             end
         end

@@ -5,6 +5,7 @@
 #include <new>
 #include <xmmintrin.h>
 #include "Engine/Source/Model2/M2Scene.h"
+#include "Extensions/ASECM3/client/UnitWorldBinding.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Model2/M2Cache.h"
@@ -305,16 +306,31 @@ uint32_t CM2Scene::SphereTestModels(const C3Vector& start, const C3Vector& dir, 
             model->m_matrixF4 = model->m_worldTransform * this->m_view;
         }
 
-        M2Data* data = model->m_shared->m_data;
-        const M2Bounds* bounds = model->m_hitTestMode == 3 ? &data->m_collisionBounds : &data->m_sequences[model->m_bones->m_sequence.m_sequenceIndex].m_bounds;
+        C3Vector position;
+        float radiusSq;
+        CAaSphere m3Sphere;
 
-        if (fabsf(bounds->m_radius) < 0.00000023841858f) {
-            continue;
+        // An M3-bound unit supplies its own source-mesh sphere in place of the placeholder's bounds.
+        if (ASECM3::Client::UnitPickingSphere(model, m3Sphere)) {
+            if (m3Sphere.r <= 0.0f) {
+                continue;
+            }
+
+            position = m3Sphere.c;
+            radiusSq = m3Sphere.r * m3Sphere.r;
+        } else {
+            M2Data* data = model->m_shared->m_data;
+            const M2Bounds* bounds = model->m_hitTestMode == 3 ? &data->m_collisionBounds : &data->m_sequences[model->m_bones->m_sequence.m_sequenceIndex].m_bounds;
+
+            if (fabsf(bounds->m_radius) < 0.00000023841858f) {
+                continue;
+            }
+
+            const C44Matrix& matrix = model->m_matrixF4;
+            C3Vector center((bounds->m_extent.t.x + bounds->m_extent.b.x) * 0.5f, (bounds->m_extent.t.y + bounds->m_extent.b.y) * 0.5f, 0.5f * (bounds->m_extent.t.z + bounds->m_extent.b.z));
+            position = center * matrix;
+            radiusSq = bounds->m_radius * ((matrix.a2 * matrix.a2 + matrix.a1 * matrix.a1 + matrix.a0 * matrix.a0) * bounds->m_radius);
         }
-
-        const C44Matrix& matrix = model->m_matrixF4;
-        C3Vector center((bounds->m_extent.t.x + bounds->m_extent.b.x) * 0.5f, (bounds->m_extent.t.y + bounds->m_extent.b.y) * 0.5f, 0.5f * (bounds->m_extent.t.z + bounds->m_extent.b.z));
-        C3Vector position = center * matrix;
         float vx = position.x - start.x;
         float vy = position.y - start.y;
         float vz = position.z - start.z;
@@ -322,7 +338,6 @@ uint32_t CM2Scene::SphereTestModels(const C3Vector& start, const C3Vector& dir, 
         float px = dir.x * proj - vx;
         float py = dir.y * proj - vy;
         float pz = dir.z * proj - vz;
-        float radiusSq = bounds->m_radius * ((matrix.a2 * matrix.a2 + matrix.a1 * matrix.a1 + matrix.a0 * matrix.a0) * bounds->m_radius);
         float distSq = px * px + py * py + pz * pz;
 
         if (distSq > radiusSq) {
@@ -592,6 +607,18 @@ void CM2Scene::TransformHitTestVertices(const CM2Model* model, const M2SkinProfi
 // VERIFY: d07f8475 manual
 // OFFSET: 0x0081DAF0
 M2HitRec* CM2Scene::HitTestGeometry(const CM2Model* model, uint32_t pass, const C3Vector& dir, float d, const C3Vector& start, M2HitRec* rec, float& t, M2HitRec* best) {
+    float m3Distance;
+    bool m3Hit;
+
+    if (ASECM3::Client::UnitPickGeometry(model, start, dir, t, m3Distance, m3Hit)) {
+        if (m3Hit && m3Distance >= 0.0f && ((pass && (!best || best->m_priority != rec->m_priority)) || m3Distance <= t)) {
+            t = m3Distance;
+            best = rec;
+        }
+
+        return best;
+    }
+
     M2SkinProfile* skinData = model->m_shared->m_skinData;
     M2Data* data = model->m_shared->m_data;
 
@@ -664,6 +691,18 @@ M2HitRec* CM2Scene::HitTestGeometry(const CM2Model* model, uint32_t pass, const 
 // VERIFY: 4f08e629 manual
 // OFFSET: 0x0081DD50
 M2HitRec* CM2Scene::HitTestCollision(const CM2Model* model, uint32_t pass, const C3Vector& dir, float d, const C3Vector& start, M2HitRec* rec, float& t, M2HitRec* best) {
+    float m3Distance;
+    bool m3Hit;
+
+    if (ASECM3::Client::UnitPickGeometry(model, start, dir, t, m3Distance, m3Hit)) {
+        if (m3Hit && m3Distance >= 0.0f && ((pass && (!best || best->m_priority != rec->m_priority)) || m3Distance <= t)) {
+            t = m3Distance;
+            best = rec;
+        }
+
+        return best;
+    }
+
     M2Data* data = model->m_shared->m_data;
 
     if (data->m_collisionPositions.m_count > this->m_hitVertCapacity) {
@@ -1813,6 +1852,11 @@ int32_t CM2Scene::Animate(const C3Vector& cameraPos) {
         int32_t optimized = optGeo != nullptr;
         int32_t depthSort = (this->m_cache->m_flags & 1) && !(model->m_flags & 1) && (model->m_fFlags & 0x40);
         uint32_t batchCount = optGeo ? optGeo->m_batchCount : skinData->m_batches.m_count;
+
+        // An M3-bound unit queues its own draw packets and suppresses the placeholder model's batches.
+        if (ASECM3::Client::QueueUnitWorldModel(this, model, elementIndex)) {
+            batchCount = 0;
+        }
 
         for (uint32_t i = 0; i < batchCount; i++) {
             M2Batch* batch;

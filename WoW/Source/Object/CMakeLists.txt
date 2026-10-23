@@ -12,4 +12,5 @@ target_include_directories(Object
 target_link_libraries(Object
     PRIVATE
         Extension
+        ASECM3Host
 )

@@ -156,6 +156,26 @@ def enumerate_records(datadir):
     return out
 
 
+def extra_vertex_records(folder):
+    """Vertex records read from raw vs_3_0 token streams (<folder>/*.bin), named after the file."""
+    out = []
+    for fn in sorted(os.listdir(folder)):
+        if not fn.lower().endswith('.bin'):
+            continue
+        r = Record()
+        r.kind, r.profile, r.name, r.perm = 'vertex', 'vs_3_0', os.path.splitext(fn)[0], 0
+        with open(os.path.join(folder, fn), 'rb') as f:
+            r.code = f.read()
+        r.md5 = hashlib.md5(r.code).hexdigest()
+        r.hdr = (0, 0, 0, 0)
+        try:
+            r.sh = ir.decode(r.code)
+        except ValueError:
+            r.sh = None
+        out.append(r)
+    return out
+
+
 def extra_pixel_records(folder):
     """Pixel records read from raw ps_3_0 token streams (<folder>/*.bin), named after the file."""
     out = []

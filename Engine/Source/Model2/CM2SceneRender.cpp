@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdint>
 #include "Engine/Source/Model2/CM2SceneRender.h"
+#include "Extensions/ASECM3/client/UnitWorldBinding.h"
 #include "Engine/Source/Gx/CGxBuf.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
 #include "Engine/Source/Gx/Gx.h"
@@ -1019,6 +1020,9 @@ void CM2SceneRender::Draw(M2PASS pass, M2Element* elements, uint32_t* indices, u
                 break;
             case 5:
                 this->DrawCallback();
+                break;
+            case ASECM3::Client::UnitWorldElementType:
+                ASECM3::Client::DrawUnitWorldModel(this->m_curModel, this->m_curElement->m_index, this->m_curElement->m_flags, static_cast<uint32_t>(pass));
                 break;
             default:
                 continue;

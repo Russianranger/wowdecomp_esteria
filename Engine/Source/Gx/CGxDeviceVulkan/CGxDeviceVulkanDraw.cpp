@@ -232,6 +232,7 @@ void CGxDeviceVulkan::Draw(CGxBatch* batch, int32_t count) {
     pixelRows[15 * 4 + 3] = fogOn ? 1.0f : 0.0f;
     d.pixelRegs = pixelRows;
     d.vertexRegs = this->m_vertexRegs;
+    d.pixelExtra = d.pixelExtraRows ? this->m_pixelRegs + pipelines::kPixelRows * 4 : nullptr;
 
     if (!this->IPlaceD3d(d.viewport, d.scissor)) {
         return;

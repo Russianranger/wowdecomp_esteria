@@ -1,0 +1,1305 @@
+[
+  {
+    "file": "mods/heroesdata.stormmod/base.stormdata/gamedata/lootbox/banners/bannerdftoys18valeerabasedata.xml",
+    "model_id": "BannerDFToys18Valeera",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets/Loot/Storm_LootBanner_Toys18_Valeera/Storm_LootBanner_Toys18_Valeera.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heroesdata.stormmod/base.stormdata/gamedata/modeldata.xml",
+    "model_id": "HeroDeathRagdoll",
+    "parent": "StormUnitDeathRagdoll",
+    "model_path": null,
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Effects\\Storm_Effect_DeathRagdollDissipate\\Storm_Effect_DeathRagdollDissipate.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heroesdata.stormmod/base.stormdata/gamedata/modeldata.xml",
+    "model_id": "MinionDeathRagdoll",
+    "parent": "StormUnitDeathRagdoll",
+    "model_path": null,
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Effects\\Storm_Effect_DeathRagdollDissipate\\Storm_Effect_DeathRagdollDissipate.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heroesdata.stormmod/base.stormdata/gamedata/mounts/mountwhitemanecatdata/mount_ridenone_mountwhitemanecatdata.xml",
+    "model_id": "MountWhitemaneCat",
+    "parent": "BaseMount",
+    "model_path": "Assets\\Effects\\Storm_FX_WhitemaneCat_Base\\Storm_FX_WhitemaneCat_Base.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Effects\\Storm_FX_WhitemaneCat_RequiredAnims\\Storm_FX_WhitemaneCat_RequiredAnims.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraGarroteStrangleImpact",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Talent_ImposingPresence\\Storm_FX_Talent_ImposingPresence.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraAssassinationTarget",
+    "parent": "BuffFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Ambush_Mark\\Storm_FX_Valeera_Base_Ambush_Mark.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraStealthGlaze",
+    "parent": "",
+    "model_path": "Assets\\Effects\\Glaze\\Storm_Glaze_Valeera_Base_Stealth\\Storm_Glaze_Valeera_Base_Stealth.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraHomescreenGlaze",
+    "parent": "",
+    "model_path": "Assets\\Effects\\Glaze\\Storm_Glaze_Valeera_Base_Homescreen\\Storm_Glaze_Valeera_Base_Homescreen.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShadowStepTeleportDummy",
+    "parent": "MissileFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraEviscerateCaster",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Eviscerate\\Storm_FX_Valeera_Base_Eviscerate.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraAmbushCaster",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Ambush\\Storm_FX_Valeera_Base_Ambush.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraAmbushDeathFromAboveCaster",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Ambush_TA\\Storm_FX_Valeera_Base_Ambush_TA.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraWeaponEffectLeft",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Weapon\\Storm_FX_Valeera_Base_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraWeaponEffectRight",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Weapon\\Storm_FX_Valeera_Base_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraCheapShotStun",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraKidneyShotStun",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraSapStun",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShivImpactModel",
+    "parent": "ImpactFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShivMissile",
+    "parent": "MissileFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "HeroValeeraCommon",
+    "parent": "HeroModelParent",
+    "model_path": null,
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_RequiredAnims\\Storm_Hero_Valeera_RequiredAnims.m3a",
+        "children": []
+      },
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Portraits\\Storm_Hero_Valeera_PortraitAnims\\Storm_Hero_Valeera_PortraitAnims.m3a",
+        "children": []
+      },
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_FacialAnims\\Storm_Hero_Valeera_FacialAnims.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "HeroValeera",
+    "parent": "HeroValeeraCommon",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Base\\Storm_Hero_Valeera_Base.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraEviscerateImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Eviscerate_Impact\\Storm_FX_Valeera_Base_Eviscerate_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraBackstabImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraBackstabFullImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraAmbushImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Ambush_Impact\\Storm_FX_Valeera_Base_Ambush_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShadowStepImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraStealthImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Vanish_In\\Storm_FX_Valeera_Base_Vanish_In.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraStealthExit",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Vanish_Out\\Storm_FX_Valeera_Base_Vanish_Out.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraStealthBuff",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraKidneyShotImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShivPoisonDebuff",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraLungeImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShadowstepOutModelPlayer",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShadowstepOutModel",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShadowstepInModelPlayer",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShadowstepInModel",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraBladeFlurryImpact",
+    "parent": "ImpactFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_BladeFlurry_Impact\\Storm_FX_Valeera_Base_BladeFlurry_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraThistleTeaImpact",
+    "parent": "ImpactFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_T_Tea\\Storm_FX_Valeera_Base_T_Tea.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraCheapShotLaunch",
+    "parent": "ImpactFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_CheapShot\\Storm_FX_Valeera_Base_CheapShot.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraCheapShotImpact",
+    "parent": "ImpactFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_CheapShot_Impact\\Storm_FX_Valeera_Base_CheapShot_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraBladeFlurryModel",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_BladeFlurry\\Storm_FX_Valeera_Base_BladeFlurry.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraSinisterStrikeImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_SinisterStrike_Impact\\Storm_FX_Valeera_Base_SinisterStrike_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraSinisterStrikeDashBuff",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_SinisterStrike\\Storm_FX_Valeera_Base_SinisterStrike.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraSinisterStrikeBladeOverlay",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_SinisterStrike_Blade\\Storm_FX_Valeera_Base_SinisterStrike_Blade.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraCloakOfShadowsSpellShieldBuff",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraCloakOfShadowsUnstoppableBuff",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Cloak\\Storm_FX_Valeera_Base_Cloak.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShadowImageSmoke",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Smoke\\Storm_FX_Valeera_Base_Smoke.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraCripplingPoisonDebuff",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraCripplingPoisonWeapon",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_T_Crippling\\Storm_FX_Valeera_Base_T_Crippling.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraGarroteDebuff",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Garrote\\Storm_FX_Valeera_Base_Garrote.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraGarroteImpact",
+    "parent": "ImpactFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Garrote_Impact\\Storm_FX_Valeera_Base_Garrote_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraPreparationImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Units\\Test\\InvisibleUnit\\InvisibleUnit.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraSmokeBomb",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_SmokeBomb\\Storm_FX_Valeera_Base_SmokeBomb.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraSmokeBombImpact",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_SmokeBomb_Impact\\Storm_FX_Valeera_Base_SmokeBomb_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraWoundPoisonWeapon",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_T_Wound\\Storm_FX_Valeera_Base_T_Wound.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraColdBloodWeapon",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_T_ColdBlood\\Storm_FX_Valeera_Base_T_ColdBlood.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraPortraitCommon",
+    "parent": "HeroesPortrait",
+    "model_path": "Assets\\Portraits\\Storm_Portrait_Valeera_Base_Background\\Storm_Portrait_Valeera_Base_Background.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraShadowImage",
+    "parent": "ImpactFX",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Morph_ValeeraShadow_Base\\Storm_Morph_ValeeraShadow_Base.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_RequiredAnims\\Storm_Hero_Valeera_RequiredAnims.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraPortrait",
+    "parent": "ValeeraPortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraPortraitAdditionCommon",
+    "parent": "HeroesPortrait",
+    "model_path": null,
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_RequiredAnims\\Storm_Hero_Valeera_RequiredAnims.m3a",
+        "children": []
+      },
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Portraits\\Storm_Hero_Valeera_PortraitAnims\\Storm_Hero_Valeera_PortraitAnims.m3a",
+        "children": []
+      },
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_FacialAnims\\Storm_Hero_Valeera_FacialAnims.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraPortraitAddition",
+    "parent": "ValeeraPortraitAdditionCommon",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Base\\Storm_Hero_Valeera_Base.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "HeroValeeraDeathRagdoll",
+    "parent": "HeroDeathRagdoll",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Base_DeathRagdoll\\Storm_Hero_Valeera_Base_DeathRagdoll.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "Storm_FX_UI_HomeScreen_Valeera_Fire",
+    "parent": "",
+    "model_path": "Assets\\Effects\\Storm_FX_UI_HomeScreen_Valeera_Fire\\Storm_FX_UI_HomeScreen_Valeera_Fire.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "Storm_FX_UI_HomeScreen_Valeera_Fog",
+    "parent": "",
+    "model_path": "Assets\\Effects\\Storm_FX_UI_HomeScreen_Valeera_Fog\\Storm_FX_UI_HomeScreen_Valeera_Fog.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "Storm_FX_UI_HomeScreen_Valeera_EyeGlow",
+    "parent": "",
+    "model_path": "Assets\\Effects\\Storm_FX_UI_HomeScreen_Valeera_EyeGlow\\Storm_FX_UI_HomeScreen_Valeera_EyeGlow.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraGarroteLaunchFX",
+    "parent": "LaunchFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_Garrote_Cast\\Storm_FX_Valeera_Base_Garrote_Cast.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "ValeeraSliceAndDiceAttackFX",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Base_SliceandDice\\Storm_FX_Valeera_Base_SliceandDice.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeerabasedata.xml",
+    "model_id": "Storm_FX_UI_Homescreen_Valeera_Base_Camera",
+    "parent": "UI",
+    "model_path": "Assets\\Effects\\Storm_FX_UI_Homescreen_Valeera_Base_Camera\\Storm_FX_UI_Homescreen_Valeera_Base_Camera.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeeravar3data.xml",
+    "model_id": "ValeeraVar3Portrait",
+    "parent": "ValeeraPortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerabasedata/valeeravar4data.xml",
+    "model_id": "ValeeraVar4Portrait",
+    "parent": "ValeeraPortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterShadowImage",
+    "parent": "ValeeraShadowImage",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Morph_ValeeraShadow_Hunter\\Storm_Morph_ValeeraShadow_Hunter.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterStealthGlaze",
+    "parent": "ValeeraStealthGlaze",
+    "model_path": "Assets\\Effects\\Glaze\\Storm_Glaze_Valeera_Hunter_Stealth\\Storm_Glaze_Valeera_Hunter_Stealth.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "HeroValeeraSkinHunter",
+    "parent": "HeroValeera",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Hunter\\Storm_Hero_Valeera_Hunter.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterPortrait",
+    "parent": "ValeeraPortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterPortraitAddition",
+    "parent": "ValeeraPortraitAddition",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Hunter\\Storm_Hero_Valeera_Hunter.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "HeroValeeraSkinHunterDeathRagdoll",
+    "parent": "HeroValeeraDeathRagdoll",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Hunter_DeathRagdoll\\Storm_Hero_Valeera_Hunter_DeathRagdoll.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraHunterWings",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_Wings\\Storm_FX_Valeera_Hunter_Wings.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterGarroteDebuff",
+    "parent": "ValeeraGarroteDebuff",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_Garrote\\Storm_FX_Valeera_Hunter_Garrote.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterEviscerateImpact",
+    "parent": "ValeeraEviscerateImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_Eviscerate_Impact\\Storm_FX_Valeera_Hunter_Eviscerate_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterWeaponEffectLeft",
+    "parent": "ValeeraWeaponEffectLeft",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_Weapon\\Storm_FX_Valeera_Hunter_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterWeaponEffectRight",
+    "parent": "ValeeraWeaponEffectRight",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_Weapon\\Storm_FX_Valeera_Hunter_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterCloakOfShadowsUnstoppableBuff",
+    "parent": "ValeeraCloakOfShadowsUnstoppableBuff",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_Cloak\\Storm_FX_Valeera_Hunter_Cloak.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterSmokeBomb",
+    "parent": "ValeeraSmokeBomb",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_SmokeBomb\\Storm_FX_Valeera_Hunter_SmokeBomb.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterSinisterStrikeDashBuff",
+    "parent": "ValeeraSinisterStrikeDashBuff",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_SinisterStrike\\Storm_FX_Valeera_Hunter_SinisterStrike.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterSinisterStrikeImpact",
+    "parent": "ValeeraSinisterStrikeImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_SinisterStrike_Impact\\Storm_FX_Valeera_Hunter_SinisterStrike_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterBladeFlurryModel",
+    "parent": "ValeeraBladeFlurryModel",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_BladeFlurry\\Storm_FX_Valeera_Hunter_BladeFlurry.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahunterbasedata.xml",
+    "model_id": "ValeeraSkinHunterAmbushImpact",
+    "parent": "ValeeraAmbushImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Hunter_Ambush_Impact\\Storm_FX_Valeera_Hunter_Ambush_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahuntervar2data.xml",
+    "model_id": "ValeeraSkinHunterVar2Portrait",
+    "parent": "ValeeraSkinHunterPortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahuntervar3data.xml",
+    "model_id": "ValeeraSkinHunterVar3Portrait",
+    "parent": "ValeeraSkinHunterPortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerahunterdata/valeerahuntervar4data.xml",
+    "model_id": "ValeeraSkinHunterVar4Portrait",
+    "parent": "ValeeraSkinHunterPortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18basedata.xml",
+    "model_id": "HeroValeeraSkinToys18",
+    "parent": "HeroValeeraCommon",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Toys18\\Storm_Hero_Valeera_Toys18.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18basedata.xml",
+    "model_id": "HeroValeeraSkinToys18DeathRagdoll",
+    "parent": "HeroValeeraDeathRagdoll",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Toys18_DeathRagdoll\\Storm_Hero_Valeera_Toys18_DeathRagdoll.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18basedata.xml",
+    "model_id": "ValeeraSkinToys18PortraitCommon",
+    "parent": "ValeeraPortrait",
+    "model_path": "Assets\\Portraits\\Storm_Portrait_Valeera_Toys18_Background\\Storm_Portrait_Valeera_Toys18_Background.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18basedata.xml",
+    "model_id": "ValeeraSkinToys18Portrait",
+    "parent": "ValeeraSkinToys18PortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18basedata.xml",
+    "model_id": "ValeeraSkinToys18PortraitAddition",
+    "parent": "ValeeraPortraitAdditionCommon",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Toys18\\Storm_Hero_Valeera_Toys18.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18basedata.xml",
+    "model_id": "ValeeraSkinToys18StoreWeaponFX",
+    "parent": "PersistentSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Toys18_Weapon_Anim\\Storm_FX_Valeera_Toys18_Weapon_Anim.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18basedata.xml",
+    "model_id": "ValeeraSkinToys18WeaponEffectLeft",
+    "parent": "ValeeraWeaponEffectLeft",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Toys18_Weapon\\Storm_FX_Valeera_Toys18_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18basedata.xml",
+    "model_id": "ValeeraSkinToys18WeaponEffectRight",
+    "parent": "ValeeraWeaponEffectRight",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Toys18_Weapon\\Storm_FX_Valeera_Toys18_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18var1data.xml",
+    "model_id": "ValeeraSkinToys18Var1Portrait",
+    "parent": "ValeeraSkinToys18PortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18var2data.xml",
+    "model_id": "ValeeraSkinToys18Var2Portrait",
+    "parent": "ValeeraSkinToys18PortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18var3data.xml",
+    "model_id": "ValeeraSkinToys18Var3Portrait",
+    "parent": "ValeeraSkinToys18PortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeratoys18data/valeeratoys18var4data.xml",
+    "model_id": "ValeeraSkinToys18Var4Portrait",
+    "parent": "ValeeraSkinToys18PortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeraultimatedata/valeeraultimatebasedata.xml",
+    "model_id": "HeroValeeraSkinUltimate",
+    "parent": "HeroValeeraCommon",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Ultimate\\Storm_Hero_Valeera_Ultimate.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeraultimatedata/valeeraultimatebasedata.xml",
+    "model_id": "HeroValeeraSkinUltimateDeathRagdoll",
+    "parent": "HeroValeeraDeathRagdoll",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Ultimate_DeathRagdoll\\Storm_Hero_Valeera_Ultimate_DeathRagdoll.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeraultimatedata/valeeraultimatebasedata.xml",
+    "model_id": "ValeeraSkinUltimatePortrait",
+    "parent": "ValeeraPortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeraultimatedata/valeeraultimatebasedata.xml",
+    "model_id": "ValeeraSkinUltimatePortraitAddition",
+    "parent": "ValeeraPortraitAdditionCommon",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Ultimate\\Storm_Hero_Valeera_Ultimate.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeraultimatedata/valeeraultimatevar1data.xml",
+    "model_id": "ValeeraSkinUltimateVar1Portrait",
+    "parent": "ValeeraSkinUltimatePortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeraultimatedata/valeeraultimatevar2data.xml",
+    "model_id": "ValeeraSkinUltimateVar2Portrait",
+    "parent": "ValeeraSkinUltimatePortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeraultimatedata/valeeraultimatevar3data.xml",
+    "model_id": "ValeeraSkinUltimateVar3Portrait",
+    "parent": "ValeeraSkinUltimatePortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeraultimatedata/valeeraultimatevar4data.xml",
+    "model_id": "ValeeraSkinUltimateVar4Portrait",
+    "parent": "ValeeraSkinUltimatePortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "HeroValeeraVampire",
+    "parent": "HeroValeera",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Vampire\\Storm_Hero_Valeera_Vampire.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnimsEx",
+        "FilePath": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Vampire_RequiredAnims\\Storm_Hero_Valeera_Vampire_RequiredAnims.m3a",
+        "children": [
+          {
+            "kind": "Flags",
+            "index": "Override",
+            "value": "1"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "HeroValeeraSkinVampireDeathRagdoll",
+    "parent": "HeroValeeraDeathRagdoll",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Vampire_DeathRagdoll\\Storm_Hero_Valeera_Vampire_DeathRagdoll.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "HeroValeeraSkinVampireHearthFX",
+    "parent": "OneShotSpellFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Hearth\\Storm_FX_Valeera_Vampire_Hearth.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampirePortraitCommon",
+    "parent": "ValeeraPortrait",
+    "model_path": "Assets\\Portraits\\Storm_Portrait_Valeera_Vampire_Background\\Storm_Portrait_Valeera_Vampire_Background.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampirePortrait",
+    "parent": "ValeeraSkinVampirePortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampirePortraitAddition",
+    "parent": "ValeeraPortraitAddition",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_Vampire\\Storm_Hero_Valeera_Vampire.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireStealthGlaze",
+    "parent": "ValeeraStealthGlaze",
+    "model_path": "Assets\\Effects\\Glaze\\Storm_Glaze_Valeera_Vampire_Stealth\\Storm_Glaze_Valeera_Vampire_Stealth.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireAmbushCaster",
+    "parent": "ValeeraAmbushCaster",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Ambush\\Storm_FX_Valeera_Vampire_Ambush.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireShadowImageSmoke",
+    "parent": "ValeeraShadowImageSmoke",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Smoke\\Storm_FX_Valeera_Vampire_Smoke.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireAmbushImpact",
+    "parent": "ValeeraAmbushImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Ambush_Impact\\Storm_FX_Valeera_Vampire_Ambush_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireAmbushDeathFromAboveCaster",
+    "parent": "ValeeraAmbushDeathFromAboveCaster",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Ambush_TA\\Storm_FX_Valeera_Vampire_Ambush_TA.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireBladeFlurryModel",
+    "parent": "ValeeraBladeFlurryModel",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_BladeFlurry\\Storm_FX_Valeera_Vampire_BladeFlurry.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireBladeFlurryImpact",
+    "parent": "ValeeraBladeFlurryImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_BladeFlurry_Impact\\Storm_FX_Valeera_Vampire_BladeFlurry_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireCheapShotLaunch",
+    "parent": "ValeeraCheapShotLaunch",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_CheapShot\\Storm_FX_Valeera_Vampire_CheapShot.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireCheapShotImpact",
+    "parent": "ValeeraCheapShotImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_CheapShot_Impact\\Storm_FX_Valeera_Vampire_CheapShot_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireCloakOfShadowsUnstoppableBuff",
+    "parent": "ValeeraCloakOfShadowsUnstoppableBuff",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Cloak\\Storm_FX_Valeera_Vampire_Cloak.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireEviscerateCaster",
+    "parent": "ValeeraEviscerateCaster",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Eviscerate\\Storm_FX_Valeera_Vampire_Eviscerate.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireEviscerateImpact",
+    "parent": "ValeeraEviscerateImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Eviscerate_Impact\\Storm_FX_Valeera_Vampire_Eviscerate_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireGarroteDebuff",
+    "parent": "ValeeraGarroteDebuff",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Garrote\\Storm_FX_Valeera_Vampire_Garrote.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireGarroteLaunchFX",
+    "parent": "ValeeraGarroteLaunchFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Garrote_Cast\\Storm_FX_Valeera_Vampire_Garrote_Cast.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireGarroteImpact",
+    "parent": "ValeeraGarroteImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Garrote_Impact\\Storm_FX_Valeera_Vampire_Garrote_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireSinisterStrikeDashBuff",
+    "parent": "ValeeraSinisterStrikeDashBuff",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_SinisterStrike\\Storm_FX_Valeera_Vampire_SinisterStrike.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireSinisterStrikeBladeOverlay",
+    "parent": "ValeeraSinisterStrikeBladeOverlay",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_SinisterStrike_Blade\\Storm_FX_Valeera_Vampire_SinisterStrike_Blade.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireSinisterStrikeImpact",
+    "parent": "ValeeraSinisterStrikeImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_SinisterStrike_Impact\\Storm_FX_Valeera_Vampire_SinisterStrike_Impact.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireSmokeBomb",
+    "parent": "ValeeraSmokeBomb",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_SmokeBomb\\Storm_FX_Valeera_Vampire_SmokeBomb.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireSliceAndDiceAttackFX",
+    "parent": "ValeeraSliceAndDiceAttackFX",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_SliceandDice\\Storm_FX_Valeera_Vampire_SliceandDice.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireColdBloodWeapon",
+    "parent": "ValeeraColdBloodWeapon",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_T_ColdBlood\\Storm_FX_Valeera_Vampire_T_ColdBlood.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireStealthImpact",
+    "parent": "ValeeraStealthImpact",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Vanish_In\\Storm_FX_Valeera_Vampire_Vanish_In.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireStealthExit",
+    "parent": "ValeeraStealthExit",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Vanish_Out\\Storm_FX_Valeera_Vampire_Vanish_Out.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireWeaponEffectLeft",
+    "parent": "ValeeraWeaponEffectLeft",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Weapon\\Storm_FX_Valeera_Vampire_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirebasedata.xml",
+    "model_id": "ValeeraSkinVampireWeaponEffectRight",
+    "parent": "ValeeraWeaponEffectRight",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_Vampire_Weapon\\Storm_FX_Valeera_Vampire_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirevar1data.xml",
+    "model_id": "ValeeraSkinVampireVar1Portrait",
+    "parent": "ValeeraSkinVampirePortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirevar2data.xml",
+    "model_id": "ValeeraSkinVampireVar2Portrait",
+    "parent": "ValeeraSkinVampirePortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirevar3data.xml",
+    "model_id": "ValeeraSkinVampireVar3Portrait",
+    "parent": "ValeeraSkinVampirePortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeeravampiredata/valeeravampirevar4data.xml",
+    "model_id": "ValeeraSkinVampireVar4Portrait",
+    "parent": "ValeeraSkinVampirePortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavbasedata.xml",
+    "model_id": "ValeeraWCAV",
+    "parent": "HeroValeeraCommon",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_WCAV\\Storm_Hero_Valeera_WCAV.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavbasedata.xml",
+    "model_id": "ValeeraSkinWCAVDeathRagdoll",
+    "parent": "HeroValeeraDeathRagdoll",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_WCAV_DeathRagdoll\\Storm_Hero_Valeera_WCAV_DeathRagdoll.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavbasedata.xml",
+    "model_id": "ValeeraSkinWCAVPortraitCommon",
+    "parent": "ValeeraPortrait",
+    "model_path": "Assets\\Portraits\\Storm_Portrait_Valeera_Base_Background\\Storm_Portrait_Valeera_Base_Background.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavbasedata.xml",
+    "model_id": "ValeeraSkinWCAVPortrait",
+    "parent": "ValeeraSkinWCAVPortraitCommon",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavbasedata.xml",
+    "model_id": "ValeeraSkinWCAVPortraitAddition",
+    "parent": "ValeeraPortraitAddition",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Valeera_WCAV\\Storm_Hero_Valeera_WCAV.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavbasedata.xml",
+    "model_id": "ValeeraWCAVShadowImage",
+    "parent": "ValeeraShadowImage",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Morph_ValeeraShadow_WCAV\\Storm_Morph_ValeeraShadow_WCAV.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavbasedata.xml",
+    "model_id": "ValeeraSkinWCAVWeaponEffectLeft",
+    "parent": "ValeeraWeaponEffectLeft",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_WCAV_Weapon\\Storm_FX_Valeera_WCAV_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavbasedata.xml",
+    "model_id": "ValeeraSkinWCAVWeaponEffectRight",
+    "parent": "ValeeraWeaponEffectRight",
+    "model_path": "Assets\\Effects\\Storm_FX_Valeera_WCAV_Weapon\\Storm_FX_Valeera_WCAV_Weapon.m3",
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavvar1data.xml",
+    "model_id": "ValeeraSkinWCAVVar1Portrait",
+    "parent": "ValeeraSkinWCAVPortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/valeera.stormmod/base.stormdata/gamedata/valeeraskindata/valeerawcavdata/valeerawcavvar2data.xml",
+    "model_id": "ValeeraSkinWCAVVar2Portrait",
+    "parent": "ValeeraSkinWCAVPortrait",
+    "model_path": null,
+    "required_anims": []
+  },
+  {
+    "file": "mods/heromods/whitemane.stormmod/base.stormdata/gamedata/whitemaneskindata/whitemanebasedata/whitemanebasedata.xml",
+    "model_id": "HeroWhitemaneCommon",
+    "parent": "HeroModelParent",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Base\\Storm_Hero_Whitemane_Base.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_RequiredAnims\\Storm_Hero_Whitemane_RequiredAnims.m3a",
+        "children": []
+      },
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Portraits\\Storm_Hero_Whitemane_PortraitAnims\\Storm_Hero_Whitemane_PortraitAnims.m3a",
+        "children": []
+      },
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_FacialAnims\\Storm_Hero_Whitemane_FacialAnims.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/whitemane.stormmod/base.stormdata/gamedata/whitemaneskindata/whitemanebasedata/whitemanebasedata.xml",
+    "model_id": "WhitemanePortraitAdditionCommon",
+    "parent": "HeroesPortrait",
+    "model_path": null,
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_RequiredAnims\\Storm_Hero_Whitemane_RequiredAnims.m3a",
+        "children": []
+      },
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Portraits\\Storm_Hero_Whitemane_PortraitAnims\\Storm_Hero_Whitemane_PortraitAnims.m3a",
+        "children": []
+      },
+      {
+        "kind": "RequiredAnims",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_FacialAnims\\Storm_Hero_Whitemane_FacialAnims.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/whitemane.stormmod/base.stormdata/gamedata/whitemaneskindata/whitemanecelestialdata/whitemanecelestialbasedata.xml",
+    "model_id": "HeroWhitemaneSkinCelestialPortraitAddition",
+    "parent": "WhitemanePortraitAddition",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Celestial\\Storm_Hero_Whitemane_Celestial.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "index": "0",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Celestial_RequiredAnims\\Storm_Hero_Whitemane_Celestial_RequiredAnims.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/whitemane.stormmod/base.stormdata/gamedata/whitemaneskindata/whitemanecelestialdata/whitemanecelestialbasedata.xml",
+    "model_id": "HeroWhitemaneSkinCelestial",
+    "parent": "HeroWhitemane",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Celestial\\Storm_Hero_Whitemane_Celestial.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnims",
+        "index": "0",
+        "value": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Celestial_RequiredAnims\\Storm_Hero_Whitemane_Celestial_RequiredAnims.m3a",
+        "children": []
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/whitemane.stormmod/base.stormdata/gamedata/whitemaneskindata/whitemanemobster19data/whitemanemobster19basedata.xml",
+    "model_id": "HeroWhitemaneSkinMobster19",
+    "parent": "HeroWhitemane",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Mobster19\\Storm_Hero_Whitemane_Mobster19.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnimsEx",
+        "FilePath": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Mobster19_RequiredAnims\\Storm_Hero_Whitemane_Mobster19_RequiredAnims.m3a",
+        "children": [
+          {
+            "kind": "Flags",
+            "index": "Override",
+            "value": "1"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/whitemane.stormmod/base.stormdata/gamedata/whitemaneskindata/whitemanemobster19data/whitemanemobster19basedata.xml",
+    "model_id": "WhitemaneSkinMobster19PortraitAddition",
+    "parent": "WhitemanePortraitAddition",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Mobster19\\Storm_Hero_Whitemane_Mobster19.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnimsEx",
+        "FilePath": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Mobster19_RequiredAnims\\Storm_Hero_Whitemane_Mobster19_RequiredAnims.m3a",
+        "children": [
+          {
+            "kind": "Flags",
+            "index": "Override",
+            "value": "1"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/whitemane.stormmod/base.stormdata/gamedata/whitemaneskindata/whitemanespooky18data/whitemanespooky18basedata.xml",
+    "model_id": "HeroWhitemaneSkinSpooky18",
+    "parent": "HeroWhitemane",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Spooky18\\Storm_Hero_Whitemane_Spooky18.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnimsEx",
+        "FilePath": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Spooky18_RequiredAnims\\Storm_Hero_Whitemane_Spooky18_RequiredAnims.m3a",
+        "children": [
+          {
+            "kind": "Flags",
+            "index": "Override",
+            "value": "1"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "file": "mods/heromods/whitemane.stormmod/base.stormdata/gamedata/whitemaneskindata/whitemanespooky18data/whitemanespooky18basedata.xml",
+    "model_id": "WhitemaneSkinSpooky18PortraitAddition",
+    "parent": "WhitemanePortraitAddition",
+    "model_path": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Spooky18\\Storm_Hero_Whitemane_Spooky18.m3",
+    "required_anims": [
+      {
+        "kind": "RequiredAnimsEx",
+        "FilePath": "Assets\\Units\\Heroes\\Storm_Hero_Whitemane_Spooky18_RequiredAnims\\Storm_Hero_Whitemane_Spooky18_RequiredAnims.m3a",
+        "children": [
+          {
+            "kind": "Flags",
+            "index": "Override",
+            "value": "1"
+          }
+        ]
+      }
+    ]
+  }
+]

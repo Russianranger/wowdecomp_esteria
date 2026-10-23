@@ -48,6 +48,9 @@ namespace gxvk::vk::pipelines
     /// The constant register files of the translated interface: pixel c0..c15, vertex c0..c63 or
     /// c0..c511 by the vertex record's `vconst`.
     constexpr uint32_t kPixelRows       = 20;
+    /// Pixel constants c20..c115, for the records that declare `pext=` (the module-owned M3 shaders): a block after
+    /// the large vertex class, so every other record keeps the layout it was translated for.
+    constexpr uint32_t kPixelExtraRows  = 96;
     constexpr uint32_t kVertexRowsSmall = 64;
     constexpr uint32_t kVertexRowsLarge = 512;
 
@@ -149,6 +152,8 @@ namespace gxvk::vk::pipelines
         const float* vertexRegs = nullptr;
         uint32_t     vertexRows = kVertexRowsSmall;
         const float* pixelRegs  = nullptr;
+        const float* pixelExtra = nullptr;   ///< rows kPixelRows.. of the pixel file, when pixelExtraRows is not 0
+        uint32_t     pixelExtraRows = 0;
         float        misc[4]    = {};
 
         VkViewport viewport = {};

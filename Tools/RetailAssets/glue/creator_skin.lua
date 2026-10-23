@@ -201,6 +201,18 @@ local function UpdateRow(row, skin)
             end
         end
     end
+    -- Races on the stock option layout write only the label into the row; read the value from the native selector so
+    -- they show the same "n / total" (or the choice's name) as the other races.
+    if shown == "" then
+        local ok, current, total = pcall(CycleCharCustomization, EA_ACTIVE() and "EA_GET" or "EA_STOCK_GET", row:GetID());
+        if ok and type(current) == "number" and type(total) == "number" and total > 0 then
+            shown = (current + 1) .. " / " .. total;
+            local named, choiceName = pcall(ChoiceText, row:GetID(), current, label);
+            if named and type(choiceName) == "string" and choiceName ~= "" and choiceName ~= label .. " " .. (current + 1) then
+                shown = choiceName;
+            end
+        end
+    end
     skin.label:SetText(label);
     skin.value:SetText(shown);
 end

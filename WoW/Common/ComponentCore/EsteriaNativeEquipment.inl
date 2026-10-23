@@ -139,22 +139,22 @@ bool SelectorNativeBodyPixels(CCharacterComponent* c,std::vector<unsigned char>&
     if(map.pixels.empty()) {
         wchar_t path[128]{};
         swprintf_s(path,L"Data\\Retail\\Assets\\EquipmentFitting\\%u-%u.bin",prefs.m_raceID,prefs.m_sexID);
-        FILE* file=CatalogFile(path);if(!file)return false;
+        Catalog file=CatalogFile(path);if(!file)return false;
         unsigned header[6]{};
-        bool valid=std::fread(header,sizeof(header),1,file)==1&&header[0]==0x3146554e&&header[1]==1
+        bool valid=file.Read(header,sizeof(header),1)==1&&header[0]==0x3146554e&&header[1]==1
             &&header[2]&&header[2]<=1024&&header[3]&&header[3]<=1024&&header[4]==512&&header[5]==512;
         if(valid) {
             map.width=header[2];map.height=header[3];map.pixels.resize(map.width*map.height);
-            valid=std::fread(map.pixels.data(),sizeof(unsigned),map.pixels.size(),file)==map.pixels.size();
+            valid=file.Read(map.pixels.data(),sizeof(unsigned),map.pixels.size())==map.pixels.size();
             valid=valid&&std::all_of(map.pixels.begin(),map.pixels.end(),[](unsigned p){
                 return p==0xffffffffu||((p&65535u)<512&&(p>>16)<512);});
             if(valid&&((prefs.m_raceID==75&&prefs.m_sexID==1)||prefs.m_raceID==76)) {
                 map.coverage.resize(map.pixels.size());
-                if(std::fread(map.coverage.data(),1,map.coverage.size(),file)!=map.coverage.size()
+                if(file.Read(map.coverage.data(),1,map.coverage.size())!=map.coverage.size()
                     || !std::all_of(map.coverage.begin(),map.coverage.end(),[](unsigned char value){return value<=4;}))map.coverage.clear();
             }
         }
-        std::fclose(file);if(!valid){map=FittingMap{};return false;}
+        if(!valid){map=FittingMap{};return false;}
     }
     char const* skinPath=nullptr;
     for(auto const& record:RaceSelections(prefs.m_raceID)) {

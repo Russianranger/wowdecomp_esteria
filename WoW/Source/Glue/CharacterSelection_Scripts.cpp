@@ -129,6 +129,35 @@ static int32_t Script_GetCharacterInfo(lua_State* L) {
     return 10;
 }
 
+// Fork addition: what the server's character enumeration says beyond GetCharacterInfo.
+// Returns equipped slot count (of 19 gear slots), pet level (0 = no pet), in-guild flag.
+static int32_t Script_GetCharacterDetails(lua_State* L) {
+    if (!lua_isnumber(L, 1)) {
+        luaL_error(L, "Usage: GetCharacterDetails(index)");
+        return 0;
+    }
+
+    int32_t index = static_cast<int32_t>(lua_tonumber(L, 1)) - 1;
+
+    if (index < 0 || index >= static_cast<int32_t>(CCharacterSelection::s_characterList.Count())) {
+        return 0;
+    }
+
+    const CHARACTER_INFO& info = CCharacterSelection::s_characterList[index].m_characterInfo;
+    int32_t equipped = 0;
+
+    for (uint32_t slot = 0; slot < 19; slot++) {
+        if (info.m_inventoryItemDisplayID[slot]) {
+            equipped++;
+        }
+    }
+
+    lua_pushnumber(L, equipped);
+    lua_pushnumber(L, info.m_petDisplayInfoID ? info.m_petExperienceLevel : 0);
+    lua_pushboolean(L, info.m_guildID != 0);
+    return 3;
+}
+
 // VERIFY: 927337c9 auto
 // OFFSET: 0x004E33A0
 static int32_t Script_DeleteCharacter(lua_State* L) {
@@ -345,6 +374,7 @@ static FrameScript_Method s_scriptFunctions[] = {
     { "GetCharacterListUpdate", &Script_GetCharacterListUpdate },
     { "GetNumCharacters", &Script_GetNumCharacters },
     { "GetCharacterInfo", &Script_GetCharacterInfo },
+    { "GetCharacterDetails", &Script_GetCharacterDetails },
     { "SelectCharacter", &Script_SelectCharacter },
     { "DeleteCharacter", &Script_DeleteCharacter },
     { "RenameCharacter", &Script_RenameCharacter },

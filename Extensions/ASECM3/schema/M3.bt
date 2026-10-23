@@ -1,0 +1,1631 @@
+//--------------------------------------
+//--- 010 Editor Binary Template
+//
+// File: M3 Template
+// Original Author: NiNtoxicated
+// Modernization: OpenAI Codex, based on Solstice245/m3studio structures.xml
+// Revision: 1.02 (2026-07-27)
+// Purpose: Parse the Starcraft 2 Model File Format (.M3)
+//
+// Revision 1.00 keeps the useful 0.96 field decoders, updates the core MD34
+// layouts through MODL v30, and adds bounded parsing for every section/version
+// currently documented by M3Studio. Unknown data is kept as a size-aware raw
+// payload instead of treating an entry count as a byte count.
+// Revision 1.01 groups the results into closed header, index, and section
+// branches. Each section owns a collapsible records array so large models no
+// longer place thousands of records directly in the root results tree.
+// Revision 1.02 makes all read-formatter scratch strings local so formatting
+// Template Results never attempts to modify file-backed template variables.
+//--------------------------------------
+
+// === Global Variables ===
+//Model Type
+local int MODL_TYPE = 0;
+local quad m3_file_size = 0;
+local uint m3_index_offset = 0;
+local uint m3_tag_count = 0;
+local int current_tag_index = -1;
+local int vertex_tag_index = -1;
+local int m3_layout_errors = 0;
+
+//Switches
+const int FL_VERT = 0x08;
+const int FL_ANIM = 0x09;
+
+//Data Switches
+local int flg_vert = 0;
+local int flg_data = 0;
+
+//Misc variables
+local quad bm; //read in file position to return to
+local uint t_offs = 0; //tag offset
+local int tag_size = 16; //tag byte size
+local int i = 0; //used in for loops
+
+//Data types
+//Data types that need converting
+typedef ubyte fltByte <read=fltByteRead, write=fltByteWrite>;
+
+//Read-Write funcs for Data types
+string fltByteRead( fltByte b )
+{
+    local string s;
+    local float flt = b / 255.0;  
+    SPrintf( s, "%f", flt );
+    return s;
+}
+
+void fltByteWrite( fltByte &b, string s )
+{
+    b = (fltByte)( Atof( s ) * 255.0 );
+}
+
+typedef ubyte fltNormal <read=fltNormalRead, write=fltNormalWrite>;
+
+string fltNormalRead( fltNormal b )
+{
+    local string s;
+    local float flt = (2.0 * b / 255.0) - 1.0;
+    SPrintf( s, "%f", flt );
+    return s;
+}
+
+void fltNormalWrite( fltNormal &b, string s )
+{
+    local float value = Atof(s);
+    if (value < -1.0) value = -1.0;
+    if (value >  1.0) value =  1.0;
+    local int cn = (int)(((value + 1.0) * 0.5 * 255.0) + 0.5);
+    b = (fltNormal)( cn );
+}
+
+typedef short uvShort <read=uvShortRead, write=uvShortWrite>;
+
+string uvShortRead( uvShort uvs )
+{
+    local string s;
+    // REGN v5 applies uv_multiply and uv_offset after this normalization.
+    SPrintf( s, "%f", uvs / 32768.0 );
+    return s;
+}
+
+void uvShortWrite( uvShort &uvs, string s )
+{
+    uvs = (uvShort)( Atof( s ) * 32768.0 );
+}
+
+typedef struct
+{
+    float x, y;
+} Vec2D <read=Vec2DRead, write=Vec2DWrite>;
+
+string Vec2DRead(Vec2D &v2d)
+{
+    local string s;
+    SPrintf( s, "[%f, %f]", v2d.x, v2d.y);
+    return s;
+}
+
+string Vec2DWrite(Vec2D &v2d, string s)
+{
+    SScanf( s, "[%f, %f]", v2d.x, v2d.y);
+}
+
+typedef struct
+{
+    float x, y, z;
+} Vec3D <read=Vec3DRead,write=Vec3DWrite>;
+
+string Vec3DRead(Vec3D &v3d)
+{
+    local string s;
+    SPrintf( s, "[%f, %f, %f]", v3d.x, v3d.y, v3d.z);
+    return s;
+}
+
+void Vec3DWrite(Vec3D &v3d, string s)
+{
+    SScanf( s, "[%f, %f, %f]", v3d.x, v3d.y, v3d.z);
+}
+
+typedef struct
+{
+    float x, y, z, w;
+} Vec4D <read=Vec4DRead,write=Vec4DWrite>;
+
+string Vec4DRead(Vec4D &q)
+{
+    local string s;
+    SPrintf( s, "[%f, %f, %f, %f]", q.x, q.y, q.z, q.w);
+    return s;
+}
+
+void Vec4DWrite( Vec4D &q, string s )
+{
+    SScanf( s, "[%f, %f, %f, %f]", q.x, q.y, q.z, q.w);
+}
+
+typedef struct (int type)
+{
+    Vec4D a, b, c, d;
+    if (type == 34) { ulong flags; }
+} VersionedMatrix44;
+
+typedef struct
+{
+    Vec4D x, y, z, w;
+} Matrix44;
+
+typedef struct (int type)
+{
+    Vec3D min;
+    Vec3D max;
+    float radius;
+    if (type == 34) { ulong flags; }
+} Sphere;
+
+typedef struct
+{
+    Vec3D min;
+    Vec3D max;
+    float radius;
+} Bounds;
+
+typedef struct (quad size)
+{
+    ubyte bytes[size];
+} ByteBlock <open=suppress>;
+
+// ==================
+// ==  M3 STRUCTS  ==
+// ==================
+typedef struct
+{
+    ulong nData, indData;
+    if (MODL_TYPE == 34)
+    {
+        ulong flags;
+    }
+} HeadRef <read=RefRead>;
+
+string RefRead(HeadRef &r)
+{
+    local string s;
+    SPrintf( s, "nData: %d   indData: %d", r.nData, r.indData);
+    return s;
+}
+
+typedef struct
+{
+    char blockID[4];
+    ULONG ofs;
+    ULONG count; //number of entries; for byte sections this is the byte count
+    ULONG vers;
+} Tag <read=BlockIDRead, bgcolor=cLtPurple>;
+
+//Function tag read declare
+void ReadTag(Tag &t);
+int GetKnownEntrySize(Tag &t);
+
+string BlockIDRead(Tag &t)
+{
+    local string s;
+    local int size = GetKnownEntrySize(t);
+    if (size > 0)
+        SPrintf(s, "%c%c%c%c v%d, %d x %d bytes", t.blockID[3], t.blockID[2], t.blockID[1], t.blockID[0], t.vers, t.count, size);
+    else
+        SPrintf(s, "%c%c%c%c v%d, %d entries (unknown version)", t.blockID[3], t.blockID[2], t.blockID[1], t.blockID[0], t.vers, t.count);
+    return s;
+}
+
+typedef struct (Tag &t)
+{
+    local string section_name;
+    local string section_summary = BlockIDRead(t);
+    SPrintf(section_name, "%c%c%c%c", t.blockID[3], t.blockID[2], t.blockID[1], t.blockID[0]);
+    ReadTag(t);
+} M3SectionNode <name=(section_name), read=(section_summary), open=false>;
+
+typedef struct
+{
+    char fType[4];
+    ULONG ofsTags;
+    ULONG nTags;
+    HeadRef mref;
+} FileHeader <bgcolor=cLtGray>; //MD33
+
+typedef struct 
+{
+    HeadRef HRef;
+} Ref <read=ReferenceRead>;
+
+string ReferenceRead(Ref &r)
+{
+    local string s;
+    if (r.HRef.nData == 0)
+        SPrintf(s, "null");
+    else
+        SPrintf(s, "tag[%d], count %d", r.HRef.indData, r.HRef.nData);
+    return s;
+}
+
+typedef struct
+{
+    ushort indunk1;
+    ushort indunk2;
+    ulong animid;
+} Animref <read=AnimrefRead>;
+
+string AnimrefRead(Animref &ar)
+{
+    local string s;
+    SPrintf( s, "Animid: %d", ar.animid);
+    return s;
+}
+
+typedef struct
+{
+    Animref Aref;
+    Vec2D value; //initial value
+    Vec2D unValue; //unused extra value
+    uint32 flags; //unused, 0
+} Aref_VEC2D <read=Aref_VEC2DRead, write = Aref_VEC2DWrite>;
+
+string Aref_VEC2DRead(Aref_VEC2D &v2d)
+{
+    local string s;
+    SPrintf( s, "[%f, %f]", v2d.value.x, v2d.value.y);
+    return s;
+}
+
+void Aref_VEC2DWrite(Aref_VEC2D &v2d, string s)
+{
+    SScanf( s, "[%f, %f]", v2d.value.x, v2d.value.y);
+}
+
+typedef struct
+{
+    Animref Aref;
+    Vec3D value; //initial value
+    Vec3D unValue; //unused extra value
+    uint32 flags; //unused, 0
+} Aref_VEC3D <read=Aref_VEC3DRead, write = Aref_VEC3DWrite>;
+
+string Aref_VEC3DRead(Aref_VEC3D &v3d)
+{
+    local string s;
+    SPrintf( s, "[%f, %f, %f]", v3d.value.x, v3d.value.y, v3d.value.z);
+    return s;
+}
+
+void Aref_VEC3DWrite(Aref_VEC3D &v3d, string s)
+{
+    SScanf( s, "[%f, %f, %f]", v3d.value.x, v3d.value.y, v3d.value.z);
+}
+
+typedef struct
+{
+    Animref Aref;
+    Vec4D value; //initial value
+    Vec4D unValue; //unused extra value
+    uint32 flags; //unused, 0
+} Aref_VEC4D <read = Aref_VEC4DRead, write = Aref_VEC4DWrite>;
+
+string Aref_VEC4DRead(Aref_VEC4D &v4d)
+{
+    local string s;
+    SPrintf( s, "[%f, %f, %f, %f]", v4d.value.x, v4d.value.y, v4d.value.z, v4d.value.w);
+    return s;
+}
+
+void Aref_VEC4DWrite(Aref_VEC4D &v4d, string s)
+{
+    SScanf( s, "[%f, %f, %f, %f]", v4d.value.x, v4d.value.y, v4d.value.z, v4d.value.w);
+}
+
+typedef struct
+{
+    Animref Aref;
+    fltByte value[4]; //initial value
+    fltByte unValue[4]; //unused extra value
+    uint32 flags; //unused, 0
+} Aref_fltByte4D;
+
+typedef struct
+{
+    Animref Aref;
+    uint32 value; //initial value
+    uint32 unValue; //unused extra value
+    uint32 flags; //unused, 0
+} Aref_UINT32 <read = Aref_UINT32Read, write = Aref_UINT32Write>;
+
+string Aref_UINT32Read(Aref_UINT32 &d)
+{
+    local string s;
+    SPrintf( s, "%d", d.value);
+    return s;
+}
+
+void Aref_UINT32Write(Aref_UINT32 &d, string s)
+{
+    SScanf( s, "%d", d.value);
+}
+
+typedef struct
+{
+    Animref Aref;
+    uint16 value; //initial value
+    uint16 unValue; //unused extra value
+    uint32 flags; //unused, 0
+} Aref_UINT16 <read = Aref_UINT16Read, write = Aref_UINT16Write>;
+
+string Aref_UINT16Read(Aref_UINT16 &shrt)
+{
+    local string s;
+    SPrintf( s, "%d", shrt.value);
+    return s;
+}
+
+void Aref_UINT16Write(Aref_UINT16 &shrt, string s)
+{
+    SScanf( s, "%d", shrt.value);
+}
+
+typedef struct
+{
+    Animref Aref;
+    float value; //initial value
+    float unValue; //unused extra value
+    uint32 flags; //unused, 0
+} Aref_FLOAT <read = Aref_FLOATRead, write = Aref_FLOATWrite>;
+
+string Aref_FLOATRead(Aref_FLOAT &f)
+{
+    local string s;
+    SPrintf( s, "%f", f.value);
+    return s;
+}
+
+void Aref_FLOATWrite(Aref_FLOAT &f, string s)
+{
+    SScanf( s, "%f", f.value);
+}
+
+typedef struct
+{
+    Ref frames;
+    ulong flags<format=binary>;
+    ulong framelength;
+    Ref data;
+} Animblock;
+
+typedef struct
+{
+    uint32 shape;
+    int16 bone;
+    uint16 bone_fb;
+    Matrix44 matrix;
+    Ref vertices;
+    Ref face_data;
+    float size0;
+    float size1;
+    float size2;
+} SSGS;
+
+typedef struct (int version)
+{
+    Ref model_name;
+    uint32 flags <format=binary>;
+    Ref sequences;
+    Ref sequence_transformation_collections;
+    Ref sequence_transformation_groups;
+    Ref bone_anim_sets;
+    uint32 split_count;
+    Ref sts;
+    Ref bones;
+    uint32 skin_bone_count;
+    uint32 vertex_flags <format=binary>;
+    flg_vert = vertex_flags;
+    Ref vertices;
+    vertex_tag_index = vertices.HRef.indData;
+    Ref divisions;
+    Ref bone_lookup;
+    Bounds boundings;
+    Bounds collision_boundings;
+    Ref collision_faces;
+    Ref collision_vertices;
+    Ref collision_face_normals;
+    Ref attachment_points;
+    Ref attachment_points_addon;
+    Ref lights;
+    if (version >= 21) Ref shadow_boxes;
+    Ref cameras;
+    Ref cameras_addon;
+    Ref material_references;
+    Ref materials_standard;
+    Ref materials_displacement;
+    Ref materials_composite;
+    Ref materials_terrain;
+    Ref materials_volume;
+    Ref materials_hair;
+    Ref materials_creep;
+    if (version >= 25) Ref materials_volume_noise;
+    if (version >= 26) Ref materials_splat_terrain_bake;
+    if (version >= 28) Ref materials_reflection;
+    if (version >= 29) Ref materials_lens_flare;
+    if (version >= 30) Ref materials_buffer;
+    Ref particle_systems;
+    Ref particle_copies;
+    Ref ribbons;
+    Ref projections;
+    Ref forces;
+    Ref warps;
+    Ref view_volumes;
+    Ref physics_rigid_bodies;
+    Ref physics_constraints;
+    Ref physics_joints;
+    if (version >= 28) Ref physics_cloths;
+    Ref ik_two_joints;
+    if (version >= 24) Ref ik_ccd;
+    Ref ik_joints;
+    Ref one_bone_solvers;
+    Ref turret_parts;
+    Ref turrets;
+    Ref bone_rests;
+    SSGS hittest_tight;
+    Ref hittests;
+    Ref attachment_volumes;
+    if (version >= 23)
+    {
+        Ref attachment_volumes_addon0;
+        Ref attachment_volumes_addon1;
+    }
+    Ref billboards;
+    Ref tmd_data;
+    uint32 m3a_hash;
+    Ref m3a_hashes;
+} MODL <open=false, bgcolor=cAqua>;
+
+typedef struct (int version)
+{
+    int32 id;
+    int32 index;
+    Ref name;
+    uint32 anim_ms_start;
+    uint32 anim_ms_end;
+    float movement_speed;
+    uint32 flags <format=binary>;
+    uint32 frequency;
+    uint32 replay_start;
+    uint32 replay_end;
+    uint32 ms_blend;
+    if (version <= 1) uint32 unknown05;
+    Bounds bounding_sphere;
+    Ref anim_sets;
+} SEQS <read=SEQSRead>; //Animation Sequence info
+
+string SEQSRead(SEQS &seq)
+{
+    local string s;
+    SPrintf(s, "name tag[%d], %d-%d ms", seq.name.HRef.indData, seq.anim_ms_start, seq.anim_ms_end);
+    return s;
+}
+
+typedef struct
+{
+    Ref name;
+    Ref AnimRef;
+} STG_ <read=STGRead>;
+
+string STGRead(STG_ &stg)
+{
+    local string s;
+    SPrintf(s, "name tag[%d]", stg.name.HRef.indData);
+    return s;
+}
+
+typedef struct
+{
+    Ref name;
+    ulong d1;
+    ushort AnimIndRef[2]; 
+    Ref animid;
+    flg_data = FL_ANIM; //Reads ulong data ref as two ushorts
+    Ref animoffs;
+    flg_data = 0; //Reset flag
+    ulong d2;
+    Ref Events;
+    Ref r1;
+    Ref Trans;
+    Ref Rot;
+    Ref r2;
+    Ref r3[6];
+    Ref Flags;
+    Ref bounds;
+} STC_ <read=STCRead>; //Sequence Transformation Collection
+
+string STCRead(STC_ &stc)
+{
+    local string s;
+    SPrintf(s, "name tag[%d]", stc.name.HRef.indData);
+    return s;
+}
+
+//Sequence Data (SD**) chunks
+typedef struct
+{
+    Animblock animdata;
+} SDEV;
+
+typedef struct (int version)
+{
+    Ref name;
+    int32 id;
+    int16 bone;
+    uint16 bone_fb;
+    Matrix44 matrix;
+    uint32 flags <format=binary>;
+    Ref payload;
+    if (version >= 1) uint32 data_param0;
+    if (version >= 2) uint32 data_param1;
+} EVNT <read=EVNTRead>; //Model Event
+
+string EVNTRead(EVNT &e)
+{
+    local string s;
+    SPrintf(s, "name tag[%d], bone %d", e.name.HRef.indData, e.bone);
+    return s;
+}
+
+typedef struct
+{
+    Animblock animdata;
+} SD2V;
+
+typedef struct
+{
+    Animblock animdata;
+} SD3V; //Translational Animation data
+
+typedef struct
+{
+   Vec3D pos;
+} VEC3; //vectors? vertices?
+
+typedef struct
+{
+    Animblock animdata;
+} SD4Q;
+
+typedef struct
+{
+    Animblock animdata;
+} SDR3;
+
+typedef struct
+{
+    float unk;
+} REAL;
+
+typedef struct
+{
+    Animblock animdata;
+} SDS6; //some particle info
+
+typedef struct
+{
+    Animblock animdata;
+} SDMB;
+
+typedef struct
+{
+    Vec3D min, max;
+    float radius;
+} BNDS; //boundary? bounding box?
+
+typedef struct
+{
+    Ref     animid;
+    long    d1[3];
+    short   s1;
+    ushort  s2;
+} STS_;
+
+typedef struct
+{
+    Animblock animdata;
+} SDFG;
+
+typedef struct
+{
+    ushort unk[2];
+} FLAG; //Flags of some sort?
+
+typedef struct
+{
+    int32 id;
+    Ref bname;
+    struct
+    {
+        ulong bitFlag <format=binary>;
+        FSkip (-4);
+        //flags:
+        // 0x1      - Inherit Translation (off = true)
+        // 0x2      - Inherit Scale (off = true)
+        // 0x4      - Inherit Rotation (off = true)
+        // 0x10     - Billboard 1
+        // 0x40     - Billboard 2
+        // 0x100    - 2D Projection
+        // 0x200    - Animated
+        // 0x400    - IK
+        // 0x800    - Skinned
+        // 0x2000   - Real
+        // 0x4000   - Batch 1
+        // 0x8000   - Batch 2
+        ulong inhTrans: 1;
+        ulong inhScale: 1;
+        ulong inhRot: 1;
+        ulong : 1;
+        ulong billboard1: 1;
+        ulong : 1;
+        ulong billboard2: 1;
+        ulong : 1;
+        ulong proj2d: 1;
+        ulong animated: 1;
+        ulong ik: 1;
+        ulong skinned: 1;
+        ulong : 1;
+        ulong real: 1;
+        ulong batch1: 1;
+        ulong batch2: 1;
+        ulong : 16;
+    } flags;
+
+    short boneparent;
+    ushort s1;
+    Aref_VEC3D initTrans;
+    Aref_VEC4D initQuat;
+    Aref_VEC3D initScale;
+    Aref_UINT32 ar1;
+} BONE <read=BoneRead>; //bones! yay!
+
+string BoneRead(BONE &b)
+{
+    local string s;
+    SPrintf(s, "name tag[%d], parent %d", b.bname.HRef.indData, b.boneparent);
+    return s;
+}
+
+typedef struct (uint32 flags)
+{
+    if (flags & 0x00000001) Vec3D position;
+
+    local int lookup_pairs = 0;
+    if (flags & 0x00000020) lookup_pairs += 2;
+    if (flags & 0x00000040) lookup_pairs += 2;
+    if (lookup_pairs > 0)
+    {
+        ubyte bone_weights[lookup_pairs];
+        ubyte bone_lookups[lookup_pairs];
+    }
+
+    if (flags & 0x00000080) Vec3D normal_float0;
+    if (flags & 0x00800000)
+    {
+        fltNormal normal[3];
+        ubyte normal_sign;
+    }
+    if (flags & 0x00000100) uint32 unknown_00000100;
+    if (flags & 0x00000200) ubyte color[4];
+    if (flags & 0x00000400) uint32 unknown_00000400;
+    if (flags & 0x00000800) uint32 unknown_00000800;
+    if (flags & 0x00001000) uint32 unknown_00001000;
+
+    if (flags & 0x00002000) Vec2D uv_float0;
+    if (flags & 0x00004000) Vec2D uv_float1;
+    if (flags & 0x00008000) Vec2D uv_float2;
+    if (flags & 0x00010000) Vec2D uv_float3;
+
+    if (flags & 0x00020000) uvShort uv0[2];
+    if (flags & 0x00040000) uvShort uv1[2];
+    if (flags & 0x00080000) uvShort uv2[2];
+    if (flags & 0x00100000) uvShort uv3[2];
+    if (flags & 0x40000000) uvShort uv4[2];
+
+    if (flags & 0x00200000) Vec3D normal_float1;
+    if (flags & 0x00400000) Vec3D tangent_float;
+    if (flags & 0x01000000)
+    {
+        fltNormal tangent[3];
+        ubyte tangent_unused;
+    }
+    if (flags & 0x02000000) uint32 unknown_02000000;
+    if (flags & 0x04000000) uint32 unknown_04000000[3];
+    if (flags & 0x08000000) uint32 unknown_08000000[3];
+    if (flags & 0x10000000) uint32 unknown_10000000;
+    if (flags & 0x20000000) uint32 unknown_20000000;
+} Vertex;
+
+typedef struct
+{
+    Ref faces, submesh, BAT, MSEC;
+    ulong unk;
+} DIV_;
+
+typedef struct
+{
+    uint32 node_index;
+    Animref bounding_header;
+    Bounds bounding_default;
+    Bounds bounding_null;
+    int32 bounding_unused;
+} MSEC;
+
+typedef struct (int version)
+{
+    uint32 id;
+    if (version >= 3) uint32 unknown01;
+    if (version <= 2)
+    {
+        uint16 first_vertex_index;
+        uint16 vertex_count;
+    }
+    else
+    {
+        uint32 first_vertex_index;
+        uint32 vertex_count;
+    }
+    uint32 first_face_index;
+    uint32 face_count;
+    uint16 bone_count;
+    uint16 first_bone_lookup_index;
+    uint16 bone_lookup_count;
+    uint16 unknown02;
+    uint8 vertex_lookups_used;
+    uint8 unknown04;
+    uint16 root_bone;
+    if (version >= 4) uint32 flags <format=binary>;
+    if (version >= 5)
+    {
+        float uv_multiply;
+        float uv_offset;
+    }
+} REGN; // Model Submeshes
+
+typedef struct
+{
+    uint16 flags <format=binary>;
+    uint16 priority_plane;
+    uint16 region_index;
+    uint16 bounds_index;
+    uint16 color_index;
+    uint16 material_reference_index;
+    int16 bone;
+} BAT_;
+
+typedef struct
+{
+    long flag;
+    Ref name;
+    ulong bone;
+} ATT_ <read=AttachRead>; //Attachments?
+
+string AttachRead(ATT_ &a)
+{
+    local string s;
+    SPrintf(s, "name tag[%d], bone %d", a.name.HRef.indData, a.bone);
+    return s;
+}
+
+typedef struct
+{
+    //Material Lookup table
+    enum <ulong> matmEnum { MATM_Unk0, MATM_Normal, MATM_Displacement, MATM_Composite, MATM_Null, MATM_Unk5 } matType;
+    ulong MatInd; //Mat lookup reference
+} MATM;
+
+typedef struct
+{
+    ulong bitFlag <format=binary>;
+    FSkip (-4);
+    ulong                   : 2;
+    ulong Unfogged          : 1;
+    ulong TwoSided          : 1;
+    ulong Unshaded          : 1;
+    ulong NoShadowsCast     : 1;
+    ulong NoHitTest         : 1;
+    ulong NoShadowsReceived : 1;
+
+    ulong DepthPrepass      : 1;
+    ulong UseTerrainHDR     : 1;
+    ulong                   : 1;
+    ulong splatUVfix        : 1;
+    ulong SoftBlending      : 1;
+    ulong Unfogged2         : 1;
+} matFlags;
+
+typedef struct
+{
+    Ref     name;
+    ulong   d1;
+    matFlags flags;
+    // Blend modes
+    enum <ulong> benum { Opaque, AlphaBlend, Add, AlphaAdd, Mod, Mod2x } blendMode;
+    ulong   priority;
+    ulong   d3;
+    float   Specularity;
+    float   f1;
+    ulong   cutout_thresh;
+    float   Spec_mult;
+    float   Emis_mult;
+    struct
+    {
+        Ref     LAYR_Diff;
+        Ref     LAYR_Decal;
+        Ref     LAYR_Spec;
+        Ref     LAYR_Emis;
+        Ref     LAYR_Emis2;
+        Ref     LAYR_Reflect;
+        Ref     LAYR_ReflectMask;
+        Ref     LAYR_Alpha;
+        Ref     LAYR_Unk3;
+        Ref     LAYR_Norm;
+        Ref     LAYR_Height;
+        Ref     LAYR_Unk4[2];
+    } layers;
+    ulong d2;
+    enum <ulong> lenum { lMod, lMod2x, lAdd, lBlend, lTeamColEmissAdd, lTeamColDiffAdd } LayerBlend;
+    enum <ulong> eenum { eMod, eMod2x, eAdd, eBlend, eTeamColEmissAdd, eTeamColDiffAdd } EmissiveBlend;
+    ulong d6;
+    ulong specularType; //0 = RGB, 1 = Alpha Only, 2 = Unknown
+    Aref_UINT32 Ar1;
+    Aref_UINT32 Ar2;
+} MAT_ <read=MATRead>; //Materials?
+
+string MATRead(MAT_ &m)
+{
+    local string s;
+    SPrintf(s, "name tag[%d]", m.name.HRef.indData);
+    return s;
+}
+
+typedef struct
+{
+    ulong   d1;
+    Ref     name;
+    Aref_fltByte4D Colour;
+    struct
+    {
+        ulong bitFlag <format=binary>;
+        FSkip (-4);
+        ulong            : 2;
+        ulong   texwrap_x: 1;
+        ulong   texwrap_y: 1;
+        ulong   texBlack : 1;
+        ulong            : 5;
+        ulong   useColour: 1;
+    } flags;
+    ulong   uvmapChannel;
+    struct
+    {
+        ulong bitFlag <format=binary>;
+        FSkip (-4);
+        ulong alphaTeamColour   : 1;
+        ulong alphaOnly         : 1;
+        ulong alphaShading      : 1;
+        ulong texGarble01       : 1;
+        ulong unk1              : 1;
+        ulong unk2              : 1;
+        ulong unk3              : 1;
+        ulong unk4              : 1;
+    } renderFlags;
+    Aref_FLOAT brightness_mult1;
+    Aref_FLOAT brightness_mult2;
+    ulong   d4;
+    fltByte colour[4];
+    ulong   d6[2];
+    long    d7;
+    ulong   d8[2];
+    Aref_UINT32 ar1;
+    Aref_VEC2D ar2;
+    Aref_UINT16 ar3;
+    Aref_VEC2D ar4;
+    Aref_VEC3D uvAngle; //max = value * 50 * -1
+    Aref_VEC2D uvTiling;
+    Aref_UINT32 ar5;
+    Aref_FLOAT ar6;
+    Aref_FLOAT brightness; //to 1.0
+    long    d20;
+    struct
+    {
+        ulong bitFlag <format=binary>;
+        FSkip (-4);
+        ulong tintInverse : 1;
+        ulong tint : 1;
+        ulong tintAllOver : 1;
+    } shadingFlags;
+    float   tintStrength;
+    float   tintUnk;
+    float   f8[2];        
+} LAYR <read=LAYRRead>; //Layer info?
+
+typedef struct
+{
+    Ref     name;
+    ulong d1;
+    Animref unk1;
+    float f1;
+    ulong d2[2];
+    Ref     Normal;
+    Ref     Strength;
+    matFlags flags;
+    ulong priority;
+} DIS_ <read=DISRead>; //Displacement
+
+string DISRead(DIS_ &d)
+{
+    local string s;
+    SPrintf(s, "name tag[%d]", d.name.HRef.indData);
+    return s;
+}
+
+typedef struct
+{
+    Ref name;
+    ulong d1;
+    Ref cms;
+} CMP_ <read=CMPRead>; //Composite
+
+string CMPRead(CMP_ &c)
+{
+    local string s;
+    SPrintf(s, "name tag[%d]", c.name.HRef.indData);
+    return s;
+}
+
+typedef struct
+{
+    ulong bone;
+    Animref unk1;
+    float f1;
+    ulong d2[2];
+} CMS_;
+
+typedef struct
+{
+    Ref name;
+    Ref diffuse;
+} TER_ <read=TERRead>; // Terrain
+
+string TERRead(TER_ &t)
+{
+    local string s;
+    SPrintf(s, "name tag[%d]", t.name.HRef.indData);
+    return s;
+}
+
+string LAYRRead(LAYR &l)
+{
+    local string s;
+    if (l.name.HRef.nData > 1)
+    {
+        SPrintf(s, "texture tag[%d]", l.name.HRef.indData);
+        return s;
+    }
+    else
+    {
+        s = "(No Texture)";
+        return s;
+    }
+}
+
+typedef struct
+{
+    ulong bone;
+    ulong matid;
+    Aref_FLOAT ar1;
+    Aref_FLOAT ar2;
+    ulong d3;
+    Aref_UINT32 ar3;
+    Aref_UINT32 ar4;
+    Aref_UINT32 ar5;
+    Aref_UINT32 ar6;
+    Aref_FLOAT ar7;
+    Aref_FLOAT ar8;
+    ulong d9[4];
+    float f5[5];
+    Aref_VEC3D ar9;
+    Aref_VEC3D ar10;
+    Aref_fltByte4D ar11;
+    Aref_fltByte4D ar12;
+    Aref_fltByte4D ar13;
+    float f8;
+    ulong d16;
+    float f9[2];
+    ulong d17[2];
+    byte b4[4];
+    byte b5[4];
+    ulong d18[3];
+    float f10;
+    ulong d19[2];
+    Aref_FLOAT ar14;
+    ulong d20;
+    Aref_VEC3D ar15;
+    Aref_VEC3D ar16;
+    Aref_FLOAT ar17;
+    Aref_VEC2D ar18;
+    Aref_VEC3D ar19;
+    ulong d21;
+    Aref_VEC3D ar20;
+    ulong d22;
+    Aref_fltByte4D ar21;
+    Aref_fltByte4D ar22;
+    Aref_fltByte4D ar23;
+    ulong d23;
+    Aref_UINT16 ar24;
+    byte b6[4];
+    float f11;
+    ulong d24;
+    ushort s1[4];
+    ulong d25;
+    float f12;
+    byte b7[4];
+    ulong d26[6];
+    float f13;
+    ulong d27[2];
+    float f14;
+    ulong d28;
+    Aref_UINT32 ar24;
+    Aref_UINT32 ar25;
+    ulong d29;
+    Aref_UINT32 ar26;
+    Aref_UINT32 ar27;
+    ulong d30;
+    Aref_UINT32 ar28;
+    Aref_UINT32 ar29;
+    ulong d31;
+    Aref_UINT32 ar30;
+    Aref_UINT32 ar31;
+    ulong d32;
+    Aref_UINT32 ar32;
+    Aref_UINT32 ar33;
+    ulong d33;
+    ulong unk[80];
+} PAR_;  //Particles
+
+typedef struct
+{
+    ulong bone;
+    ulong d1;
+    Animref ar1;
+    ulong unk[183];
+} RIB_; //Ribbons
+
+typedef struct
+{
+    Matrix44 matrix;
+} IREF; //inverse bind/reference matrix for a bone
+
+typedef struct
+{
+    ulong unk[26];
+} FOR_;
+
+typedef struct
+{
+    uint32 bone0;
+    uint32 bone1;
+    uint32 shape;
+    uint32 bone2;
+    Matrix44 matrix;
+    Ref vertices;
+    Ref face_data;
+    float size0;
+    float size1;
+    float size2;
+} ATVL;
+
+//data types
+typedef struct
+{
+    long i32;
+} I32_; //signed integer (32 bits)
+
+typedef struct
+{
+    short i16;
+} I16_;
+
+typedef struct
+{
+    switch (flg_data)
+    {
+        case FL_ANIM: ushort aind; ushort sdind; break; 
+        default: ulong u32;
+    }
+} U32_; //unsigned integer (32 bits)
+
+typedef struct
+{
+    switch (flg_data)
+    {
+       default: ushort u16;
+    } 
+} U16_; //unsigned short (16 bits)
+
+typedef struct
+{
+    switch (flg_data)
+    {
+        default: ubyte u8;
+    }
+} U8__;
+
+int GetVertexSize(uint32 flags)
+{
+    local int size = 0;
+    local int lookup_pairs = 0;
+
+    if (flags & 0x00000001) size += 12;
+    if (flags & 0x00000020) lookup_pairs += 2;
+    if (flags & 0x00000040) lookup_pairs += 2;
+    size += lookup_pairs * 2;
+    if (flags & 0x00000080) size += 12;
+    if (flags & 0x00800000) size += 4;
+    if (flags & 0x00000100) size += 4;
+    if (flags & 0x00000200) size += 4;
+    if (flags & 0x00000400) size += 4;
+    if (flags & 0x00000800) size += 4;
+    if (flags & 0x00001000) size += 4;
+    if (flags & 0x00002000) size += 8;
+    if (flags & 0x00004000) size += 8;
+    if (flags & 0x00008000) size += 8;
+    if (flags & 0x00010000) size += 8;
+    if (flags & 0x00020000) size += 4;
+    if (flags & 0x00040000) size += 4;
+    if (flags & 0x00080000) size += 4;
+    if (flags & 0x00100000) size += 4;
+    if (flags & 0x40000000) size += 4;
+    if (flags & 0x00200000) size += 12;
+    if (flags & 0x00400000) size += 12;
+    if (flags & 0x01000000) size += 4;
+    if (flags & 0x02000000) size += 4;
+    if (flags & 0x04000000) size += 12;
+    if (flags & 0x08000000) size += 12;
+    if (flags & 0x10000000) size += 4;
+    if (flags & 0x20000000) size += 4;
+    return size;
+}
+
+quad GetSectionEnd(Tag &t)
+{
+    local quad result = m3_file_size;
+    local uint other_offset;
+    local int k;
+
+    if (m3_index_offset > t.ofs && m3_index_offset < result)
+        result = m3_index_offset;
+
+    for (k = 0; k < m3_tag_count; k++)
+    {
+        other_offset = ReadUInt(m3_index_offset + (k * tag_size) + 4);
+        if (other_offset > t.ofs && other_offset < result)
+            result = other_offset;
+    }
+    return result;
+}
+
+int GetKnownEntrySize(Tag &t)
+{
+    local uint version = t.vers;
+    switch (t.blockID)
+    {
+        case "RAHC": if (version == 0) return 1; break; // CHAR
+        case "GALF": if (version == 0) return 4; break; // FLAG
+        case "__8U": if (version == 0) return 1; break; // U8__
+        case "_61I": if (version == 0) return 2; break; // I16_
+        case "_61U": if (version == 0) return 2; break; // U16_
+        case "_23I": if (version == 0) return 4; break; // I32_
+        case "_23U": if (version == 0) return 4; break; // U32_
+        case "_46U": if (version == 0) return 8; break; // U64_
+        case "LAER": if (version == 0) return 4; break; // REAL
+        case "2CEV": if (version == 0) return 8; break; // VEC2
+        case "3CEV": if (version == 0) return 12; break; // VEC3
+        case "4CEV": if (version == 0) return 16; break; // VEC4
+        case "TAUQ": if (version == 0) return 16; break; // QUAT
+        case "SDNB": if (version == 0) return 28; break; // BNDS
+        case "TNVE": // EVNT
+            switch (version) { case 0: return 100; case 1: return 104; case 2: return 108; }
+            break;
+        case "RHCS": if (version == 0) return 12; break; // SCHR
+        case "23RS": if (version == 0) return 20; break; // SR32
+        case "3CVS": if (version == 0) return 36; break; // SVC3
+        case "VEDS": if (version == 0) return 32; break; // SDEV
+        case "V2DS": if (version == 0) return 32; break; // SD2V
+        case "V3DS": if (version == 0) return 32; break; // SD3V
+        case "3RDS": if (version == 0) return 32; break; // SDR3
+        case "CCDS": if (version == 0) return 32; break; // SDCC
+        case "8UDS": if (version == 0) return 32; break; // SDU8
+        case "6SDS": if (version == 0) return 32; break; // SDS6
+        case "3SDS": if (version == 0) return 32; break; // SDS3
+        case "6UDS": if (version == 0) return 32; break; // SDU6
+        case "3UDS": if (version == 0) return 32; break; // SDU3
+        case "Q4DS": if (version == 0) return 32; break; // SD4Q
+        case "GFDS": if (version == 0) return 32; break; // SDFG
+        case "BMDS": if (version == 0) return 32; break; // SDMB
+        case "_CTS": if (version == 4) return 204; break; // STC_
+        case "SQES": // SEQS
+            switch (version) { case 1: return 96; case 2: return 92; }
+            break;
+        case "_GTS": if (version == 0) return 24; break; // STG_
+        case "TESB": if (version == 0) return 32; break; // BSET
+        case "_STS": if (version == 0) return 28; break; // STS_
+        case "ENOB": if (version == 1) return 160; break; // BONE
+        case "FERI": if (version == 0) return 64; break; // IREF
+        case "NGER": // REGN
+            switch (version) { case 2: return 28; case 3: return 36; case 4: return 40; case 5: return 48; }
+            break;
+        case "_TAB": if (version == 1) return 14; break; // BAT_
+        case "CESM": if (version == 1) return 72; break; // MSEC
+        case "_VID": if (version == 2) return 52; break; // DIV_
+        case "_TTA": if (version == 1) return 20; break; // ATT_
+        case "ETIL": if (version == 7) return 212; break; // LITE
+        case "UTAP": // PATU
+            switch (version) { case 1: return 100; case 4: return 152; }
+            break;
+        case "DGRT": if (version == 0) return 24; break; // TRGD
+        case "NMMD": // DMMN
+            switch (version) { case 0: return 12; case 1: return 8; }
+            break;
+        case "TMMD": if (version == 0) return 28; break; // DMMT
+        case "EMMD": if (version == 0) return 20; break; // DMME
+        case "61TM": if (version == 0) return 14; break; // MT16
+        case "23TM": if (version == 0) return 28; break; // MT32
+        case "RYAL": // LAYR
+            switch (version) { case 20: return 356; case 21: return 356; case 22: return 356; case 23: return 428; case 24: return 436; case 25: return 468; case 26: return 464; }
+            break;
+        case "MTAM": if (version == 0) return 8; break; // MATM
+        case "_TAM": // MAT_
+            switch (version) { case 15: return 268; case 16: return 280; case 17: return 280; case 18: return 280; case 19: return 340; case 20: return 352; }
+            break;
+        case "_SID": if (version == 4) return 68; break; // DIS_
+        case "_SMC": if (version == 0) return 24; break; // CMS_
+        case "_PMC": if (version == 2) return 28; break; // CMP_
+        case "_RET": // TER_
+            switch (version) { case 0: return 24; case 1: return 28; }
+            break;
+        case "_LOV": if (version == 0) return 84; break; // VOL_
+        case "_IAH": if (version == 0) return 116; break; // HAI_
+        case "_NOV": if (version == 0) return 268; break; // VON_
+        case "PERC": // CREP
+            switch (version) { case 0: return 24; case 1: return 28; }
+            break;
+        case "MBTS": if (version == 0) return 48; break; // STBM
+        case "BSFL": if (version == 2) return 56; break; // LFSB
+        case "RLFL": // LFLR
+            switch (version) { case 2: return 80; case 3: return 152; }
+            break;
+        case "_FER": // REF_
+            switch (version) { case 1: return 84; case 2: return 156; case 3: return 160; }
+            break;
+        case "_RAP": // PAR_
+            switch (version) { case 10: return 1300; case 11: return 1304; case 12: return 1316; case 14: return 1356; case 17: return 1460; case 18: return 1464; case 19: return 1464; case 21: return 1464; case 22: return 1484; case 23: return 1492; case 24: return 1496; }
+            break;
+        case "CRAP": if (version == 0) return 40; break; // PARC
+        case "JORP": // PROJ
+            switch (version) { case 4: return 388; case 5: return 388; }
+            break;
+        case "JYHP": if (version == 0) return 180; break; // PHYJ
+        case "CCHP": if (version == 0) return 76; break; // PHCC
+        case "CAHP": if (version == 0) return 32; break; // PHAC
+        case "LCHP": // PHCL
+            switch (version) { case 2: return 136; case 4: return 192; }
+            break;
+        case "_ROF": // FOR_
+            switch (version) { case 1: return 104; case 2: return 104; }
+            break;
+        case "ESMD": if (version == 0) return 4; break; // DMSE
+        case "HSHP": // PHSH
+            switch (version) { case 1: return 132; case 2: return 292; case 3: return 300; }
+            break;
+        case "BRHP": // PHRB
+            switch (version) { case 2: return 104; case 3: return 56; case 4: return 80; }
+            break;
+        case "SGSS": if (version == 1) return 108; break; // SSGS
+        case "LVTA": if (version == 0) return 116; break; // ATVL
+        case "CSBB": if (version == 0) return 48; break; // BBSC
+        case "_DMT": if (version == 1) return 72; break; // TMD_
+        case "BIRS": if (version == 0) return 272; break; // SRIB
+        case "_BIR": // RIB_
+            switch (version) { case 4: return 744; case 5: return 748; case 6: return 748; case 8: return 756; case 9: return 760; }
+            break;
+        case "J2KI": if (version == 0) return 48; break; // IK2J
+        case "CCKI": if (version == 0) return 24; break; // IKCC
+        case "TJKI": if (version == 0) return 32; break; // IKJT
+        case "BOAP": if (version == 0) return 24; break; // PAOB
+        case "XBHS": if (version == 0) return 64; break; // SHBX
+        case "_MAC": // CAM_
+            switch (version) { case 2: return 148; case 3: return 180; case 5: return 264; }
+            break;
+        case "_PRW": if (version == 1) return 132; break; // WRP_
+        case "LOVV": if (version == 0) return 40; break; // VVOL
+        case "DDAM": // MADD
+            switch (version) { case 1: return 140; case 2: return 152; case 3: return 160; }
+            break;
+        case "LDOM": // MODL
+            switch (version) { case 20: return 748; case 21: return 760; case 23: return 784; case 24: return 796; case 25: return 808; case 26: return 820; case 28: return 844; case 29: return 856; case 30: return 868; }
+            break;
+        case "43DM": if (version == 11) return 24; break; // MD34
+        case "33DM": if (version == 11) return 20; break; // MD33
+    }
+    return 0;
+}
+
+int IsDetailedSection(Tag &t)
+{
+    switch (t.blockID)
+    {
+        case "LDOM": return MODL_TYPE == 34;
+        case "SQES": return 1;
+        case "_CTS": return 1;
+        case "_GTS": return 1;
+        case "_STS": return 1;
+        case "TNVE": return 1;
+        case "ENOB": return 1;
+        case "FERI": return 1;
+        case "NGER": return 1;
+        case "_TAB": return 1;
+        case "CESM": return 1;
+        case "_VID": return 1;
+        case "_TTA": return 1;
+        case "MTAM": return 1;
+        case "SGSS": return 1;
+        case "LVTA": return 1;
+        case "_23U": return 1;
+        case "_46U": return 1;
+        case "_61U": return 1;
+        case "_23I": return 1;
+        case "_61I": return 1;
+        case "LAER": return 1;
+        case "2CEV": return 1;
+        case "3CEV": return 1;
+        case "4CEV": return 1;
+        case "TAUQ": return 1;
+        case "SDNB": return 1;
+        case "GALF": return 1;
+        case "VEDS": return 1;
+        case "V2DS": return 1;
+        case "V3DS": return 1;
+        case "3RDS": return 1;
+        case "CCDS": return 1;
+        case "8UDS": return 1;
+        case "6SDS": return 1;
+        case "3SDS": return 1;
+        case "6UDS": return 1;
+        case "3UDS": return 1;
+        case "Q4DS": return 1;
+        case "GFDS": return 1;
+        case "BMDS": return 1;
+        case "_SID": return 1;
+        case "_PMC": return 1;
+        case "_SMC": return 1;
+        case "_ROF": return 1;
+    }
+    if (t.blockID == "RYAL" && t.vers <= 22) return 1;
+    if (t.blockID == "_TAM" && t.vers == 15) return 1;
+    if (t.blockID == "_RET" && t.vers == 0) return 1;
+    if (t.blockID == "_RAP" && t.vers == 10) return 1;
+    if (t.blockID == "_BIR" && (t.vers == 5 || t.vers == 6)) return 1;
+    return 0;
+}
+
+void ReadTag(Tag &t)
+{
+    local quad ret = FTell();
+    local quad section_end;
+    local quad available_bytes;
+    local quad expected_bytes;
+    local quad payload_bytes;
+    local quad parsed_bytes;
+    local int entry_size;
+    local int vertex_size;
+    local uint safe_count;
+    local uint vertex_count;
+    local uint j;
+
+    if (t.ofs >= m3_file_size)
+    {
+        Warning("M3 section offset is outside the file; section skipped.");
+        return;
+    }
+
+    section_end = GetSectionEnd(t);
+    if (section_end > m3_file_size) section_end = m3_file_size;
+    if (section_end <= t.ofs) return;
+    available_bytes = section_end - t.ofs;
+    entry_size = GetKnownEntrySize(t);
+
+    if (entry_size > 0)
+    {
+        expected_bytes = (quad)t.count * entry_size;
+        safe_count = t.count;
+        if (expected_bytes > available_bytes)
+        {
+            safe_count = (uint)(available_bytes / entry_size);
+            Warning("M3 section is truncated; only complete in-file entries were parsed.");
+        }
+        payload_bytes = (quad)safe_count * entry_size;
+    }
+    else
+    {
+        expected_bytes = available_bytes;
+        payload_bytes = available_bytes;
+        safe_count = 0;
+    }
+
+    FSeek(t.ofs);
+    SetBackColor(cLtGreen);
+
+    if (t.blockID == "__8U" && current_tag_index == vertex_tag_index && flg_vert != 0)
+    {
+        vertex_size = GetVertexSize(flg_vert);
+        payload_bytes = t.count;
+        if (payload_bytes > available_bytes) payload_bytes = available_bytes;
+        if (vertex_size > 0)
+        {
+            vertex_count = (uint)(payload_bytes / vertex_size);
+            for (j = 0; j < vertex_count; j++)
+                Vertex Vertices(flg_vert) <open=false>;
+            parsed_bytes = (quad)vertex_count * vertex_size;
+            if (parsed_bytes < payload_bytes) ByteBlock VertexTail(payload_bytes - parsed_bytes);
+        }
+        else if (payload_bytes > 0)
+            ByteBlock VertexPayload(payload_bytes);
+    }
+    else if (t.blockID == "RAHC")
+    {
+        if (payload_bytes > 0) ByteBlock Text(payload_bytes);
+    }
+    else if (entry_size > 0 && IsDetailedSection(t))
+    {
+        switch (t.blockID)
+        {
+            case "LDOM":
+                for (j = 0; j < safe_count; j++) MODL Models(t.vers) <open=false>;
+                break;
+            case "SQES":
+                for (j = 0; j < safe_count; j++) SEQS Sequences(t.vers) <open=false>;
+                break;
+            case "_CTS": STC_ TransformationCollections[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_GTS": STG_ TransformationGroups[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_STS": STS_ TransformationSets[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "TNVE":
+                for (j = 0; j < safe_count; j++) EVNT Events(t.vers) <open=false>;
+                break;
+            case "ENOB": BONE Bones[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "FERI": IREF BoneReferences[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "NGER":
+                for (j = 0; j < safe_count; j++) REGN Regions(t.vers) <open=false>;
+                break;
+            case "_TAB": BAT_ Batches[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "CESM": MSEC MeshSections[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_VID": DIV_ Divisions[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_TTA": ATT_ Attachments[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "MTAM": MATM MaterialReferences[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "SGSS": SSGS HitTests[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "LVTA": ATVL AttachmentVolumes[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_23U": U32_ UInt32Values[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "_46U": uint64 UInt64Values[safe_count] <open=suppress, warn=false>; break;
+            case "_61U": U16_ UInt16Values[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "_23I": I32_ Int32Values[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "_61I": I16_ Int16Values[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "LAER": REAL RealValues[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "2CEV": Vec2D Vector2Values[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "3CEV": Vec3D Vector3Values[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "4CEV": Vec4D Vector4Values[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "TAUQ": Vec4D QuaternionValues[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "SDNB": BNDS BoundsValues[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "GALF": FLAG FlagValues[safe_count] <open=suppress, optimize=true, warn=false>; break;
+            case "VEDS": Animblock EventAnimations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "V2DS": Animblock Vector2Animations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "V3DS": Animblock Vector3Animations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "3RDS": Animblock RealAnimations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "CCDS": Animblock ColorAnimations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "8UDS": Animblock UInt8Animations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "6SDS": Animblock Int16Animations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "3SDS": Animblock Int32Animations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "6UDS": Animblock UInt16Animations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "3UDS": Animblock UInt32Animations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "Q4DS": Animblock QuaternionAnimations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "GFDS": Animblock FlagAnimations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "BMDS": Animblock BoundsAnimations[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "RYAL": LAYR MaterialLayers[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_TAM": MAT_ StandardMaterials[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_SID": DIS_ DisplacementMaterials[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_PMC": CMP_ CompositeMaterials[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_SMC": CMS_ CompositeSections[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_RET": TER_ TerrainMaterials[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_RAP": PAR_ ParticleSystems[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_BIR": RIB_ Ribbons[safe_count] <open=false, optimize=true, warn=false>; break;
+            case "_ROF": FOR_ Forces[safe_count] <open=false, optimize=true, warn=false>; break;
+        }
+        parsed_bytes = FTell() - t.ofs;
+        if (parsed_bytes != payload_bytes)
+        {
+            m3_layout_errors++;
+            if (parsed_bytes < payload_bytes)
+                ByteBlock UndecodedPayload(payload_bytes - parsed_bytes);
+            else
+                FSeek(t.ofs + payload_bytes);
+        }
+    }
+    else if (payload_bytes > 0)
+    {
+        ByteBlock RawPayload(payload_bytes);
+    }
+
+    if (entry_size > 0 && payload_bytes < available_bytes)
+    {
+        FSeek(t.ofs + payload_bytes);
+        ByteBlock AlignmentOrTruncatedTail(available_bytes - payload_bytes);
+    }
+    FSeek(ret);
+}
+
+//---------------
+//----Start------
+//---------------
+LittleEndian();
+m3_file_size = FileSize();
+if (m3_file_size < 20)
+{
+    Warning("File is too small to contain an M3 header. Template stopped.");
+    return -1;
+}
+
+local uint m3_magic = ReadUInt(0);
+if (m3_magic == 0x4D443333)
+    MODL_TYPE = 33;
+else if (m3_magic == 0x4D443334)
+    MODL_TYPE = 34;
+else
+{
+    Warning("File is not an MD33/MD34 M3 model. Template stopped.");
+    return -1;
+}
+
+Warning("Loading bounded M3 header and section index.");
+FileHeader fHead <name="M3 Header", open=false>;
+m3_index_offset = fHead.ofsTags;
+t_offs = m3_index_offset;
+
+if (m3_index_offset >= m3_file_size)
+{
+    Warning("M3 section index offset is outside the file. Template stopped.");
+    return -1;
+}
+
+local quad max_tag_count = (m3_file_size - m3_index_offset) / tag_size;
+m3_tag_count = fHead.nTags;
+if (m3_tag_count > max_tag_count)
+{
+    m3_tag_count = (uint)max_tag_count;
+    Warning("M3 section index is truncated; tag count was clamped to the file.");
+}
+
+FSeek(m3_index_offset);
+Tag Tags[m3_tag_count] <name="Section Index", open=false>;
+
+Warning("Loading M3 sections with schema and file-bound checks.");
+struct
+{
+    for (i = 0; i < m3_tag_count; i++)
+    {
+        current_tag_index = i;
+        M3SectionNode Section(Tags[i]) <open=false>;
+    }
+} ParsedSections <name="Parsed Sections", open=false>;
+current_tag_index = -1;
+if (m3_layout_errors > 0)
+    Warning("One or more detailed layouts did not match their documented byte sizes; section boundaries were restored safely.");
+Warning("M3 model successfully read.");

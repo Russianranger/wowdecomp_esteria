@@ -166,6 +166,12 @@ namespace
                 out.pconst = static_cast<uint16_t>(p);
                 haveP      = true;
             }
+            else if (std::strncmp(t[i], "pext=", 5) == 0)
+            {
+                const long e = std::strtol(t[i] + 5, nullptr, 10);
+                if (e < 0 || e > 96) return false;
+                out.pext = static_cast<uint16_t>(e);
+            }
         }
         if (!haveV || !haveP) return false;
         r = out;

@@ -1,6 +1,7 @@
 #include "Object_C.h"
 #include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
+#include "Extensions/ASECM3/client/UnitWorldBinding.h"
 #include "WoW/Source/Game/GameClient/ProjectTex.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -152,10 +153,20 @@ void CGObject_C::AddWorldObject() {
         const char* fileName;
 
         if (this->GetModelFileName(&fileName)) {
+            const bool isUnit = (this->m_obj->m_type & TYPEMASK_UNIT) != 0;
+
+            if (isUnit) {
+                fileName = ASECM3::Client::PrepareUnitModel(static_cast<CGUnit_C*>(this), fileName);
+            }
+
             CM2Model* model = World::s_m2Scene->CreateModel(fileName, 0);
 
             if (model != this->m_worldModel) {
                 this->SetModelFinish(this->SetModelStart(model));
+            }
+
+            if (isUnit) {
+                ASECM3::Client::AttachUnitModel(static_cast<CGUnit_C*>(this));
             }
 
             model->Release();

@@ -1,0 +1,1580 @@
+{
+  "upstream": "https://github.com/bulletphysics/bullet3",
+  "tag": "3.25",
+  "commit": "2c204c49e56ed15ec5fcfa71d199ab6d6570b3f5",
+  "license": "LICENSE.txt",
+  "files": [
+    {
+      "path": "src/btBulletCollisionCommon.h",
+      "sha256": "cb9335a320c489f556467a3f37b282043fe1dbebb09a956615d24480a9ba6966"
+    },
+    {
+      "path": "src/btBulletDynamicsCommon.h",
+      "sha256": "5c46c61ceebbae3e46da83e01c2fa59c7ea49a00a3990c0d0edb28e632371d7f"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btAxisSweep3.cpp",
+      "sha256": "4b31feb9f0dc827c1e9974dc3003714547262a255b1d410e229e5358cd9e341c"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btAxisSweep3.h",
+      "sha256": "99e4d8123105a7defb713dfc64add58f6c7b5a7c5b9d912fc5ed3ae9246cd2fe"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btAxisSweep3Internal.h",
+      "sha256": "066dc99a1491971f61b7c377b1fb217ef2407136c9cfcde6ef608697b924131c"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btBroadphaseInterface.h",
+      "sha256": "977cae2bd29091a9235b3c33f2ef38b63ee69a2892b56e2665f66f91782e358c"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btBroadphaseProxy.cpp",
+      "sha256": "8a7246ff3d7705527c1f6763ae93eac29a888d88c554c7b7d2ded28cc03afa5d"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btBroadphaseProxy.h",
+      "sha256": "34a3ec5b2938e5bed6463eee3b17c42d7a8a5eb71a48409dbca85b35cedfb888"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btCollisionAlgorithm.cpp",
+      "sha256": "e29635fa40c00b782aa696a036c99105e4ebd78225824f09b8403d7e00a5ff14"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btCollisionAlgorithm.h",
+      "sha256": "10f4f2e44086569a41ae41591637de83cc902aeadc3a30a8d483c00d7dd892ae"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btDbvt.cpp",
+      "sha256": "33fdbf06b8aa419cb0c091f5da8b0f149620f6d9cdb887071858ebf7255a3dd1"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btDbvt.h",
+      "sha256": "a593c64098ccbc8070b1b2861ac95be86ec43a5eccc9fb5fc1f1864e544443e8"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btDbvtBroadphase.cpp",
+      "sha256": "2defc2b9c8a2212ce1867a3d28405af09c285f95968cbaf8f6a8becd714a40c5"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btDbvtBroadphase.h",
+      "sha256": "36d23530babee6b2001511195a5a75ee9889a39fb6a03b51d75de84eb86da136"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btDispatcher.cpp",
+      "sha256": "3a227595f81d59188901365bff1f913b507bdc26729231056d0875081608f8f1"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btDispatcher.h",
+      "sha256": "0f3522dfcab518c24fbc8ca7b0723180e06eb69904e6bcc3511396902251abf8"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btOverlappingPairCache.cpp",
+      "sha256": "3ed44e3d233f6dd5656937c98acde256c14b47bac51dc22305ae212d5b7bb610"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btOverlappingPairCache.h",
+      "sha256": "8004322534958b5bc857d6ff35fa43266542d68f4f75191e9246505202bc9994"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btOverlappingPairCallback.h",
+      "sha256": "da902721c9e0a065269b007e0a84545b4c2136a05b400b745ac2d11d0d807656"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btQuantizedBvh.cpp",
+      "sha256": "6d180a848d58a1254a587dc138f98e49b6a0bebad6cac5376a271d6815d19c1c"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btQuantizedBvh.h",
+      "sha256": "9f68387169625bb5a410db5d0decd0135ba3b00d36d12e271998e8f4621498ea"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btSimpleBroadphase.cpp",
+      "sha256": "5fa8c063d79a71ac3d5f8a399d94c29e44a705feca79038a7b84e6bfd21eac9c"
+    },
+    {
+      "path": "src/BulletCollision/BroadphaseCollision/btSimpleBroadphase.h",
+      "sha256": "db4218b478a30034d9396f3c78d90e8acb110a6e224b0035a2a748495f9f1433"
+    },
+    {
+      "path": "src/BulletCollision/CMakeLists.txt",
+      "sha256": "d77b57799ea4c968ce009698f4b316ea2922a3f20ab53a69d77a1c213c621c94"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btActivatingCollisionAlgorithm.cpp",
+      "sha256": "ded6a7988c3c104a5067cb31ea22b10c9338e277181d585a8c9c71c429d1814e"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btActivatingCollisionAlgorithm.h",
+      "sha256": "8352671a6a6a148f87f4139d453df0291284b18931cf57b2079e07105994aa24"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btBox2dBox2dCollisionAlgorithm.cpp",
+      "sha256": "e21766ffd0999f41e53619f022977a98a3b4135ac78d8533e6d0011877cc8ab4"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btBox2dBox2dCollisionAlgorithm.h",
+      "sha256": "de324725af082f312cfc93b352862e177c193c23624b274bd9f6cd028a37fcc3"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btBoxBoxCollisionAlgorithm.cpp",
+      "sha256": "da7985be72add27b72017853d1e0137abf8a6eff29a34339ed3730ff0db05a0a"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btBoxBoxCollisionAlgorithm.h",
+      "sha256": "04c1f51d8b960bfc9969b109033556f9ef2249d4a0fae2dc945ca26538873328"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btBoxBoxDetector.cpp",
+      "sha256": "365d5e07961952ae6bb9bb5ba65985a0b5be8f26b554ba8e9c78c4f5b8a4da5a"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btBoxBoxDetector.h",
+      "sha256": "8950792831f4dc21d1fa70caf451b0f5d119e73b127d85f7370321d6e93bd119"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionConfiguration.h",
+      "sha256": "1f5b7cbb2eb44a11f86fd7670066f100d325f148923a3ea8fc98ee8519e4f1a8"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionCreateFunc.h",
+      "sha256": "79f35fdd0891086918ce62a268f9d702fe3bdb381af6d2efc4bdc98a377bbe19"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionDispatcher.cpp",
+      "sha256": "03fa007d7945f03a8a022524f35340168756e6cda483232d0ad9a0b369336289"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionDispatcher.h",
+      "sha256": "19644b7e42650318fcdfa9d85544a2babc6fa5d7a28071bca205beb9ce86cafd"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionDispatcherMt.cpp",
+      "sha256": "24983db4ed58da0a4d2499d83d6a20d34710bc87dfb7a2306d27599d1700c3d5"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionDispatcherMt.h",
+      "sha256": "9805ea649bd4611bf05d195edc558eb3b3c3c535dcdd2b0e63422a99f73cd230"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionObject.cpp",
+      "sha256": "a51fd41071e5f2cb370bd0568e249991723fdf3855aedc5d1678b0fdc0e6cfec"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionObject.h",
+      "sha256": "4358e18d09d0f83bd50c504235bb872ef3d0c1fb92850ac92ee85560d281025c"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionObjectWrapper.h",
+      "sha256": "ccbbb0ec12b2670cc2e6794a8c920cfa38524dd580dc93073bea8d86d02fd327"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionWorld.cpp",
+      "sha256": "b6d4cc07ab44d9e1f60abbee3499cbcabc8a3953988b4708709f7e041bca44bf"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionWorld.h",
+      "sha256": "f9b72f153b38ec21d4606d938677dc0d0d541708f94610903f911db3fda9ca6c"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionWorldImporter.cpp",
+      "sha256": "d6a1443dcc562ecfa73fc6c207e9314d0a875af99d88caeac08cff93ca620085"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCollisionWorldImporter.h",
+      "sha256": "f5d2aabcd94b5d418a317151e6e618bc9183d4106516df3c406e1396394f24cf"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCompoundCollisionAlgorithm.cpp",
+      "sha256": "e5f91cb0241f21bc65e48cfedbff9c058f90b26aec64a5b2544a3fc514974d07"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCompoundCollisionAlgorithm.h",
+      "sha256": "1866fc4f1e7c12baae98e2f48123e1118051faf5890a3103a6b4906102e935e6"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCompoundCompoundCollisionAlgorithm.cpp",
+      "sha256": "072381577241c0fc9c338e05048cb4ff85a5e10ce5ae9cda792ed7239b1de2dd"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btCompoundCompoundCollisionAlgorithm.h",
+      "sha256": "2c828db66270d6612f84d6aba87477b31c2aca167b3194d0bcf9e08769e52489"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btConvex2dConvex2dAlgorithm.cpp",
+      "sha256": "3b7d861fdfa01c1e0d82e4060e1ff116bc0af05a1c317968b1fd7fdecddd39d3"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btConvex2dConvex2dAlgorithm.h",
+      "sha256": "85eb644e35a346cee231b09f6c9b86babc712c867e1d1cc0fe808e6a020af2a8"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btConvexConcaveCollisionAlgorithm.cpp",
+      "sha256": "801162ae5e54dd5aa5a4fade03912877fe8e9533fd71c5f84d4a992c1534ff5c"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btConvexConcaveCollisionAlgorithm.h",
+      "sha256": "f28072ce0836bf6fa06181204ba555ef39d3dc70fbfe790e561144a48b6a55b5"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.cpp",
+      "sha256": "e2981cf28418af9d8038db9585d7542dd6d84d388c0d60ee53ad78da70e91985"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btConvexConvexAlgorithm.h",
+      "sha256": "d991c5c374603e8bfb2ac5c158f804575269f264eb8cb1a29956c05af1f78408"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btConvexPlaneCollisionAlgorithm.cpp",
+      "sha256": "58eadfbecaf61fa2e93d1776bfcb1b0a9cd880b5003185686adf2573438e264a"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btConvexPlaneCollisionAlgorithm.h",
+      "sha256": "48274d30965ddb669cfc5d670754e8368fc8f85c007a3de75dedc6cb74ed1c12"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.cpp",
+      "sha256": "fcd4e588e8902d3c1975caaeb3793e2a184c41666580b13cafeda93e3d9324c2"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btDefaultCollisionConfiguration.h",
+      "sha256": "4038dcd4a4aced31d9d9a9f81d376df0e5c116b426c0afb5e3e2db8e95c3c747"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btEmptyCollisionAlgorithm.cpp",
+      "sha256": "69f58f36d659a596d9e196c2b6e111738b196e972f278c9150a5077428e6a2ca"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btEmptyCollisionAlgorithm.h",
+      "sha256": "ec0175aebfc7a2ffa6eee1d144443028268091b3d00ca815a8cbd0b37964699a"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btGhostObject.cpp",
+      "sha256": "8cc4500d696e1603f388c7a1edba32dd496b860955b1ee374a1dedf219a265dd"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btGhostObject.h",
+      "sha256": "9dc7c9a997b840f409126f7c71acc5ba6406e801a39168933bc77b1f38a7bce3"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btHashedSimplePairCache.cpp",
+      "sha256": "78817329d622aa7fe64804e30012b83a80dcf86a43fac664a7d4281afe5b3974"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btHashedSimplePairCache.h",
+      "sha256": "f7a92d989138070be9cc919e13b1f022b8a02e689c81f7aa8d1a784820bacc02"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btInternalEdgeUtility.cpp",
+      "sha256": "282adfc62441458604257eca1492bebf4489255c884d9fe546b9e069a29f3f36"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btInternalEdgeUtility.h",
+      "sha256": "f4074e834d9e3f6caa48932373239844de81ce7b457001a31043532be59f55b5"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btManifoldResult.cpp",
+      "sha256": "016e03880dd2cdd95df1411ef4face485ba34454f079059f59d0e5d397d8cb5a"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btManifoldResult.h",
+      "sha256": "497aa29956710f663a75eaa9cb7f3867787834700f3c6d909fdb12a6a2b4dd4f"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btSimulationIslandManager.cpp",
+      "sha256": "ba7562d402de4c2e49ee56b332636890944db4e5f1c8920ecd7fd90d0ce3225c"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btSimulationIslandManager.h",
+      "sha256": "41ba7e45f8c24c5f303b5f7ea3fe54789990fd6a418ee3d0a62108fc1ecce53f"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btSphereBoxCollisionAlgorithm.cpp",
+      "sha256": "9b2e98ef7d9c317092d1159b7ae930a015ee8723e00b0790cff65542199cd302"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btSphereBoxCollisionAlgorithm.h",
+      "sha256": "20fee96738cbb7a5943a5e4f78f6037b3750c8562d33c3d6912f508bd70a3d9a"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btSphereSphereCollisionAlgorithm.cpp",
+      "sha256": "e1e0e87cd27908a8a57123db45ce5fd8074f6253c56191c8d9e43dc823e1770f"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btSphereSphereCollisionAlgorithm.h",
+      "sha256": "391c7c954ecb9c1c969fa25014959efbbe30877040348b6a46f5d447f1e4fbda"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btSphereTriangleCollisionAlgorithm.cpp",
+      "sha256": "be5cddb77d0ac41eb7596d9f0798fdcf95629125a650c8cf7f56cab7af00ce7b"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btSphereTriangleCollisionAlgorithm.h",
+      "sha256": "fdb1c0b5c206fddd3934627524c94c5c515191f0126ac3f088d375fe0a23aaba"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btUnionFind.cpp",
+      "sha256": "33c70e95bb9faa361916a98e169eee3667b7dc38c44c20f48e679789287359f8"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/btUnionFind.h",
+      "sha256": "2c3b28e24309884cdaf6a5b2b792e26b5681fd61f83d36efe67999f10a420973"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/SphereTriangleDetector.cpp",
+      "sha256": "30ab6c8f35c187e3d52f372b868f1e61fb73c3ee6d72c35a94f1066c80dc9686"
+    },
+    {
+      "path": "src/BulletCollision/CollisionDispatch/SphereTriangleDetector.h",
+      "sha256": "9521c9a27d9c0964b945444ece0888b5247fdd5b72220f864ac0e68e089caec7"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btBox2dShape.cpp",
+      "sha256": "a652fdbdbff9b92d5efd19299cec039c33ed1500128ef3bf4d71829ad6766685"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btBox2dShape.h",
+      "sha256": "5bf307ea80ba82631c21cf462f5aa9210a5170dfe9b9a1e6077f07b5904d68a3"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btBoxShape.cpp",
+      "sha256": "2c8748b141ca5bcaa9f9d5782dc0f3317ec44370c03cc870ab1d848ec7619469"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btBoxShape.h",
+      "sha256": "73666e4b04195228eb29de5f427fb3bc0a21526efaf022c854768c136cca055f"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btBvhTriangleMeshShape.cpp",
+      "sha256": "3b9c2c0c531313f0ddb48a5f4264ed6408e4dec10c21b9871e368194d6ffc4b5"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btBvhTriangleMeshShape.h",
+      "sha256": "15ddd2eafb2f488cca79e0b71f7434fe91f826fea1d26c2988055d8b60c46b23"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btCapsuleShape.cpp",
+      "sha256": "3306ecae0b6f2f05dbbbad327ec0f036e668ee5457a7ea34e89a780f4aa95cc6"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btCapsuleShape.h",
+      "sha256": "1f1edf439c4f70bfc85b62f302dabc75db0963517fee57fa1e49e23fe80417e9"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btCollisionMargin.h",
+      "sha256": "a55c3280f71d2d511235a38b86e825b63208e09a37cf89c21bb2038929268dfa"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btCollisionShape.cpp",
+      "sha256": "c485b9a1a3d1e5efdf5a7497739033a317fb0e1704e1911aef397bfb7fe101ea"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btCollisionShape.h",
+      "sha256": "9c864e015bee9194721a3aa49e623483454019d497dcce04b9a40c999adb567d"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btCompoundShape.cpp",
+      "sha256": "16a7d5a44acfe7f4bd31c2409723006fdd4950c054fe8fe5dec62573e399c152"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btCompoundShape.h",
+      "sha256": "3c4d54d1e0d6c3cd95ea6db22d99c8651a60972a96b870b745c3aefa4f536ab7"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConcaveShape.cpp",
+      "sha256": "f98aa0d6f78e341f01cecf5d7003aa4f239d82a37efc20a7e980a4563d6a8c91"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConcaveShape.h",
+      "sha256": "7890143ca0123d0a914862110f21a6a490dc61edf0da2225d4759d17a660e051"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConeShape.cpp",
+      "sha256": "3f44345a4e7959a9f2c939015cb0c68c10377c50027c4d7587954cd75212e26c"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConeShape.h",
+      "sha256": "e4f21e682d6d907144b1dbf78e137576e4cf7621e97c14db9456f5790c63e35d"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvex2dShape.cpp",
+      "sha256": "80dd55481a2246f50b7f41a4cce0b2fb505239498af0fa421d0cfaa977438abb"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvex2dShape.h",
+      "sha256": "3d704a873177735ca0f01d535ea5e6391428a9dc820229b07bff695ae3a09ffa"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexHullShape.cpp",
+      "sha256": "644d9012237ab78852599a2f60d0c29478da49cd2fd2766e1bf636356fd7f519"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexHullShape.h",
+      "sha256": "49873a8a315a467d05780df609f259d1cad657eaeaf2c31890db8a3cd6f9b4b1"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexInternalShape.cpp",
+      "sha256": "e177e708c6cad713b07a7c4132a37cc9a60c9224c26895c4e87c60bd4602ea7a"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexInternalShape.h",
+      "sha256": "8cb24354378a28a8e6b6588215aee03b3abbcc52873f9a8159dc8ee1f9c50c53"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexPointCloudShape.cpp",
+      "sha256": "06399e064f5671e39362063c919262f5e29c22ad349c42d962d80a251435c256"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexPointCloudShape.h",
+      "sha256": "3bed161b7cfc6a603923efc1d684e3deff88cbfc5e86e4592bcbdf4465646ecb"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexPolyhedron.cpp",
+      "sha256": "2330957ea8440edcd47cfa55d637fa86bc8d777d30d46e28ecfe5a390ad90218"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexPolyhedron.h",
+      "sha256": "923f2b3a06f2b5f8e38594c9da5a5de66b47ba77c90c8df2fda62f167a78f454"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexShape.cpp",
+      "sha256": "6669644d9198ca31a94082dcba1200f5b33e3b044704f382a4e19dcdd4d6c098"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexShape.h",
+      "sha256": "c9938e1a1125214ae62ffc05977d96301f7b90c700210a1b64b47cfeadac7457"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexTriangleMeshShape.cpp",
+      "sha256": "9e67d396440e053a1da784dc45013e6ff14d45ef6cc0834bffa7b07ed684bc63"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btConvexTriangleMeshShape.h",
+      "sha256": "567946ccf7966401c4814624741b037cb957edcfc0cd14f7857d2682e500b523"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btCylinderShape.cpp",
+      "sha256": "cb374b257cb25876af54c502d825b99722e1e3fdb7c9cc13d33e2cc6cd57504c"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btCylinderShape.h",
+      "sha256": "e8a65c18e7cbf71e3649e2deab89d57be363856f6e63dc1a3bdd935f466733c4"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btEmptyShape.cpp",
+      "sha256": "0380c17c3f5448fee3da3aea7d02acf6c46cbc0e50e911a95cee5f9a1c0a2143"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btEmptyShape.h",
+      "sha256": "862a982fec89987d9a37825802b532c6be8663fa256af9c749a57e7a816e1ee9"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btHeightfieldTerrainShape.cpp",
+      "sha256": "272f1208bfa1236873ab44c8bd87bcb9020acf32bb11f8d65285d06271c29bb1"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btHeightfieldTerrainShape.h",
+      "sha256": "a5f8a71b351a4d1489f8894c0ea3b4f050ed9cf6cdf5d6685e68d156381425fd"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btMaterial.h",
+      "sha256": "c259b041659ef1c02e4f054a7a4f115945cf0939b3ed5795c38f58ec187d50fb"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btMiniSDF.cpp",
+      "sha256": "eafd59d0cd7462038f4dfd2963364818c54631311c508d974c986c8b09ee0f57"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btMiniSDF.h",
+      "sha256": "18cc29439c31554f64687e51601aadd32c5a37544230d4f1420c9b86ecda40fd"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btMinkowskiSumShape.cpp",
+      "sha256": "9da18046148a9ec7aca81f2ea429635f51bbadf5695db3c07ee76ea06947cac5"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btMinkowskiSumShape.h",
+      "sha256": "d825027fcaac3c9e64b0d3cf568866ea614f1c6fbb41950cd4d3e7c4601123ad"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btMultimaterialTriangleMeshShape.cpp",
+      "sha256": "3dc601527e1ecda486bd3cf508ad4cd2a2d51f79c8ea423bade8f7ab01b6e273"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btMultimaterialTriangleMeshShape.h",
+      "sha256": "3ea2f206c446627c00522dc670a8f124c0e2b9972bbe9448feeaa485ee7fa7cf"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btMultiSphereShape.cpp",
+      "sha256": "243ea4ac688970cbc96044cdbbab2825355cba8c1f02ac6951428b5609491e80"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btMultiSphereShape.h",
+      "sha256": "63e9e76747f4fbf84482a411a3f43e8bc373c6c80a73d1b769ec50e6166780c2"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btOptimizedBvh.cpp",
+      "sha256": "200395cc48b9cdfae3981c5d927bd74b718dbfc6ddf6d94c5a6fd817f2e24cf6"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btOptimizedBvh.h",
+      "sha256": "a3271ca81e66c009a7b5fc938ed2452744ed06c959103857ab14cb6669f5899c"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btPolyhedralConvexShape.cpp",
+      "sha256": "4bf16f4fde933769aa2c897e6f917261f1fe558dad1c3f66f657b0420be5c1a5"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btPolyhedralConvexShape.h",
+      "sha256": "857a3254c77cfa73985d58a08070d6f8bd12d511ade371edd4d6b55217e9c772"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btScaledBvhTriangleMeshShape.cpp",
+      "sha256": "ab074a6bdb55cb59c7462fbc2420ef324a2bd9c785bb9099ef2bfe4c74328bfc"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btScaledBvhTriangleMeshShape.h",
+      "sha256": "4f450b3b931cb9023cc57716af252c01b182c9afa45cfcc741445cd0a7c06bc4"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btSdfCollisionShape.cpp",
+      "sha256": "c8ee19471d0585df2535c82aee162b630795dbb69512b9ea62fabe9e03c328ee"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btSdfCollisionShape.h",
+      "sha256": "5a4bb2403577b9d13fd6b64e3fa65426c25193c5dbb854debc8915eac2994c20"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btShapeHull.cpp",
+      "sha256": "336b6aa78eeafd09f2d0a5ccc454a92e19df77c8443abce54514cbf316d67c27"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btShapeHull.h",
+      "sha256": "1477d36bc2607c9b9c932663a48790087ba145bc1e5cd9b26d2a97a4c6462ca9"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btSphereShape.cpp",
+      "sha256": "072fb5b54ffa2d2f7fd6ff86acd4a27c0f102e21a4831353d32c3919d67c730a"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btSphereShape.h",
+      "sha256": "229843f764fa989b80bec2d25b40c293324f3a23902cc8b859fada1efc920f2d"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btStaticPlaneShape.cpp",
+      "sha256": "c93cf4d6b0e19a6ce49f5eae999ba577b6888655fec21f15df3f1f4ef0277c17"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btStaticPlaneShape.h",
+      "sha256": "eb5927deb33416e49baeee05b74ca68e78e7a943ae8fde6ffadc98d8010399c3"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btStridingMeshInterface.cpp",
+      "sha256": "f49251326c25c03867573238f5ba9631f89f3d4d60fb68b459fd159d95b6864c"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btStridingMeshInterface.h",
+      "sha256": "2bf700a0310e0160ee0def5ef735699857db6b07185b575875b61a3abc920f2e"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTetrahedronShape.cpp",
+      "sha256": "8b52107e100f55980b3359e909f530e833834430d5fba3d47cc3ca4259e2728b"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTetrahedronShape.h",
+      "sha256": "c3be144af8e4cfdc92ab23edb325d23afcd3a9a16e9650c0385b222297400eea"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleBuffer.cpp",
+      "sha256": "aae22caf5ca664733dd049e3d2ca13f8beb3b9469e211f712c2b31b1646aa22b"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleBuffer.h",
+      "sha256": "44ab1e173070e2830c7b3653a0d19f3cb05049cec0fbc227854521638115a5af"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleCallback.cpp",
+      "sha256": "f44f87f10bc85769dab49ebc0f135b1531da0dcb9451b9b74a56be8d22e1d486"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleCallback.h",
+      "sha256": "79f51d8accf47ab892e8abc726cc63a0a40d026977560eb60b77d9baa3575042"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleIndexVertexArray.cpp",
+      "sha256": "a6efe891e3c1e31de7c64773c7379c2b5f4509857f445d9c6c3edd75ad9961d5"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleIndexVertexArray.h",
+      "sha256": "c55bbb817f3aa9ecc9eddbfc1d2b6e38c2937b18f948cd770c68082b653a49fc"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleIndexVertexMaterialArray.cpp",
+      "sha256": "b67d6771c6bc9e8e734a8c7355093277759d042b34da10bad2278361897f1875"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleIndexVertexMaterialArray.h",
+      "sha256": "ceb3a2eddc6cfc50374cad36dcceb2d726075fe7d10d731661448e95185f7f11"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleInfoMap.h",
+      "sha256": "eac693576423491288c5221b20d8a3e273d60fea3d972361ef90f0accf74baab"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleMesh.cpp",
+      "sha256": "3558e60416952fb60b4620ab3f12768c3cd68a4dcbbae371ce2dd5966249b2be"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleMesh.h",
+      "sha256": "fc406aee14cefaaf307fa8022480db9a0877047de3bb390e386a57202f68dd53"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleMeshShape.cpp",
+      "sha256": "aeaeb87324e972bb756f22b9c7ea02dec88cb347952fff2fc78fc78db4610c5d"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleMeshShape.h",
+      "sha256": "1fe36159062affc8453e761817c8bd6b148f11137155d7cac2d939b019cf1e8a"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btTriangleShape.h",
+      "sha256": "64df568e6a0732f65987b7d373ddabb290ba1cbb3a8643e8a6828a5e544897b2"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btUniformScalingShape.cpp",
+      "sha256": "7778973a671f8a35aa5176ff05f09410c5cc6b11c545d6bbc21c24bbdb2d67d8"
+    },
+    {
+      "path": "src/BulletCollision/CollisionShapes/btUniformScalingShape.h",
+      "sha256": "c4cebd237e922aadc98c885b2f2b66707c3415f6bcab0173d3a206df7c6ab9f6"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btBoxCollision.h",
+      "sha256": "6e86bf4bac5d9fed18775238aaf301bdb7640e93aae3027ba4fe5fa2bae75a61"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btClipPolygon.h",
+      "sha256": "d94fda59f845b5b4320a3161127570a9bb1955f5c03881e8a37d156e3146efc0"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btCompoundFromGimpact.h",
+      "sha256": "934bddcb07e65c2666126a2be4658c5e3ff940d9bf0e633bc4a65146bac18147"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btContactProcessing.cpp",
+      "sha256": "4414e666ea1674723233c55c63d4deef8807d1655cd0afec7099df2e6be0d232"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btContactProcessing.h",
+      "sha256": "50d4ebd826c8c600835c723f75b88985bf787237454ebbac4a4c6ce41c11fdf7"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btContactProcessingStructs.h",
+      "sha256": "29c51bc04d4c5ee48a961c1f5301dd8ad515fa85c2288c8c152a0300afc4cf9a"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGenericPoolAllocator.cpp",
+      "sha256": "f4f0d93fa7df163ab715a50247247f380445c360fce4cad9e26d91e5a53be74b"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGenericPoolAllocator.h",
+      "sha256": "ed0018f175e3909c3da49a32fbe5ccf8c318e5000ec744c95a8ed8cf9864e7dc"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGeometryOperations.h",
+      "sha256": "068cac329b24963fd32a13658d603e2d93ec21b2866eb9a4375d25667737eb9a"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactBvh.cpp",
+      "sha256": "d6df6d1d10fb1c1f10a9e540ea1eb8df2e991c706a36090cdcdc29d7cbd466ef"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactBvh.h",
+      "sha256": "ba15255cf31269972e24f28425ceced9dfab06970891c3d79e84e4812aff1afc"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactBvhStructs.h",
+      "sha256": "26019be2545b1011d415f5a548cad1bc5aeca2bc4a6ea237579e6504cc927ec1"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactCollisionAlgorithm.cpp",
+      "sha256": "8cebfc3072a30dfe5de3797f107327280cd404250aa5fa9ab51c2a0329820afb"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h",
+      "sha256": "a56984794eda01cde2835e9d652bdf1c4226434dbf546739a910cb832e91d11a"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactMassUtil.h",
+      "sha256": "a2afd8feb36c85c1daeeaf6f8cb15a6c63d4105a3afb877d6ceb2d2cb7c22008"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactQuantizedBvh.cpp",
+      "sha256": "0ee6c65ac2de3538e6dcd36e436ca9b0482ff47e593952df48bb570d101eda6b"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactQuantizedBvh.h",
+      "sha256": "dc33681113d47254ea4f685b9e2d7077f6c3eb5da0cb8769e1716cab321bb7ae"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactQuantizedBvhStructs.h",
+      "sha256": "08651c035ae0bd0fc39c88efa036a78d1772bede0a3a76adb8b581b02c54aa91"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactShape.cpp",
+      "sha256": "bdebb8d83377d49b5f2a54a74a2250c5570737481ebc578354fb0193a919bdbd"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btGImpactShape.h",
+      "sha256": "0ba0b2d39a940f6e5da66ffbb206e95aaf42d21aaf546971b3e155e08a540f3f"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btQuantization.h",
+      "sha256": "7cd04deca7cfc2edc84128d9bc8f2e6285edad8b66c34a8236328fb8daa82c29"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btTriangleShapeEx.cpp",
+      "sha256": "0d3736bb7bb39e70712be9ad3921b06242ca87872fe6854fa51dc0015a788b89"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/btTriangleShapeEx.h",
+      "sha256": "08d1a1fd84af55bcdc892b1f9a34f42e43aa64ce9bcd42ac6b7ebdaec5747e62"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_array.h",
+      "sha256": "cdb2d9d028f033c61c05ebf065bae9b80585f168801d58814f37a159cc0725fd"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_basic_geometry_operations.h",
+      "sha256": "17e8612b95b9185be62b065938e19ae368f684114be4a22279418d63ea418813"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_bitset.h",
+      "sha256": "2f0616d7cc6ae55858a9945e76c8e7b16cc8342daf3c97ab9ccae724404e6053"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_box_collision.h",
+      "sha256": "d8191c7e2066672d4c2f55b56fc5f414f1192aaffc33d90d6a4fb83e233a20a6"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_box_set.cpp",
+      "sha256": "36dd50c3e5cb2e4c8f21dbb62393d129e32fc74b90a1a6c0d051ff8b39318ae2"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_box_set.h",
+      "sha256": "ee48cb28294e56e701a5e731ff85802f18e084d763314bec66aea8826ec76da3"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_clip_polygon.h",
+      "sha256": "befa4c983d388daaf0f5e10832f0ee370f27a176092a1f15ed9e047f225f8ca7"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_contact.cpp",
+      "sha256": "169cbbeb88e6ce957de7421d0703f97d1a169258928e8e868203bf70ee00ef39"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_contact.h",
+      "sha256": "effb9365ddb3196ec17bf8c6d5f25a5ee015fab38b7aef5ccc8b12a075ab7f37"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_geom_types.h",
+      "sha256": "f867875e6c4b9bb169c760c03372acbfc84586933e25e88409236e1c3e4ade01"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_geometry.h",
+      "sha256": "32918f671d619f350fdec793d850af7a58a077afdf8838e287f19241f1a47853"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_hash_table.h",
+      "sha256": "7c30e025661251d64192d737c42fbb2a825c15264daed707cef931ec9ff287f9"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_linear_math.h",
+      "sha256": "be759af8bb7b36e63e6a7fcfe7b5c801d3d6dfea6af600e8cbe451e489447124"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_math.h",
+      "sha256": "5fecffe42014f99b951e4bd90abc7495ef88d35fdec157f6cb4686dfd9be9d50"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_memory.cpp",
+      "sha256": "15f4f7e400f0a5f53523eafb3e7d5a1d813799b242d426b9d78ce65f2edbf361"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_memory.h",
+      "sha256": "af9fc58faac1cab8cb5f7cb38b54d21b0fbc9366abe8aad0de10d25d350c4d2d"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_pair.h",
+      "sha256": "49e1aded062848729ffed100d812fc3db4c543754d59941bc5f187ddd04fb67d"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_radixsort.h",
+      "sha256": "f470a0fb4b2e7b25a4d26a3ba7cf61a3b046ec91e2cbf1c70cef16c031add699"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_tri_collision.cpp",
+      "sha256": "51d2075ce36645c82da5d5ee0793e239a21b4f38f688e40e506534b05ccad73f"
+    },
+    {
+      "path": "src/BulletCollision/Gimpact/gim_tri_collision.h",
+      "sha256": "d321f0ca54a3bdacdc68b3a6136c9f912d850d28032d8c783b5a5d6749cdccab"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btComputeGjkEpaPenetration.h",
+      "sha256": "3858e532197d73e712a4e34f278031531c553b56532bf791a9aefdf3455c2911"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btContinuousConvexCollision.cpp",
+      "sha256": "fd7dcd551090b7ea23fd10fcb75ab902c0206748836193ec43adfdcc5d795f01"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btContinuousConvexCollision.h",
+      "sha256": "8f0aa9e32fc76c44522f0179655d61ad92b6b3ca3a4a5dd956ab5d8772880fc7"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btConvexCast.cpp",
+      "sha256": "9b0e9e20aada03fd8a64c650b735ba430e4db9ce7b91c2deb9c42d6a47c07a04"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btConvexCast.h",
+      "sha256": "93ac475762f56d45f95c8062d36298a64b3d61d6a080c0ef4a9f976f164edc8e"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btConvexPenetrationDepthSolver.h",
+      "sha256": "5068f5c57ab6f87a96970e778b0e34be2abe84dd5d823ce6262a84145ec94d67"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btDiscreteCollisionDetectorInterface.h",
+      "sha256": "dae85cc85b6c7b3208745892c7cdbfa7d8cca5fdc390a25b244f419833578b45"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkCollisionDescription.h",
+      "sha256": "97d49478c45aec9565d76b22198524e2347115d8744661fa61b07df222c20b1e"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkConvexCast.cpp",
+      "sha256": "3db97fd72d8477f776026721b4359bd86487d96847fe293fd2d8366772a1124d"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkConvexCast.h",
+      "sha256": "170d81930db0ecaf336303ecb16b4a470aecfc4290876ec3a9e7c60e2c5d47c4"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkEpa2.cpp",
+      "sha256": "acdb5d91e7f47c76ee88dce28ecf681cab00dbae129ec40e0ae51fa384b72316"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkEpa2.h",
+      "sha256": "fb89d30df94cc1df94d75789ee50fe0bb04e53f1701a78217d2e5e3067c7e54e"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkEpa3.h",
+      "sha256": "9f5a9974df479be49531bac475f483915d758a270ec36bf471780eabb7c5945c"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkEpaPenetrationDepthSolver.cpp",
+      "sha256": "d4ee21229284ec723acc7e8108da2d484d8840148652ede9a8a4d4e05ad30eeb"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkEpaPenetrationDepthSolver.h",
+      "sha256": "e201ec8fac2ad12bd0b09eb1686b8ebbd27a760d0eb19da4e4a547ce170277e4"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkPairDetector.cpp",
+      "sha256": "1639f8baecb53b98b7ec2b1ad54e85188bf159496c77ee495021b25df6cfa9d0"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btGjkPairDetector.h",
+      "sha256": "c9c207611b8483160349378add49e58775da4704aebd316d55dcbeb465aaba54"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btManifoldPoint.h",
+      "sha256": "7796d98c566c6c10ccf774d4a0db5ea73132a5bb964f67f3b896f10b4a0847fe"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btMinkowskiPenetrationDepthSolver.cpp",
+      "sha256": "3f1b4e217652298363460fafa489780558b3f4babd752a486ceae52f11525f5a"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btMinkowskiPenetrationDepthSolver.h",
+      "sha256": "bc22a50274ed14ab8bbe37e754398308d940e35c9e861342720dd1eedbcdd910"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btMprPenetration.h",
+      "sha256": "5f67744c538028104ff10ec9335e4def1e78f99ab49dd9a46a3cd2414d86d256"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btPersistentManifold.cpp",
+      "sha256": "eb6fce5fdbccebc667170ba1be57965cc7b567650d77ccee81f6ef1fcfda270e"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btPersistentManifold.h",
+      "sha256": "8c145e0b38c8848a63507aa320c4f3d79093ff538058cebcee485b744d4d52c8"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btPointCollector.h",
+      "sha256": "6fadaaf1e0bc4701a44eea4afb1b7db524e030cfe91d5e9593a997f039dea4ce"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btPolyhedralContactClipping.cpp",
+      "sha256": "202f3cd3922c8995fa743ca738e6a3da2a17da9ddcf5107f856fdc1b183ee7cd"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btPolyhedralContactClipping.h",
+      "sha256": "5b1277f2f5bbe2514b7e53596ff3a4f934f3cd99c8de671ab7614038c41a7a30"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btRaycastCallback.cpp",
+      "sha256": "9945e9fa4a2401aead20cc7348f8face05ba8ae72f9ea18b0f6f16ed53e25b10"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btRaycastCallback.h",
+      "sha256": "fbdf59ea83ae610c46d914572f7993ad8d89a4641ceb6934901fa2026dea4d5e"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btSimplexSolverInterface.h",
+      "sha256": "3b2ae137c1a0f56bfe1d2c55e3113d27ddd9309fe01da8da403f80c64e254e53"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btSubSimplexConvexCast.cpp",
+      "sha256": "597abfdcf0609ebdcda6367ac9ac3160016ba4b70e559dd870cc1e935dfa75b2"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btSubSimplexConvexCast.h",
+      "sha256": "64f912f9e0268e10534adfe271542593d1e8fef2eb70c1a0a7bbae21d8bd1a40"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btVoronoiSimplexSolver.cpp",
+      "sha256": "ba0e906ffb3de0b9a370518192ca331a13d0eec05f1b23a11a7a46dab63172ed"
+    },
+    {
+      "path": "src/BulletCollision/NarrowPhaseCollision/btVoronoiSimplexSolver.h",
+      "sha256": "c6679eb866a57cbb7a47bf7d01c512a840e3a275eb12566287e4bb61cf5241ce"
+    },
+    {
+      "path": "src/BulletCollision/premake4.lua",
+      "sha256": "445c0fce9ca688db12af77e09870db526cc1dd424842d5696a31d756bd1322ef"
+    },
+    {
+      "path": "src/BulletDynamics/CMakeLists.txt",
+      "sha256": "e38008d995972ca9209769be4193c05fc18565fa66656984b837d6f017b19add"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btBatchedConstraints.cpp",
+      "sha256": "2606b492a934be146c0c948552b51c1593ce95d1cb93281d45498ca510fa91de"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btBatchedConstraints.h",
+      "sha256": "3177888a88ab61f8dc20cba5002eb4fb5ad9e7572fc8917aca350130433268d5"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btConeTwistConstraint.cpp",
+      "sha256": "de1bed756d19f408955a4121f9ab4c2dd626df0538530a1507dfdfbfa2668c40"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btConeTwistConstraint.h",
+      "sha256": "77ac2cd27c3258d8be372d7ea606133f0eee832a46463f7d759c893471a59443"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btConstraintSolver.h",
+      "sha256": "a3a0b4392a48fa9b846b14ddfcf1e1ed80a5fe9203059b502de02b76d314a6dc"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btContactConstraint.cpp",
+      "sha256": "893b9dbd0e9e9cc2d77be08344d9a1754631b0ba4346e9f3fe839f014a87bccd"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btContactConstraint.h",
+      "sha256": "bbf564eb7f0819b95d41bb1a3c76ccd3594c6feb71c2a7d2415206a5a9165012"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btContactSolverInfo.h",
+      "sha256": "3da6b95ea578c337fb7942c59e130ff8f0ecbddeacecd612847bc7f516de3f7f"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btFixedConstraint.cpp",
+      "sha256": "daf87305026a3f5d77106d7af3c1ec7068ecc3598623d6928fc602d1dee5b15d"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btFixedConstraint.h",
+      "sha256": "ec87d9bce2a85a8f23dd143dad8783ae599eeb3f97251d3400e8c2cf48b00405"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btGearConstraint.cpp",
+      "sha256": "7433044818b3442d95868e244c5ace674fe8ac55680ffc5e3f80e41ddfae832b"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btGearConstraint.h",
+      "sha256": "1f639ed526137e1ace58c340e154df06bd7b6e2b147a17d3d456379c516ac007"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btGeneric6DofConstraint.cpp",
+      "sha256": "b0d5f98edd9a3057fa149e30e72379f60157dbffe748760016276d87d305c260"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btGeneric6DofConstraint.h",
+      "sha256": "cb8d2e2049bb80d436423295891657ca9d31ca28f7ea5349295f09c54d48d92e"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btGeneric6DofSpring2Constraint.cpp",
+      "sha256": "4a3a87bfaed45cd0aab7b9659f7250218a7edbe8da7f522ea3c7b5f03e1cd2f3"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btGeneric6DofSpring2Constraint.h",
+      "sha256": "21649249de2dffa69b7511a5f39da0e00b46cdf967072c4f777331c9d9d98714"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btGeneric6DofSpringConstraint.cpp",
+      "sha256": "708dcbbb07cb4330fc873d5fb20bcdc1d4d9b352804cef8c77b1bc12dee7321b"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btGeneric6DofSpringConstraint.h",
+      "sha256": "deaf1c5d7c76fba291845d7bd93f5d63fdd137898c2f3c25378d7b39c69ecc08"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btHinge2Constraint.cpp",
+      "sha256": "e268ab9bbbd557015499c24bbd7a48057102534fbae2f1ae59c2795be5e63b0c"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btHinge2Constraint.h",
+      "sha256": "0dba179a11bd143da8a9e27dee33d136c7ae3c194c89f522626fc8bd9e58a8d0"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btHingeConstraint.cpp",
+      "sha256": "41236d315910ab14b74e0f4ceed4579b8c06e86c832a95dee3f1ec10421c4590"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btHingeConstraint.h",
+      "sha256": "dd050e8a7185e325b05637ea3f3eb474328eb8f261779e07b056efca1593e16e"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btJacobianEntry.h",
+      "sha256": "e52903b0b15e920ebd305caaf3f992ffa0b10843ae9b1a484153f44af29d7547"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btNNCGConstraintSolver.cpp",
+      "sha256": "4d49c2ac3666928240be5f99489e73847f9b8270c689f09b4d97210ba0234ac0"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btNNCGConstraintSolver.h",
+      "sha256": "449e1975feeec31ece0448abd1399316663a57dcb9083b0ca59e415c3bd5cd8f"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.cpp",
+      "sha256": "5c85a59e74365ef7ba8d76d1fc8d7a16a148cbe71b3f5b875be48b613edafc06"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btPoint2PointConstraint.h",
+      "sha256": "9b52f0b0bbcb3eab85770e995b5d71562249200abb54d66f3363908007dc0070"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.cpp",
+      "sha256": "39460b229b004fd12728b1d0b3223fcd59727010536491b520dc671ad2506d4f"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolver.h",
+      "sha256": "f838cb9f902f53fa655978c0b81005e51e69034c3d3b309ebe1b095a0e2522f9"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolverMt.cpp",
+      "sha256": "e235547628db5866b40771d5cf0b242a4abbb8219be8977e7a14a1b0a6ecd348"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSequentialImpulseConstraintSolverMt.h",
+      "sha256": "67233c344cc7b9e2ae5e0b2f764ebc7d8bd44cc9bd7a78c31d1d6151962796b3"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSliderConstraint.cpp",
+      "sha256": "925289af49d4bfa95aed591cfb32d5700ba05891ad15e02a89f1c7395b073725"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSliderConstraint.h",
+      "sha256": "5bc92a97f7db8038b06a2c22d0893d4ecf2542f42da853d6226d21f696cab0c6"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSolve2LinearConstraint.cpp",
+      "sha256": "81b9a251c2e49e7edc60b170a4f8341233d948a882a5081d130cc35c46b6ba80"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSolve2LinearConstraint.h",
+      "sha256": "8c7e187326707e40c3131b2c9b9757db2723382ec892924f97666e7c291b4c5f"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSolverBody.h",
+      "sha256": "f0a2c1bfe690cc0a124f03a3c178ed7498155df5f1dfa02894a761f4f86478b7"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btSolverConstraint.h",
+      "sha256": "f176bee62070c72003e7e440dda0162ea913d8500a255281be97eca8a72de99b"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btTypedConstraint.cpp",
+      "sha256": "6c1e90d348fa1ce4d1473b8c78d00dc40d3095c88134ea2a2ed40442a8154252"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btTypedConstraint.h",
+      "sha256": "690fc6d5cc851a98122221ac1a4638d1f6f740dfcee366a89e20bb437ae8d262"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btUniversalConstraint.cpp",
+      "sha256": "91683743ffce5daa90bca28128b064677d8fed8f70b80b8f24194d14eef05a06"
+    },
+    {
+      "path": "src/BulletDynamics/ConstraintSolver/btUniversalConstraint.h",
+      "sha256": "59a0ff9d04ac23310c47de3cc0d27ebaddcc88e1a37936dc9ea52010bdb489ab"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btActionInterface.h",
+      "sha256": "91e991d84ed0c948e6ad49a5a5174b014c2a4902081457f1ae8eab998feaecb7"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.cpp",
+      "sha256": "e6c1cf91f69ab4b634485f0c26178c70cfdf38182d3dc4305f141455b37de938"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btDiscreteDynamicsWorld.h",
+      "sha256": "95bd3e24b25ecb648730f30e2ed6f0ad279ccaf97e111072e54535ba981e1fd2"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.cpp",
+      "sha256": "8af6a1d8653b0681e3b7736ea6dc1c2d8e18799f86416d19203d42b0eb58da5d"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btDiscreteDynamicsWorldMt.h",
+      "sha256": "a64ec9e950eebcda041984aae52329458f8064652a1b1d7e8a802da171d1531f"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btDynamicsWorld.h",
+      "sha256": "0b4660688574ff9ea234b989bc77e2c7a3ef4b51f40040847f34afc57c7a2245"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btRigidBody.cpp",
+      "sha256": "61d7291640ce40a0b8be340538daee67725f37dfe44c7e91090ea1694fac4ce8"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btRigidBody.h",
+      "sha256": "4f2250960187edece192af40eca50d776f5fd8f35a5f5c0bab93f17c00dae5a9"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btSimpleDynamicsWorld.cpp",
+      "sha256": "e30626df6565532846e680fe206988c98c5a50f5a72e6e2edbce3e1426acb978"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btSimpleDynamicsWorld.h",
+      "sha256": "bfd4085b2a081bc2b8c0826cc2716633be635b8ce51c5a30412a21a974853b18"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btSimulationIslandManagerMt.cpp",
+      "sha256": "c3d49e5c9e1df9dcfd00766577a09178be887d08624380ea43bc3d3b9d03f9f5"
+    },
+    {
+      "path": "src/BulletDynamics/Dynamics/btSimulationIslandManagerMt.h",
+      "sha256": "14f15749ee7674803f48b32ccd85abefc384cbf48aabf9f9f50c38d5393636c2"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBody.cpp",
+      "sha256": "66708f60e9717039f5ce938d2a24b8b61a659956439c45a95e5953adf1ee8567"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBody.h",
+      "sha256": "28b4022ab20d01f1381f80333b252cd1b34fe98abe2837ee2e5dc82b204290bf"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyConstraint.cpp",
+      "sha256": "2cb8e3671cab82ee397bd8acbd3d231c1752167e7f474e7036363e6fca30343d"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyConstraint.h",
+      "sha256": "9e66c328fea6cb06f92c20d5a2fb4f130cf24f2a9b15147dcfb0f093ed7eb144"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyConstraintSolver.cpp",
+      "sha256": "c88d077b0e487fbe46c8d7c05af6f667a47e64524450b1d57e5f517c03b8f846"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyConstraintSolver.h",
+      "sha256": "77cb5c9ab3901823f3d88c45a6eeabc844f2972aba63afdcdf262054bc2db07b"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyDynamicsWorld.cpp",
+      "sha256": "0acbce9862f968430e79664c64a7f2eb7bf3d45ddb6505e1b4b9798679e5b137"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyDynamicsWorld.h",
+      "sha256": "0192538873eb9f9152f11ad6c9e099136bf56cb7e1e9edb5d1acdd0060707c9d"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyFixedConstraint.cpp",
+      "sha256": "d08dc56eef2931cc6888b7f1d82bcdcee2124690e0e7f435d3b85700f55b09aa"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyFixedConstraint.h",
+      "sha256": "b0a357959e13c18c8b2aec6a8d5108b1248a512ece57c18cda8d4f48d8630f0f"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyGearConstraint.cpp",
+      "sha256": "c47a1c9cd6e034cfceb9c038bb175e4d7ae5b11ab7be4ebb44a2f167b576ec5a"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyGearConstraint.h",
+      "sha256": "c93186d8b46ee6cf53923863146620dd87defc1f491207396b9fdfdbe3c3e1ab"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyInplaceSolverIslandCallback.h",
+      "sha256": "5764a5da0b08e41cf3c1d16ef744220cd00af70b6af8d1b6f4eb5bfbf07dd017"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyJointFeedback.h",
+      "sha256": "abef3b45e6fd99491b74f361d2e3c6a5975cc3403ae00ad39b845c67720a8f24"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyJointLimitConstraint.cpp",
+      "sha256": "d69a6c15947415a8886fb4f9e208500857742d832c6078889c66bc2ff6f099ed"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyJointLimitConstraint.h",
+      "sha256": "ff786510c19b2e77e4408a419569f7de27ce562916d8cde433ddd2b21c423f78"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyJointMotor.cpp",
+      "sha256": "9989a5b13225f98743f46bfdd21ed94f4d36789a84e77fbd9f17246ab4b0a04a"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyJointMotor.h",
+      "sha256": "5fdcb35aeb0a189568828e3da57044c470e3bf2b71970dc063e51e1702d974cf"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyLink.h",
+      "sha256": "fc9f14b2653b104dab7bc07287f173b6577d6ff05d32007b46a779eb28b9177b"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyLinkCollider.h",
+      "sha256": "8565b7664018d455799523e8272d782b4673ce0745498d0b72142b693417dc6d"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyMLCPConstraintSolver.cpp",
+      "sha256": "75f1cb2ab9fc9b523f636cb47495c41f65cbdbe86a560b35cfc9d20b9dcd2483"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyMLCPConstraintSolver.h",
+      "sha256": "438a6a21f44d3fa44bc2093f6cd8f6361c78ffee5be2a6124d082bd914311665"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyPoint2Point.cpp",
+      "sha256": "86faf68d0979d3784d686e366ff44342c7dd3a7ea6f8c411bfba4ac223655a65"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodyPoint2Point.h",
+      "sha256": "117978dd94b9f31f97119900533990afdd3c8979ab8689a6744a270e77fd6f9b"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodySliderConstraint.cpp",
+      "sha256": "414f85513be597bc15ff30d1b24f5f9e146e3435e4b8ce98cba7edc61dd0dc60"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodySliderConstraint.h",
+      "sha256": "908d91ea8cee15491048cd1e72b771a49d24b5c6fd760fc9704a56c6323a7aa4"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodySolverConstraint.h",
+      "sha256": "5400d5f1ca15e6e1fe7a33e4686cf6fa93ac8440c70530f596d827aa39f27bde"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodySphericalJointLimit.cpp",
+      "sha256": "931da10b432024543a94cc4e5e6020147189a1349dc91ea6676dec613174076c"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodySphericalJointLimit.h",
+      "sha256": "631c8dcbe47d864f1ecdb5983126a64fb5b3afa1fb0bb16ab78a0007d7b5c4db"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodySphericalJointMotor.cpp",
+      "sha256": "665d49dc8711aa5047b689d55e0df86cb4029f8d5d35d48f527d3668a194ce72"
+    },
+    {
+      "path": "src/BulletDynamics/Featherstone/btMultiBodySphericalJointMotor.h",
+      "sha256": "1075adba638a55ae5aa37c8bfeb51e52245d259ceb66ab5d752889181c9ac81e"
+    },
+    {
+      "path": "src/BulletDynamics/Character/btCharacterControllerInterface.h",
+      "sha256": "a262401c23e2027927255669e7bfa24ca3ab900e2e86399644b716bef2d80bf7"
+    },
+    {
+      "path": "src/BulletDynamics/Character/btKinematicCharacterController.cpp",
+      "sha256": "aa5b52891645f54e1336967165b877c00c3362518efb002b30f5f4d0bf199d95"
+    },
+    {
+      "path": "src/BulletDynamics/Character/btKinematicCharacterController.h",
+      "sha256": "714b068259277420532b2891f0afc739683527778523c934b61dd6cf19a68531"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btDantzigLCP.cpp",
+      "sha256": "9200edb97daff34afccf6c941e23be751bf7f72b2a9a7c57b00ee7d754565326"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btDantzigLCP.h",
+      "sha256": "eea9c6931ee017f5a351d21dbb5624f07a8ef9ef333424c92002131748137d52"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btDantzigSolver.h",
+      "sha256": "a03bda5d526a0772f4224efcac77c59e5d2ca46949f1271a044e69e815e2b7c7"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btLemkeAlgorithm.cpp",
+      "sha256": "281810861c8f19cf759f0ef3c17766293f2515ed2c09c2d9ea3b702707c90de8"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btLemkeAlgorithm.h",
+      "sha256": "cf80dd77aed53360f5a93306a2aaf3cfd35ee8c9c7bbc82f9c987431d96abe4e"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btLemkeSolver.h",
+      "sha256": "236912cafefd82798cffffb7a9ace665a9b1f66daed2090aee39dcfa23b11eb1"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btMLCPSolver.cpp",
+      "sha256": "423a2e9a10ebf1f0883d9cd3bb8abe2ed0e560dbfc55466862888773d45efeb5"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btMLCPSolver.h",
+      "sha256": "54a73ad03079cee7c0df064e737497710508fdc20989eddfea06cf73c3d0aef0"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btMLCPSolverInterface.h",
+      "sha256": "dbe555f2d51e2e1d5cb25180da6ea0234265c565a1bf4b2658af19b2b61d5f7a"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btPATHSolver.h",
+      "sha256": "9ec17367b76d03d61304f7ab37afe75f5d7f1df6a7e0de6e7dd4518ca08a3151"
+    },
+    {
+      "path": "src/BulletDynamics/MLCPSolvers/btSolveProjectedGaussSeidel.h",
+      "sha256": "a23042e95b7903e0c2bb5ed2e178dccb970d3a18852c39dbd659a238f709f0c9"
+    },
+    {
+      "path": "src/BulletDynamics/premake4.lua",
+      "sha256": "67ac94f340733e5853fa1a491f1a15a566ea170ff41ed8eec118125c37018626"
+    },
+    {
+      "path": "src/BulletDynamics/Vehicle/btRaycastVehicle.cpp",
+      "sha256": "1f198bff9f14d4f46b2024bb4c923222443fa14549ab17ef002e7b008c2e997e"
+    },
+    {
+      "path": "src/BulletDynamics/Vehicle/btRaycastVehicle.h",
+      "sha256": "6c0b7710fffbe2ee3716a7bc7359bc75ddd679fa24ca683a0dc7f87269697f0d"
+    },
+    {
+      "path": "src/BulletDynamics/Vehicle/btVehicleRaycaster.h",
+      "sha256": "10b0490cd50dd45fbe1f846daf0be7d82c02fe5ee65e84d859360aa63437b4b3"
+    },
+    {
+      "path": "src/BulletDynamics/Vehicle/btWheelInfo.cpp",
+      "sha256": "c5ec02b68ef94e2f1a247f1d6d73afb227329e381237ec9dad3fcdb0dfd01ed1"
+    },
+    {
+      "path": "src/BulletDynamics/Vehicle/btWheelInfo.h",
+      "sha256": "67d95ff9d72f4bba3f9239402c2739e477d0c3f2214a1231876c18dc22a95ad7"
+    },
+    {
+      "path": "src/LinearMath/btAabbUtil2.h",
+      "sha256": "682e288202419ec8f712f7515f7b145347aea8c68982fe48b36c32608614d685"
+    },
+    {
+      "path": "src/LinearMath/btAlignedAllocator.cpp",
+      "sha256": "53c09f2abc43d1955fa6eef7f3904ecba06d36b70fb6064642c8f9580f6674dc"
+    },
+    {
+      "path": "src/LinearMath/btAlignedAllocator.h",
+      "sha256": "b2edd73dde0c9781d228ba6a5c52e0fb83f83b1ea350bb8b988c8d9d74349c04"
+    },
+    {
+      "path": "src/LinearMath/btAlignedObjectArray.h",
+      "sha256": "29bb664cd427577501d258e84f13fbc1c8e43a60fc6cd3633074bc1cf39641a3"
+    },
+    {
+      "path": "src/LinearMath/btConvexHull.cpp",
+      "sha256": "4c57532c082613725bb3177c40a70267ed55cd914f099bb73d49132eeabdded9"
+    },
+    {
+      "path": "src/LinearMath/btConvexHull.h",
+      "sha256": "e963f5a6173b550b62a22feb347c6cfa453b8f526d5a40a1f3f3039f29742d3c"
+    },
+    {
+      "path": "src/LinearMath/btConvexHullComputer.cpp",
+      "sha256": "b02bebc1635f29430f4824d3f53572bf7ad3ea4a627e227b3cd1978e3d8b4767"
+    },
+    {
+      "path": "src/LinearMath/btConvexHullComputer.h",
+      "sha256": "f553b6f79b9147e43679337e3556f2359644df4e6dcc6ea6e09f22c763e6056e"
+    },
+    {
+      "path": "src/LinearMath/btCpuFeatureUtility.h",
+      "sha256": "230b82b939b43a9a8e90b94bac56f3bd65a6183afc08ec5358296e586bbac59b"
+    },
+    {
+      "path": "src/LinearMath/btDefaultMotionState.h",
+      "sha256": "21b03541426b06261f167334cf09c6f0ca9b4a4918dd0f29479299a7ba83dda9"
+    },
+    {
+      "path": "src/LinearMath/btGeometryUtil.cpp",
+      "sha256": "69557a72d40086a536adf01fbd3d1ba1a843941d21d0a4e72ce3ef496f301a91"
+    },
+    {
+      "path": "src/LinearMath/btGeometryUtil.h",
+      "sha256": "e09fb6ea2439b9207e540d98a020e251640f560b2151331fa2f51d67033c8f18"
+    },
+    {
+      "path": "src/LinearMath/btGrahamScan2dConvexHull.h",
+      "sha256": "b50d634678b5863e8de48b362ccb2c3d8ec3f8b16b8cb1072ffcb6950f433d55"
+    },
+    {
+      "path": "src/LinearMath/btHashMap.h",
+      "sha256": "79fd1044b43f93199c65ffe7629d2fff8ec408401a52c4aa547a61645d22006d"
+    },
+    {
+      "path": "src/LinearMath/btIDebugDraw.h",
+      "sha256": "4fe179f023fd8c20cc74307e3832d9c87631fbc7a06851cbddfbd37723046520"
+    },
+    {
+      "path": "src/LinearMath/btImplicitQRSVD.h",
+      "sha256": "e755fc6fb437cb8adda685c591235a274bc8c93457f007c363d521c15fb59736"
+    },
+    {
+      "path": "src/LinearMath/btList.h",
+      "sha256": "d7508d7848389004547bdf910f0f555f4d2f5e266791d0fd4ed2d175dc6d0866"
+    },
+    {
+      "path": "src/LinearMath/btMatrix3x3.h",
+      "sha256": "8c524d5eebbe133007495102bb94316f17c47d5e6ee3412c94c8156efa5a0a04"
+    },
+    {
+      "path": "src/LinearMath/btMatrixX.h",
+      "sha256": "8a7c32ed83bf1f2154c570a0b4db35f2e9e3e2459ed3fedc52612cdf1d56e91e"
+    },
+    {
+      "path": "src/LinearMath/btMinMax.h",
+      "sha256": "6baf5f1b3a1b6e370e2503d7027b79bacdde00d8303f3ca4cd49a592378149e0"
+    },
+    {
+      "path": "src/LinearMath/btModifiedGramSchmidt.h",
+      "sha256": "f5c3e465038239a6031fb83dee46db5ea19a5d3144325892d8a70e172bb85870"
+    },
+    {
+      "path": "src/LinearMath/btMotionState.h",
+      "sha256": "7634a46ee4ccbc0ace808bb12c241bb3967cf0a101517e6e7baf2400dfb653c0"
+    },
+    {
+      "path": "src/LinearMath/btPolarDecomposition.cpp",
+      "sha256": "6fdec14fb4a2b25f9b0bc6e0096a4869c68691d05b9760d809cbc8b9e823e4df"
+    },
+    {
+      "path": "src/LinearMath/btPolarDecomposition.h",
+      "sha256": "98d8b34811f20f94b3e097e2d9d5ad6b98f07390995640d1541ce8c2474a4399"
+    },
+    {
+      "path": "src/LinearMath/btPoolAllocator.h",
+      "sha256": "b62e4b6a5d28331bd623245b427c53d8dbe06545d8cc26240c9dccba19042c28"
+    },
+    {
+      "path": "src/LinearMath/btQuadWord.h",
+      "sha256": "510e2660e8a89bdbf0c24e5314a0fb08f2d78dfd356b1ba4b1416b63a7cfb2c9"
+    },
+    {
+      "path": "src/LinearMath/btQuaternion.h",
+      "sha256": "6f9510b2624397a4941da523ed56af164f8a59de68b7c73c77c32202b060a2bf"
+    },
+    {
+      "path": "src/LinearMath/btQuickprof.cpp",
+      "sha256": "3eca64a51183444329c0121c16c0e1883bff9c46df5b1dfceda99e037bf6afe4"
+    },
+    {
+      "path": "src/LinearMath/btQuickprof.h",
+      "sha256": "e0b8c5880cca3ae0b8c4e58ffb6cdae1f10d62851a8741fc155389c6c8a814e5"
+    },
+    {
+      "path": "src/LinearMath/btRandom.h",
+      "sha256": "17349fd005faea71c765682795e67d7b577f1053e5517ebff2fdade200e5827a"
+    },
+    {
+      "path": "src/LinearMath/btReducedVector.cpp",
+      "sha256": "049aca0690c149404a7f39ab6b34fb9dccd9cd84ea8fdc27de54b4b992f3392e"
+    },
+    {
+      "path": "src/LinearMath/btReducedVector.h",
+      "sha256": "7ac47c44ac929ca554b80d1333efe1b2664519180babd36d98ce6affdf0dbdbf"
+    },
+    {
+      "path": "src/LinearMath/btScalar.h",
+      "sha256": "fa8adaf927977170c70d383a48f51093dd6399481ee7b4ea0710cd99676a6904"
+    },
+    {
+      "path": "src/LinearMath/btSerializer.cpp",
+      "sha256": "9aeccefc493db788faab57d081904426482554c45b519b00ecea325da047422a"
+    },
+    {
+      "path": "src/LinearMath/btSerializer.h",
+      "sha256": "d74324771e1cc0faf808d69d9d673b521c6de6fd57258ae10b0703f9217b7c3b"
+    },
+    {
+      "path": "src/LinearMath/btSerializer64.cpp",
+      "sha256": "805dbaef027c1d8ff6a66dd3ca423400bcc2155e0175df47ea4bc613b6ccc019"
+    },
+    {
+      "path": "src/LinearMath/btSpatialAlgebra.h",
+      "sha256": "e0003a60ed2d38765365270d67fa27a7167943ec32a1d34e8dc0d30566c7ca5b"
+    },
+    {
+      "path": "src/LinearMath/btStackAlloc.h",
+      "sha256": "7f1760983b4bc163423051b76676c66bf4c04639fd35cd56474736bcf43d5b11"
+    },
+    {
+      "path": "src/LinearMath/btThreads.cpp",
+      "sha256": "50cf145f6332bb78ffe827fdebb5a7d6a55d468ca6105b424bbfffaf49a87e88"
+    },
+    {
+      "path": "src/LinearMath/btThreads.h",
+      "sha256": "d600e856ee8d27d4fcb58a93583c0fc613ae788b5779d1bd4603b3d8608a0283"
+    },
+    {
+      "path": "src/LinearMath/btTransform.h",
+      "sha256": "26f36ee2d5866c662a67129454a850af175fe36d66da634113f2af59e159326f"
+    },
+    {
+      "path": "src/LinearMath/btTransformUtil.h",
+      "sha256": "e83170f3b1464c8d981ad225dc54ae4995d12bc72f081ab7cfe5953ac866b9df"
+    },
+    {
+      "path": "src/LinearMath/btVector3.cpp",
+      "sha256": "0661941e095a9c1d62132cb0ba18501e4e7565e67346453d3dfd0bbb7f26b841"
+    },
+    {
+      "path": "src/LinearMath/btVector3.h",
+      "sha256": "9f39f43bf16f7855090e61100793fe267c98f7d3ec2368de07c0ec7ae880f462"
+    },
+    {
+      "path": "src/LinearMath/CMakeLists.txt",
+      "sha256": "af5cd8e86aef437b8e4d56599b5ebffaddc22307ea97af2fc97332ae90b10311"
+    },
+    {
+      "path": "src/LinearMath/premake4.lua",
+      "sha256": "2e9f9a35068361e800f3e5458b52a7120a60265ef7173b84204bd1a2d9386464"
+    },
+    {
+      "path": "src/LinearMath/TaskScheduler/btTaskScheduler.cpp",
+      "sha256": "fcaf737ce7fa1231864ef29f6f520b618748e838d25d887f4da160e5677874ea"
+    },
+    {
+      "path": "src/LinearMath/TaskScheduler/btThreadSupportInterface.h",
+      "sha256": "aeb4a46e41eefdf8b786917b8291cc5805eeb9b9625c1de100fa455445cefc18"
+    },
+    {
+      "path": "src/LinearMath/TaskScheduler/btThreadSupportPosix.cpp",
+      "sha256": "bcf973cdee9c18fa2d4d24a0fe0fd5fdd4a35652d2b24a66803723edad19ef37"
+    },
+    {
+      "path": "src/LinearMath/TaskScheduler/btThreadSupportWin32.cpp",
+      "sha256": "786cd951469a9c9c67b5748eb0d686349b1f82808a35a8f30cf124a3e4a79f7c"
+    }
+  ]
+}

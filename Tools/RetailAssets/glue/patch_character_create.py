@@ -183,9 +183,18 @@ def patch_skin(text):
     return (text + "\n" + skin).replace("\n", nl)
 
 
+def patch_rows(text):
+    """Races on the stock option layout (not EA_ACTIVE) placed their rows 900px right of centre, which clips off the
+    creator's right panel on some screens. Pin them to the panel the way the Esteria layout does (55px in)."""
+    old = 'frame:SetPoint("CENTER", parent, "CENTER", 900, 200-i*50);'
+    if old not in text:
+        return text
+    return replace_once(text, old, 'frame:SetPoint("RIGHT", CharacterCreateFrame, "RIGHT", -55, 200-i*50);')
+
+
 def patch_all(text):
     # The Body page strips from its marker to the end of the file, so the skin is always appended after it.
-    return patch_skin(patch_body_page(patch_pan(patch(text))))
+    return patch_skin(patch_body_page(patch_pan(patch_rows(patch(text)))))
 
 
 def main():

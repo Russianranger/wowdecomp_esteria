@@ -1,0 +1,96 @@
+{
+  "documentation": {
+    "purpose": "Default exact-name policies plus model-specific name and source-index corrections.",
+    "precedence": "Model/source-index replaces model-name, default-name, legacy global-name, and automatic semantic mapping, in that order.",
+    "default_policy": "default.by_name is applied to every converted model by normalized exact M3 sequence name; numeric source indices are never shared across models.",
+    "model_key": "Use the source M3 filename without its extension, for example diablo_prime.",
+    "index_safety": "Give each by_index policy its expected source name. Conversion fails if the animation bank is reordered.",
+    "frequency_weight": "Relative selection weight among sequences sharing one target animation ID; the converter normalizes each group to 0x7FFF.",
+    "global_sequence": "Removes the source from normal M2 sequences and emits its bone channels as a looping M2 global sequence. M3 flag 0x4 is recognized automatically."
+  },
+  "global": {},
+  "default": {
+    "by_name": {
+      "Stand": { "animation_id": 0, "frequency_weight": 1000 },
+      "Walk A": { "animation_id": 4 },
+      "Spell A": { "animation_id": 54 },
+      "Spell D": { "animation_id": 51 },
+      "Spell B": { "animation_id": 53 },
+      "Spell F": { "animation_id": 124 },
+      "Walk E Ready": { "animation_id": 13 },
+      "Walk C Ready": { "exclude": true },
+      "Walk G Ready": { "exclude": true },
+      "Walk A Ready": { "animation_id": 5 },
+      "Stand Ready End": { "exclude": true },
+      "Stand Start": { "exclude": true },
+      "Stand Ride": { "animation_id": 91 },
+      "Stand Ride Start": { "exclude": true },
+      "Walk A Ride": { "exclude": true },
+      "Stand Ridebeast": { "exclude": true },
+      "Walk A Ridebeast": { "exclude": true },
+      "Stand Ridebeast Start": { "exclude": true },
+      "Stand Ridesurf": { "exclude": true },
+      "Walk A Ridesurf": { "exclude": true },
+      "Stand Ridesurf Start": { "exclude": true },
+      "Stand Ridebike": { "exclude": true },
+      "Walk A Ridebike": { "exclude": true },
+      "Stand Ridebike Start": { "exclude": true },
+      "Flail": { "animation_id": 40 },
+      "Flail Forward": { "exclude": true },
+      "Flail Back": { "exclude": true },
+      "Stand S": { "exclude": true },
+      "Stand Ready S": { "animation_id": 28 },
+      "Stand Ready End S": { "exclude": true },
+      "Taunt": { "animation_id": 73 },
+      "Channel Mount": { "animation_id": 82 },
+      "GLstand": { "global_sequence": true },
+      "Channel Hearth": { "animation_id": 0, "frequency_weight": 1 }
+    }
+  },
+  "models": {
+    "valeera_base": {
+      "by_name": {
+        "Walk A Cover": { "animation_id": 119 },
+        "Walk A Ridesurf Start": { "animation_id": 120 }
+      }
+    },
+    "whitemane_base": {
+      "by_index": {
+        "0": { "name": "Stand", "animation_id": 0, "frequency_weight": 1000 },
+        "1": { "name": "Walk A", "animation_id": 4 },
+        "2": { "name": "Spell A", "animation_id": 54 },
+        "3": { "name": "Spell D", "animation_id": 51 },
+        "4": { "name": "Spell B", "animation_id": 53 },
+        "5": { "name": "Spell F", "animation_id": 124 },
+        "9": { "name": "Walk E Ready", "animation_id": 13 },
+        "10": { "name": "Walk C Ready", "exclude": true },
+        "11": { "name": "Walk G Ready", "exclude": true },
+        "13": { "name": "Walk A Ready", "animation_id": 5 },
+        "14": { "name": "Stand Ready End", "exclude": true },
+        "15": { "name": "Stand Start", "exclude": true },
+        "17": { "name": "Stand Ride", "animation_id": 91 },
+        "18": { "name": "Stand Ride Start", "exclude": true },
+        "19": { "name": "Walk A Ride", "exclude": true },
+        "20": { "name": "Stand Ridebeast", "exclude": true },
+        "21": { "name": "Walk A Ridebeast", "exclude": true },
+        "22": { "name": "Stand Ridebeast Start", "exclude": true },
+        "23": { "name": "Stand Ridesurf", "exclude": true },
+        "24": { "name": "Walk A Ridesurf", "exclude": true },
+        "25": { "name": "Stand Ridesurf Start", "exclude": true },
+        "26": { "name": "Stand Ridebike", "exclude": true },
+        "27": { "name": "Walk A Ridebike", "exclude": true },
+        "28": { "name": "Stand Ridebike Start", "exclude": true },
+        "30": { "name": "Flail", "animation_id": 40 },
+        "31": { "name": "Flail Forward", "exclude": true },
+        "32": { "name": "Flail Back", "exclude": true },
+        "34": { "name": "Stand S", "exclude": true },
+        "35": { "name": "Stand Ready S", "animation_id": 28 },
+        "38": { "name": "Stand Ready End S", "exclude": true },
+        "39": { "name": "Taunt", "animation_id": 73 },
+        "42": { "name": "Channel Mount", "animation_id": 82 },
+        "44": { "name": "GLstand", "global_sequence": true },
+        "45": { "name": "Channel Hearth", "animation_id": 0, "frequency_weight": 1 }
+      }
+    }
+  }
+}

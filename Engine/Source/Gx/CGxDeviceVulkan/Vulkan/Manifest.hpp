@@ -72,6 +72,7 @@ namespace gxvk::vk::manifest
         Profile  profile;
         uint16_t vconst;           ///< 64 or 512: rows of regs.v[] the vertex module declares
         uint16_t pconst;           ///< 16: rows of regs.p[]
+        uint16_t pext;             ///< pixel: rows of regs.x[] (c20..), 0 when the record reads none; `pext=`
         uint16_t samplerMask;      ///< pixel: bit s set for `sampler s ...`
         uint16_t cubeMask;         ///< pixel: bit s set when that sampler is a cube
         uint32_t inputMask;        ///< vertex: bit Semantic set for each `input`

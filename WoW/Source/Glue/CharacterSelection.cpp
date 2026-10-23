@@ -12,6 +12,7 @@
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Model2/M2Shared.h"
 #include "Engine/Source/Os/OsFile.h"
+#include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Tempest/C44Matrix.h"
 #include "Engine/Source/Tempest/CAaSphere.h"
@@ -33,6 +34,7 @@
 #include "WoW/Source/Glue/RealmList.h"
 #include "WoW/Source/LoadingScreen.h"
 #include "WoW/Source/Object/ObjectClient/Player_C.h"
+#include "WoW/Source/Object/ObjectClient/Types.h"
 #include "WoW/Source/Ui/AddOns.h"
 #include "WoW/Source/WorldClient/DayNight__DNInfo.h"
 #include "WoW/Source/WorldClient/World.h"
@@ -314,6 +316,97 @@ CharacterSelectionDisplay* CCharacterSelection::GetCharacterDisplay(uint32_t ind
     return nullptr;
 }
 
+// Each pick fades the character in, then plays the salute once and settles back to the idle stance.
+static const uint32_t INTRO_FADE_MS = 550;
+static bool s_introFading;
+static int32_t s_introSalute = 2; // 0 waiting for the model, 1 playing, 2 done
+static uint32_t s_introStartMs;
+static uint32_t s_introEndMs;
+static float s_introBaseAlpha = 1.0f;
+static CCharacterComponent* s_introComponent;
+
+// Hand-held items (attach links 1 and 2) vanish for the salute; the shield on the arm stays.
+static void SetHandItemsHidden(CM2Model* model, bool hidden) {
+    for (CM2Model* attached = model->m_attachList; attached; attached = attached->m_attachNext) {
+        if (attached->m_attachmentId == ATTACH_HANDRIGHT || attached->m_attachmentId == ATTACH_HANDLEFT) {
+            attached->m_fadeAlpha = hidden ? 0.0f : 1.0f;
+        }
+    }
+}
+
+static void BeginSelectionIntro(CharacterSelectionDisplay& display, bool newComponent) {
+    // A pick made mid-salute must not leave the previous character unarmed.
+    for (uint32_t i = 0; i < CCharacterSelection::s_characterList.Count(); i++) {
+        CharacterSelectionDisplay& other = CCharacterSelection::s_characterList[i];
+
+        if (other.m_component && other.m_component->m_data.m_model) {
+            SetHandItemsHidden(other.m_component->m_data.m_model, false);
+        }
+    }
+
+    CM2Model* model = display.m_component ? display.m_component->m_data.m_model : nullptr;
+
+    if (!model) {
+        return;
+    }
+
+    // Reselecting mid-fade must not take the half-faded alpha as the character's real one (ghosts are translucent).
+    if (newComponent || !s_introFading || s_introComponent != display.m_component) {
+        s_introBaseAlpha = model->m_fadeAlpha;
+    }
+
+    s_introComponent = display.m_component;
+    s_introFading = true;
+    s_introSalute = 0;
+    s_introStartMs = OsGetAsyncTimeMs();
+    model->m_fadeAlpha = 0.0f;
+
+    if (display.m_petModel) {
+        display.m_petModel->m_fadeAlpha = 0.0f;
+    }
+}
+
+static void UpdateSelectionIntro(CharacterSelectionDisplay& display) {
+    CM2Model* model = display.m_component ? display.m_component->m_data.m_model : nullptr;
+
+    if (!model || display.m_component != s_introComponent) {
+        return;
+    }
+
+    uint32_t now = OsGetAsyncTimeMs();
+
+    if (s_introFading) {
+        uint32_t elapsed = now - s_introStartMs;
+        float t = elapsed >= INTRO_FADE_MS ? 1.0f : static_cast<float>(elapsed) / INTRO_FADE_MS;
+        float ease = t * t * (3.0f - 2.0f * t);
+        model->m_fadeAlpha = s_introBaseAlpha * ease;
+
+        if (display.m_petModel) {
+            display.m_petModel->m_fadeAlpha = display.m_petAlpha * ease;
+        }
+
+        s_introFading = t < 1.0f;
+    }
+
+    if (s_introSalute == 0 && model->IsLoaded(0, 0)) {
+        if (model->HasSequence(ANIM_EMOTE_SALUTE)) {
+            M2SequenceInfo info;
+            info.Clear();
+            model->GetSequenceInfo(ANIM_EMOTE_SALUTE, 0, info);
+            model->SetBoneSequence(0xFFFFFFFF, ANIM_EMOTE_SALUTE, 0xFFFFFFFF, 0, 1.0f, 1, 1);
+            s_introEndMs = now + (info.m_duration ? info.m_duration : 2000);
+            s_introSalute = 1;
+            SetHandItemsHidden(model, true);
+        } else {
+            s_introSalute = 2;
+        }
+    } else if (s_introSalute == 1 && static_cast<int32_t>(now - s_introEndMs) >= 0) {
+        model->SetBoneSequence(0xFFFFFFFF, 0, 0xFFFFFFFF, 0, 1.0f, 1, 1);
+        SetHandItemsHidden(model, false);
+        s_introSalute = 2;
+    }
+}
+
 // VERIFY: 68f0d05a auto
 // OFFSET: 0x004E2F10
 int32_t CCharacterSelection::Idle(const void* data, void* param) {
@@ -323,6 +416,7 @@ int32_t CCharacterSelection::Idle(const void* data, void* param) {
     }
 
     CGlueLoading::Idle(CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component);
+    UpdateSelectionIntro(CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex]);
 
     // Saved body sliders of the selected character (none = defaults, which also releases a previous character's).
     CharacterSelectionDisplay& selected = CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex];
@@ -627,6 +721,7 @@ void CCharacterSelection::ShowCharacter() {
     }
 
     CGlueLoading::StartLoad(CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex].m_component, newComponent);
+    BeginSelectionIntro(CCharacterSelection::s_characterList[CCharacterSelection::s_selectionIndex], newComponent != 0);
 }
 
 // VERIFY: eafa3254 manual

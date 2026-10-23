@@ -12,6 +12,7 @@ target_include_directories(Model2
 target_link_libraries(Model2
     PRIVATE
         Extension
+        ASECM3Host
 )
 
 if (WOWDECOMP_RETAIL_ASSETS)

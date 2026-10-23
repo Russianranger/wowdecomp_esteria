@@ -1,4 +1,5 @@
 #include "Engine/Source/Retail/BodyShape.h"
+#include "Extensions/ASECM3/client/UnitWorldBinding.h"
 #include "WoW/Common/ComponentCore/RetailRace.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Unit_C.h"
@@ -1075,6 +1076,7 @@ void CGUnit_C::UpdateDisplayInfo(int32_t force) {
 
     const char* fileName;
     this->GetModelFileName(&fileName);
+    fileName = ASECM3::Client::PrepareUnitModel(this, fileName);
 
     CM2Model* model = World::s_m2Scene->CreateModel(fileName, 0);
 
@@ -1094,6 +1096,7 @@ void CGUnit_C::UpdateDisplayInfo(int32_t force) {
     model->SetSequenceCallback(reinterpret_cast<void*>(&CGUnit_C::AnimEndCallback), this->m_obj->m_guid.m_guid);
     model->SetEventCallback(reinterpret_cast<void*>(&CGUnit_C::AnimEventCallback), this->m_obj->m_guid.m_guid);
     this->SetCharacterModel(model);
+    ASECM3::Client::AttachUnitModel(this);
     model->Release();
     model->m_fFlags ^= (model->m_fFlags ^ (this->m_modelData->m_flags >> 7)) & 0x4;
     this->UpdateModelScale(oldModelData);
@@ -4379,6 +4382,8 @@ void CGUnit_C::UpdateHandItemAnimEffects(bool force) {
 // VERIFY: 4d39ab41 manual
 // OFFSET: 0x007385C0
 void CGUnit_C::PlayBaseAnimation(uint32_t animId, int32_t flags) {
+    ASECM3::Client::OnUnitBaseAnimation(this, animId, flags);
+
     if (!(this->m_modelFlags & 0x40000) || (this->m_modelFlags & 0x20000) || !this->GetObjectModel() || !this->m_worldModel) {
         return;
     }
@@ -7951,6 +7956,13 @@ int32_t CGUnit_C::GetModelFileName(const char** name) const {
             unsigned(this->m_unit->m_unitFieldBytes0[2]), unsigned(this->m_displayId), unsigned(this->m_unit->m_unitFieldNativedisplayid),
             int(this->m_obj->m_guid == ClntObjMgrGetActivePlayer()));
         BodyShape::Log(line);
+    }
+
+    if (this->m_obj->m_guid == ClntObjMgrGetActivePlayer()) {
+        if (const char* m3 = ASECM3::Client::PlayerModelOverride()) {
+            *name = m3;
+            return 1;
+        }
     }
 
     // Same display the stock GetModelData resolves: players in view start with m_displayId 0, which means "use the
@@ -13483,6 +13495,7 @@ void CGUnit_C::PlayAttackerRound(const ATTACKROUNDINFO& info) {
     }
 
     if (!skipAnimation) {
+        ASECM3::Client::OnUnitSwing(this, anim);
         this->PlayBaseAnimation(anim, 0);
     }
 

@@ -1,3 +1,4 @@
+#include <functional>
 #include <memory>
 #include <unordered_set>
 #include "WoW/Source/DB/Rec/ItemDisplayInfoRec.h"
@@ -7,6 +8,7 @@
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Engine/Source/Retail/EyeEffects.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
+#include "WoW/Common/ComponentCore/ComponentUtils.h"
 #include "WoW/Common/ComponentCore/CreatureAppearance.h"
 #include "WoW/Common/ComponentCore/EarthenAppearance.h"
 #include "WoW/Common/ComponentCore/RetailRace.h"
@@ -53,18 +55,72 @@ struct Selection {
     char path[128];
 };
 
-FILE* CatalogFile(const wchar_t* name) {
-    wchar_t path[MAX_PATH] = {};
-    if (!GetModuleFileNameW(nullptr, path, MAX_PATH)) {
-        return nullptr;
+// Catalogs are read from the MPQ stack (Esteria\<name>); a copy beside the executable is the fallback.
+struct Catalog {
+    const std::vector<uint8_t>* data = nullptr;
+    size_t pos = 0;
+
+    explicit operator bool() const { return data != nullptr; }
+
+    size_t Read(void* out, size_t size, size_t count) {
+        if (!size || count > (data->size() - pos) / size) {
+            return 0;
+        }
+        memcpy(out, data->data() + pos, size * count);
+        pos += size * count;
+        return count;
     }
-    wchar_t* slash = wcsrchr(path, L'\\');
-    if (!slash || slash - path + 1 + wcslen(name) >= MAX_PATH) {
-        return nullptr;
+
+    bool Seek(size_t offset) {
+        if (offset > data->size()) {
+            return false;
+        }
+        pos = offset;
+        return true;
     }
-    wcscpy(slash + 1, name);
-    FILE* file = nullptr;
-    return _wfopen_s(&file, path, L"rb") ? nullptr : file;
+};
+
+void Trace(const char* format, ...);
+
+Catalog CatalogFile(const wchar_t* name) {
+    static std::unordered_map<std::wstring, std::vector<uint8_t>> cache;
+    auto found = cache.find(name);
+    if (found == cache.end()) {
+        std::vector<uint8_t> bytes;
+        char path[MAX_PATH] = {};
+        sprintf_s(path, "Esteria\\%ls", name);
+        void* file = nullptr;
+        uint32_t size = 0;
+        const bool packed = SFile::LoadFile(path, &file, &size, 0, nullptr) && file;
+        Trace("catalog %ls from %s", name, packed ? "mpq" : "disk");
+        if (packed) {
+            bytes.assign(static_cast<const uint8_t*>(file), static_cast<const uint8_t*>(file) + size);
+            SFile::Unload(file);
+        } else {
+            wchar_t disk[MAX_PATH] = {};
+            wchar_t* slash = GetModuleFileNameW(nullptr, disk, MAX_PATH) ? wcsrchr(disk, L'\\') : nullptr;
+            FILE* input = nullptr;
+            if (slash && slash - disk + 1 + wcslen(name) < MAX_PATH) {
+                wcscpy(slash + 1, name);
+                if (!_wfopen_s(&input, disk, L"rb") && input) {
+                    fseek(input, 0, SEEK_END);
+                    bytes.resize(ftell(input));
+                    fseek(input, 0, SEEK_SET);
+                    if (fread(bytes.data(), 1, bytes.size(), input) != bytes.size()) {
+                        bytes.clear();
+                    }
+                    fclose(input);
+                }
+            }
+        }
+        // An empty entry caches a miss so absent catalogs are not re-probed.
+        found = cache.emplace(name, std::move(bytes)).first;
+    }
+    Catalog catalog;
+    if (!found->second.empty()) {
+        catalog.data = &found->second;
+    }
+    return catalog;
 }
 
 void Trace(const char* format, ...) {
@@ -93,16 +149,16 @@ void Trace(const char* format, ...) {
 
 std::vector<Selection> ReadSelections(const wchar_t* name) {
     std::vector<Selection> result;
-    FILE* file = CatalogFile(name);
+    Catalog file = CatalogFile(name);
     if (!file) {
         return result;
     }
 
     uint32_t header[3] = {};
-    if (fread(header, sizeof(header), 1, file) == 1 && header[0] == 0x314D4845 && header[1] == 1 && header[2] <= 16384) {
+    if (file.Read(header, sizeof(header), 1) == 1 && header[0] == 0x314D4845 && header[1] == 1 && header[2] <= 16384) {
         for (uint32_t i = 0; i < header[2]; i++) {
             Selection record = {};
-            if (fread(&record, sizeof(record), 1, file) != 1) {
+            if (file.Read(&record, sizeof(record), 1) != 1) {
                 break;
             }
 
@@ -126,7 +182,6 @@ std::vector<Selection> ReadSelections(const wchar_t* name) {
         }
     }
 
-    fclose(file);
     return result;
 }
 
@@ -180,16 +235,16 @@ const std::vector<Selection>& RaceSelections(uint32_t race) {
 uint32_t DrakonidTextureCoverage(CCharacterComponent* character) {
     static const std::unordered_map<uint32_t, uint32_t> masks = [] {
         std::unordered_map<uint32_t, uint32_t> result;
-        FILE* file = CatalogFile(L"EsteriaDrakonidCoverage.bin");
+        Catalog file = CatalogFile(L"EsteriaDrakonidCoverage.bin");
         if (!file) {
             return result;
         }
 
         uint32_t header[3] = {};
-        if (fread(header, sizeof(header), 1, file) == 1 && header[0] == 0x56434253 && header[1] == 1 && header[2] <= 65536) {
+        if (file.Read(header, sizeof(header), 1) == 1 && header[0] == 0x56434253 && header[1] == 1 && header[2] <= 65536) {
             for (uint32_t i = 0; i < header[2]; i++) {
                 uint32_t row[2] = {};
-                if (fread(row, sizeof(row), 1, file) != 1 || !row[0] || !row[1] || row[1] >= 256) {
+                if (file.Read(row, sizeof(row), 1) != 1 || !row[0] || !row[1] || row[1] >= 256) {
                     result.clear();
                     break;
                 }
@@ -197,7 +252,6 @@ uint32_t DrakonidTextureCoverage(CCharacterComponent* character) {
             }
         }
 
-        fclose(file);
         return result;
     }();
 
@@ -262,16 +316,16 @@ bool ValidFields(uint32_t race, uint32_t gender, const Fields13& fields) {
 uint32_t SaberonTextureCoverage(CCharacterComponent* character) {
     static const std::unordered_map<uint32_t, uint32_t> masks = [] {
         std::unordered_map<uint32_t, uint32_t> result;
-        FILE* file = CatalogFile(L"EsteriaSaberonCoverage.bin");
+        Catalog file = CatalogFile(L"EsteriaSaberonCoverage.bin");
         if (!file) {
             return result;
         }
 
         uint32_t header[3] = {};
-        if (fread(header, sizeof(header), 1, file) == 1 && header[0] == 0x56434253 && header[1] == 1 && header[2] <= 65536) {
+        if (file.Read(header, sizeof(header), 1) == 1 && header[0] == 0x56434253 && header[1] == 1 && header[2] <= 65536) {
             for (uint32_t i = 0; i < header[2]; i++) {
                 uint32_t row[2] = {};
-                if (fread(row, sizeof(row), 1, file) != 1 || !row[0] || !row[1] || row[1] >= 128) {
+                if (file.Read(row, sizeof(row), 1) != 1 || !row[0] || !row[1] || row[1] >= 128) {
                     result.clear();
                     break;
                 }
@@ -279,7 +333,6 @@ uint32_t SaberonTextureCoverage(CCharacterComponent* character) {
             }
         }
 
-        fclose(file);
         return result;
     }();
 
@@ -733,7 +786,7 @@ bool ComposeGroup(CCharacterComponent* character, const Options& options, uint32
         *lower = *upper = nullptr;
     }
 
-    FILE* input = CatalogFile(bankName);
+    Catalog input = CatalogFile(bankName);
     if (!input) {
         return false;
     }
@@ -741,14 +794,14 @@ bool ComposeGroup(CCharacterComponent* character, const Options& options, uint32
     using DecompressFn = LONG(WINAPI*)(USHORT, PUCHAR, ULONG, PUCHAR, ULONG, PULONG);
     DecompressFn decompress = reinterpret_cast<DecompressFn>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlDecompressBuffer"));
     uint32_t header[4] = {};
-    bool valid = decompress && fread(header, sizeof(header), 1, input) == 1 && header[0] == 0x31544845 && header[1] == 1 && header[2] <= 4096;
+    bool valid = decompress && input.Read(header, sizeof(header), 1) == 1 && header[0] == 0x31544845 && header[1] == 1 && header[2] <= 4096;
     std::vector<uint8_t> pixels;
     uint32_t width = 0;
     uint32_t height = 0;
 
     for (size_t i = 0; valid && i < layers.size(); i++) {
         uint32_t item[3] = {};
-        if (fseek(input, layers[i]->value, SEEK_SET) || fread(item, sizeof(item), 1, input) != 1 || !item[0] || !item[1] || item[0] > 512 || item[1] > 512 || item[2] > 2 * 1024 * 1024) {
+        if (!input.Seek(layers[i]->value) || input.Read(item, sizeof(item), 1) != 1 || !item[0] || !item[1] || item[0] > 512 || item[1] > 512 || item[2] > 2 * 1024 * 1024) {
             valid = false;
             break;
         }
@@ -756,7 +809,7 @@ bool ComposeGroup(CCharacterComponent* character, const Options& options, uint32
         std::vector<uint8_t> packed(item[2]);
         std::vector<uint8_t> layer(item[0] * item[1] * 4);
         ULONG size = 0;
-        if (fread(packed.data(), 1, packed.size(), input) != packed.size()
+        if (input.Read(packed.data(), 1, packed.size()) != packed.size()
             || decompress(2, layer.data(), static_cast<ULONG>(layer.size()), packed.data(), item[2], &size) || size != layer.size()) {
             valid = false;
             break;
@@ -784,7 +837,6 @@ bool ComposeGroup(CCharacterComponent* character, const Options& options, uint32
         }
     }
 
-    fclose(input);
     if (!valid || pixels.empty()) {
         return false;
     }
@@ -1702,6 +1754,87 @@ int EsteriaCycleCommand(lua_State* L, CCharacterComponent* character, const char
     uint32_t race = prefs.m_raceID;
     uint32_t gender = prefs.m_sexID;
 
+    // The five stock options (skin, face, hair style, hair colour, facial feature) of races on the stock layout:
+    // EA_STOCK_GET -> value, count; EA_STOCK_CHOICES -> "0,1,3," (the values the stock cycling would land on).
+    if (!strcmp(command, "EA_STOCK_GET") || !strcmp(command, "EA_STOCK_CHOICES")) {
+        if (!lua_isnumber(L, 2)) {
+            return 0;
+        }
+
+        const double requested = lua_tonumber(L, 2);
+
+        if (requested < 1 || requested > 5 || requested != floor(requested)) {
+            return 0;
+        }
+
+        st_race* table = CCharacterComponent::s_chrVarArray;
+        const COMPONENT_SELECTION selection = GetSelectionFromContext(COMPONENT_CONTEXT_0, prefs.m_classId);
+        auto allowed = [&](COMPONENT_VARIATIONS variation, int32_t index, int32_t color) {
+            CharSectionsRec* rec = ComponentGetSectionsRecord(table, race, gender, variation, index, color, nullptr);
+            return rec && ComponentFlagsMatch(rec->m_flags, selection);
+        };
+
+        int32_t value = 0;
+        int32_t count = 0;
+        bool noRecords = false; // facial features without section rows are counted from a plain list
+        std::function<bool(int32_t)> valid;
+
+        switch (static_cast<int32_t>(requested)) {
+            case 1:
+                value = prefs.m_skinID;
+                count = ComponentGetNumColors(table, race, gender, VARIATION_SKIN, 0);
+                valid = [&](int32_t v) { return allowed(VARIATION_SKIN, 0, v) && allowed(VARIATION_FACE, prefs.m_faceId, v); };
+                break;
+            case 2:
+                value = prefs.m_faceId;
+                count = ComponentGetNumVariations(table, race, gender, VARIATION_FACE);
+                valid = [&](int32_t v) { return allowed(VARIATION_FACE, v, prefs.m_skinID); };
+                break;
+            case 3:
+                value = prefs.m_hairStyleId;
+                count = ComponentGetNumVariations(table, race, gender, VARIATION_HAIR);
+                valid = [&](int32_t v) { return allowed(VARIATION_HAIR, v, prefs.m_hairColorId); };
+                break;
+            case 4:
+                value = prefs.m_hairColorId;
+                count = ComponentGetNumColors(table, race, gender, VARIATION_HAIR, prefs.m_hairStyleId);
+                valid = [&](int32_t v) { return allowed(VARIATION_HAIR, prefs.m_hairStyleId, v); };
+                break;
+            default:
+                value = prefs.m_facialHairId;
+                count = ComponentGetNumVariations(table, race, gender, VARIATION_FACIAL_HAIR);
+
+                if (!count) {
+                    noRecords = true;
+                    count = CCharacterComponent::s_characterFacialHairStylesList[race * 2 + gender];
+                }
+
+                valid = [&](int32_t v) { return noRecords || allowed(VARIATION_FACIAL_HAIR, v, prefs.m_hairColorId); };
+                break;
+        }
+
+        if (count < 0 || count > 256) {
+            return 0;
+        }
+
+        if (!strcmp(command, "EA_STOCK_GET")) {
+            lua_pushnumber(L, value);
+            lua_pushnumber(L, count);
+            return 2;
+        }
+
+        std::string choices;
+
+        for (int32_t v = 0; v < count; v++) {
+            if (valid(v)) {
+                choices += std::to_string(v) + ",";
+            }
+        }
+
+        lua_pushstring(L, choices.c_str());
+        return 1;
+    }
+
     if (!strcmp(command, "EA_PREVIEW_SAVE") || !strcmp(command, "EA_PREVIEW_RESTORE") || !strcmp(command, "EA_PREVIEW_END")) {
         lua_pushnumber(L, PreviewAppearance(character, command) ? 1 : 0);
         return 1;
@@ -1822,23 +1955,23 @@ bool ValidSkin(std::vector<unsigned char>& skin) {
 std::vector<CatalogSkin>& CatalogSkins() {
     static std::vector<CatalogSkin> skins = [] {
         std::vector<CatalogSkin> result;
-        FILE* file = CatalogFile(L"EsteriaAppearanceGeometry.bin");
+        Catalog file = CatalogFile(L"EsteriaAppearanceGeometry.bin");
         if (!file) {
             return result;
         }
 
         uint32_t header[3] = {};
-        if (fread(header, sizeof(header), 1, file) == 1 && header[0] == 0x4D474145 && header[1] == 1 && header[2] <= 258) {
+        if (file.Read(header, sizeof(header), 1) == 1 && header[0] == 0x4D474145 && header[1] == 1 && header[2] <= 258) {
             for (uint32_t i = 0; i < header[2]; i++) {
                 CatalogSkin entry = {};
                 uint32_t length = 0;
-                if (fread(entry.model, sizeof(entry.model), 1, file) != 1 || !memchr(entry.model, 0, sizeof(entry.model))
-                    || fread(&length, sizeof(length), 1, file) != 1 || length > 16 * 1024 * 1024) {
+                if (file.Read(entry.model, sizeof(entry.model), 1) != 1 || !memchr(entry.model, 0, sizeof(entry.model))
+                    || file.Read(&length, sizeof(length), 1) != 1 || length > 16 * 1024 * 1024) {
                     break;
                 }
 
                 entry.skin.resize(length);
-                if (fread(entry.skin.data(), length, 1, file) != 1 || !ValidSkin(entry.skin)) {
+                if (file.Read(entry.skin.data(), length, 1) != 1 || !ValidSkin(entry.skin)) {
                     break;
                 }
 
@@ -1846,7 +1979,6 @@ std::vector<CatalogSkin>& CatalogSkins() {
             }
         }
 
-        fclose(file);
         return result;
     }();
 

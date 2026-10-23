@@ -327,6 +327,7 @@ uint32_t CGxDeviceVulkan::IShaderPrograms(pipelines::Draw& draw) {
     draw.fragment = pipelines::FragmentProgram::FixedFunction;
     draw.vertexRecord = nullptr;
     draw.fragmentRecord = nullptr;
+    draw.pixelExtraRows = 0;
     draw.vertexRows = pipelines::kVertexRowsSmall;
 
     if (!vsTranslated && !psTranslated) {
@@ -378,6 +379,7 @@ uint32_t CGxDeviceVulkan::IShaderPrograms(pipelines::Draw& draw) {
     if (psTranslated) {
         draw.fragment = pipelines::FragmentProgram::Translated;
         draw.fragmentRecord = ps->record;
+        draw.pixelExtraRows = ps->record->pext;
     } else {
         const manifest::Record* companion = vsTranslated ? manifest::Companion(*vs->record) : nullptr;
 
