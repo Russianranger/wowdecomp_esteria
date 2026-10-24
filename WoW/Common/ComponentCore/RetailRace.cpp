@@ -613,8 +613,25 @@ bool SyncBodyModel(CCharacterComponent* character) {
     return true;
 }
 
+// Faces added over the retail tables ship in the client archives: Esteria\RetailExtras.txt defines them and their
+// textures carry file ids in this range, read from custom\nightborne\faces.
+constexpr uint32_t kExtraTextureFirst = 8800000, kExtraTextureLimit = 8900000;
+
+bool ExtrasFromArchive(std::string& text) {
+    void* data = nullptr;
+    uint32_t size = 0;
+    if (!SFileLoadFileEx(nullptr, "Esteria\\RetailExtras.txt", &data, &size, 0, 0, nullptr) || !data) return false;
+    text.assign(static_cast<const char*>(data), size);
+    SFileUnloadFile(data);
+    return true;
+}
+
+const bool g_extrasRegistered = (app::SetExtrasProvider(&ExtrasFromArchive), true);
+
 bool FetchBlp(uint32_t fileDataId, std::vector<uint8_t>& bytes, void*) {
-    const auto local = Retail::SlimeGiant::TexturePath(fileDataId);
+    const auto local = fileDataId >= kExtraTextureFirst && fileDataId < kExtraTextureLimit
+        ? "custom\\nightborne\\faces\\" + std::to_string(fileDataId) + ".blp"
+        : Retail::SlimeGiant::TexturePath(fileDataId);
     if (!local.empty()) {
         void* data = nullptr;
         uint32_t size = 0;

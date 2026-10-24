@@ -1,4 +1,5 @@
 #include "AddOns.h"
+#include "BuiltinAddOns.h"
 #include <cstdlib>
 #include <cstring>
 #include <malloc.h>
@@ -41,6 +42,10 @@ static char s_addOnAccountName[1280];
 
 // STATIC: 0x00C24918
 static bool s_addOnsInitialized;
+
+const char* GetAddOnAccountName() {
+    return s_addOnAccountName;
+}
 
 // VERIFY: e4678852 auto
 // OFFSET: 0x005F4910
@@ -1560,6 +1565,8 @@ void UnloadAddOns() {
     if (!OsDirectoryExists(path)) {
         OsCreateDirectory(path, 1);
     }
+
+    SaveBuiltinAddOns();
 
     for (UIADDON* addon = s_addons.m_fulllist.Head(); addon; addon = s_addons.Next(addon)) {
         if (!addon->m_loading) {

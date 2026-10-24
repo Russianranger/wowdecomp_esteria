@@ -51,6 +51,8 @@ namespace Retail::Db2::wdc5
                   uint32_t expectedLayoutHash, std::string* error = nullptr);
 
         const Row* Find(uint32_t id) const noexcept;
+        // Appends a copy of row `sourceId` under `id`, with the given fields (element 0) replaced. Invalidates Row pointers.
+        bool Clone(uint32_t sourceId, uint32_t id, const std::vector<std::pair<size_t, uint32_t>>& sets);
         uint32_t Value(const Row& row, size_t field, size_t element = 0) const noexcept;
         size_t ElementCount(size_t field) const noexcept;
         // Text of the n-th text field of a row ("" when the table declared none).
@@ -125,6 +127,8 @@ namespace Retail::Db2
 
         const wdc5::Row* Find(uint32_t id) const noexcept { return table_.Find(id); }
         const std::vector<wdc5::Row>& Rows() const noexcept { return table_.Rows(); }
+        // Synthetic row: a copy of `sourceId` under `id` with named fields replaced (the ID field follows `id`).
+        bool Clone(uint32_t sourceId, uint32_t id, std::vector<std::pair<std::string_view, uint32_t>> sets);
 
         uint32_t Value(const wdc5::Row& row, size_t field, size_t element = 0) const noexcept;
         uint32_t Value(const wdc5::Row& row, std::string_view field, size_t element = 0) const noexcept;

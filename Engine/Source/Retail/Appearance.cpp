@@ -10,6 +10,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <mutex>
+#include <sstream>
 #include <unordered_map>
 #include <set>
 
@@ -221,6 +222,7 @@ namespace Retail::Db2::appearance
         struct Store {
             Table textureFileData;
             std::unordered_map<uint32_t, std::vector<std::pair<uint32_t, uint32_t>>> materialFiles;
+            std::unordered_map<uint32_t, uint32_t> extraFiles; // synthetic MaterialResourcesID -> FileDataID
             std::once_flag textureFileOnce;
             StoreStatus status;
             std::once_flag loadOnce;
@@ -287,6 +289,69 @@ namespace Retail::Db2::appearance
             }
         }
 
+        ExtrasProvider g_extrasProvider = nullptr;
+
+        /// Clones each configured face choice over the retail tables, so a face can be added without a new DB2.
+        /// Runs after the tables decode and before any index over them is built.
+        void ApplyExtras()
+        {
+            std::string text;
+            if (currentSource != SourceKind::Retail || !g_extrasProvider || !g_extrasProvider(text)) return;
+
+            uint32_t elementNext = 9000000, materialNext = 9000000, resourceNext = 9000000;
+            std::istringstream lines(text);
+            for (std::string line; std::getline(lines, line);)
+            {
+                std::istringstream words(line);
+                std::string kind;
+                uint32_t option = 0, source = 0, id = 0, fallback = 0;
+                if (!(words >> kind >> option >> source >> id >> fallback) || kind != "face") continue;
+                std::unordered_map<uint32_t, uint32_t> skins;
+                for (std::string pair; words >> pair;)
+                {
+                    uint32_t related = 0, file = 0;
+                    if (std::sscanf(pair.c_str(), "%u=%u", &related, &file) == 2) skins[related] = file;
+                }
+
+                const wdc5::Row* sourceRow = State().choice.Find(source);
+                if (!sourceRow || State().choice.Value(*sourceRow, "ChrCustomizationOptionID") != option || State().choice.Find(id))
+                {
+                    AppearanceLog("extra face %u: source %u missing or id taken", id, source);
+                    continue;
+                }
+
+                uint32_t order = 0, uiOrder = 0;
+                for (const wdc5::Row& row : State().choice.Rows())
+                {
+                    if (State().choice.Value(row, "ChrCustomizationOptionID") != option) continue;
+                    order = std::max(order, State().choice.Value(row, "OrderIndex") + 1);
+                    uiOrder = std::max(uiOrder, State().choice.Value(row, "UiOrderIndex") + 1);
+                }
+                if (!State().choice.Clone(source, id, { { "OrderIndex", order }, { "UiOrderIndex", uiOrder } })) continue;
+
+                std::vector<uint32_t> elements;
+                for (const wdc5::Row& row : State().element.Rows())
+                    if (State().element.Value(row, "ChrCustomizationChoiceID") == source) elements.push_back(row.id);
+                for (const uint32_t elementId : elements)
+                {
+                    const wdc5::Row* element = State().element.Find(elementId);
+                    const uint32_t related = State().element.Value(*element, "RelatedChrCustomizationChoiceID");
+                    const uint32_t material = State().element.Value(*element, "ChrCustomizationMaterialID");
+                    std::vector<std::pair<std::string_view, uint32_t>> sets = { { "ChrCustomizationChoiceID", id } };
+                    if (material)
+                    {
+                        const auto skin = skins.find(related);
+                        const uint32_t file = skin == skins.end() ? fallback : skin->second;
+                        if (!file || !State().material.Clone(material, materialNext, { { "MaterialResourcesID", resourceNext } })) continue;
+                        State().extraFiles[resourceNext++] = file;
+                        sets.push_back({ "ChrCustomizationMaterialID", materialNext++ });
+                    }
+                    State().element.Clone(elementId, elementNext++, std::move(sets));
+                }
+                AppearanceLog("extra face %u added to option %u from choice %u", id, option, source);
+            }
+        }
+
         void Load()
         {
             std::string error;
@@ -340,6 +405,8 @@ namespace Retail::Db2::appearance
                 AppearanceLog("%s", State().status.error.c_str());
                 return;
             }
+
+            ApplyExtras();
 
             for (const wdc5::Row& row : State().raceModel.Rows())
             {
@@ -494,6 +561,11 @@ namespace Retail::Db2::appearance
                 if (compatible && fallback) AddMaterialLayers(fallback, layoutId, out);
             }
         }
+    }
+
+    void SetExtrasProvider(ExtrasProvider provider)
+    {
+        g_extrasProvider = provider;
     }
 
     const StoreStatus& Status()
@@ -762,6 +834,7 @@ namespace Retail::Db2::appearance
 
     uint32_t MaterialFileDataId(uint32_t materialResourcesId, uint32_t usage)
     {
+        if (const auto extra = State().extraFiles.find(materialResourcesId); extra != State().extraFiles.end()) return extra->second;
         std::call_once(State().textureFileOnce, &LoadTextureFileData);
         const auto it = State().materialFiles.find(materialResourcesId);
         if (it == State().materialFiles.end()) return 0;

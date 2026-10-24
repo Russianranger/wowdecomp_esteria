@@ -300,6 +300,16 @@ static void SetupMultisampleFormats() {
             s_multisampleFormats.New(format);
         }
     }
+
+    // Not in the original: the Vulkan device lists no adapter formats and always renders with one sample.
+    // An empty list leaves the Multisampling dropdown showing stale text from another dropdown.
+    if (!s_multisampleFormats.Count()) {
+        C3iVector format;
+        format.x = colorBits;
+        format.y = depthBits;
+        format.z = 1;
+        s_multisampleFormats.New(format);
+    }
 }
 
 // VERIFY: eea3ee86 auto

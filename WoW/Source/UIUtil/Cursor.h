@@ -11,6 +11,7 @@ void CursorInitialize();
 void CursorDestroy();
 void CursorRegisterCVars();
 void CursorInitializeOptions();
+void DistanceInitializeOptions();
 
 void CursorReleaseItemMips();
 void CursorSetHeldItem(WOWGUID item);

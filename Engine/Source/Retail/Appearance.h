@@ -62,6 +62,13 @@ namespace Retail::Db2::appearance
         uint32_t    displayInfos = 0, modelData = 0, creatureGeosets = 0;
     };
 
+    /// Extra customization choices layered over the retail tables (the client supplies them from its archives).
+    /// Fills `text` with lines `face <option> <sourceChoice> <newChoice> <defaultFileDataId> [<relatedChoice>=<fileDataId> ...]`
+    /// and `#` comments. Each face clones the source choice, its elements and its materials under new ids, and points the
+    /// cloned materials at the given textures. Must be set before the first appearance query.
+    using ExtrasProvider = bool (*)(std::string& text);
+    void SetExtrasProvider(ExtrasProvider provider);
+
     /// Triggers the load on first use.
     const StoreStatus& Status();
 

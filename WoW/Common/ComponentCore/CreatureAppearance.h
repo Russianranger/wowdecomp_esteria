@@ -64,7 +64,7 @@ namespace CreatureAppearance
 
     inline constexpr std::array<Option, 5> ThinhumanMale = {{
         {0, 4, 1},
-        {1, 1, 1},
+        {1, 2, 1},
         {2, 4, 1},
         {3, 4, 1},
         {4, 7, 1},
@@ -327,7 +327,7 @@ namespace CreatureAppearance
     };
 
     inline constexpr std::array<Option, 5> VenthyrMale = {{
-        {0, 7, 1},
+        {0, 14, 1},
         {1, 108, 1},
         {2, 8, 1},
         {3, 7, 1},
@@ -335,7 +335,7 @@ namespace CreatureAppearance
     }};
 
     inline constexpr std::array<Option, 8> VenthyrMaleControls = {{
-        {0, 7, 1},
+        {0, 14, 1},
         {2, 8, 1},
         {3, 7, 1},
         {1, 6, 1},

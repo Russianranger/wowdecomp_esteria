@@ -12,7 +12,17 @@
 
 namespace app = Retail::Db2::appearance;
 
+// WOW_RETAIL_EXTRAS names a file in the client's RetailExtras.txt format, so extra choices can be checked offline.
+bool ExtrasFromFile(std::string& text) {
+    const char* path = std::getenv("WOW_RETAIL_EXTRAS");
+    std::ifstream in(path ? path : "", std::ios::binary);
+    if (!in) return false;
+    text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    return true;
+}
+
 int main(int argc, char** argv) {
+    app::SetExtrasProvider(&ExtrasFromFile);
     const bool forever = argc > 1 && std::string(argv[1]) == "--forever";
     if (forever) { --argc; ++argv; }
     Retail::SourceScope scope(forever ? Retail::SourceKind::Forever : Retail::SourceKind::Retail);
@@ -146,6 +156,30 @@ int main(int argc, char** argv) {
             }
             std::printf("\n");
             if (++shown >= 200) break;
+        }
+        return 0;
+    }
+    if (argc == 4 && std::string(argv[2]) == "choice-textures") {
+        // RetailRaceProbe <ini> choice-textures <optionId>: each choice's materials down to their texture FileDataIDs.
+        _putenv_s(forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
+        if (!app::Status().loaded) return 1;
+        const auto* elements = app::Get("chrcustomizationelement");
+        const auto* materials = app::Get("chrcustomizationmaterial");
+        const uint32_t option = uint32_t(std::strtoul(argv[3], nullptr, 10));
+        for (uint32_t i = 0; i < app::ChoiceCount(option); ++i) {
+            app::ChrChoice choice{};
+            if (!app::ChoiceAt(option, i, choice)) return 1;
+            for (const auto& row : elements->Rows()) {
+                if (elements->Value(row, "ChrCustomizationChoiceID") != choice.id) continue;
+                const uint32_t material = elements->Value(row, "ChrCustomizationMaterialID");
+                if (!material) continue;
+                const auto* m = materials->Find(material);
+                if (!m) continue;
+                const uint32_t resource = materials->Value(*m, "MaterialResourcesID");
+                std::printf("choice %u idx %u related %u element %u material %u target %u resource %u file %u\n", choice.id, i,
+                    elements->Value(row, "RelatedChrCustomizationChoiceID"), row.id, material,
+                    materials->Value(*m, "ChrModelTextureTargetID"), resource, app::MaterialFileDataId(resource, 0));
+            }
         }
         return 0;
     }

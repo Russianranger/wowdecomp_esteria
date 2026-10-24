@@ -458,6 +458,22 @@ namespace Retail::Db2::wdc5
         return it == byId_.end() ? nullptr : &rows_[it->second];
     }
 
+    bool Table::Clone(uint32_t sourceId, uint32_t id, const std::vector<std::pair<size_t, uint32_t>>& sets)
+    {
+        const Row* source = Find(sourceId);
+        if (!source || Find(id)) return false;
+        Row copy = *source;
+        copy.id = id;
+        for (const auto& [field, value] : sets)
+        {
+            if (field + 1 >= fieldOffsets_.size() || fieldOffsets_[field] >= copy.values.size()) return false;
+            copy.values[fieldOffsets_[field]] = value;
+        }
+        rows_.push_back(std::move(copy));
+        byId_[id] = rows_.size() - 1;
+        return true;
+    }
+
     uint32_t Table::Value(const Row& row, size_t field, size_t element) const noexcept
     {
         if (field + 1 >= fieldOffsets_.size()) return 0;
@@ -601,6 +617,19 @@ namespace Retail::Db2
     {
         const size_t index = FieldIndex(field);
         return index == kMissingField ? 0 : table_.Value(row, index, element);
+    }
+
+    bool Table::Clone(uint32_t sourceId, uint32_t id, std::vector<std::pair<std::string_view, uint32_t>> sets)
+    {
+        std::vector<std::pair<size_t, uint32_t>> indexed;
+        for (const auto& [name, value] : sets)
+        {
+            const size_t index = FieldIndex(name);
+            if (index == kMissingField) return false;
+            indexed.emplace_back(index, value);
+        }
+        if (const size_t idField = FieldIndex("ID"); idField != kMissingField) indexed.emplace_back(idField, id);
+        return table_.Clone(sourceId, id, indexed);
     }
 
     size_t Table::FieldIndex(std::string_view field) const noexcept

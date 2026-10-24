@@ -140,6 +140,7 @@
 #include "WoW/Source/Ui/WorldFrame.h"
 #include "WoW/Source/Ui/WorldMap.h"
 #include "WoW/Source/UIUtil/Camera.h"
+#include "WoW/Source/UIUtil/BuiltinAddOns.h"
 #include "WoW/Source/UIUtil/Cursor.h"
 #include "WoW/Source/UIUtil/InputControl.h"
 #include "WoW/Source/UIUtil/PortraitButton.h"
@@ -1805,7 +1806,9 @@ void CGGameUI::InitializeFrameXML() {
     }
 
     CursorInitializeOptions();
+    DistanceInitializeOptions();
     BugReportRegister();
+    LoadBuiltinAddOns(&status);
     LoadAddOns(&status);
     FrameXML_RegisterLoadProgressCallback(nullptr, nullptr, 0);
     CGGameUI::Initialize();

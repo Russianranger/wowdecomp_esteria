@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include <new>
+#include "Engine/Source/BlizzardCore/EmbeddedFiles.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/IOMpqUnit.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFile.h"
@@ -983,6 +984,16 @@ void System_SFile2::BuildFileSystemHash() {
 // VERIFY: f3281a6b manual
 // OFFSET: 0x00424780
 bool System_SFile2::FindFile(const char* name, char* path, uint32_t size, uint32_t flags, SFILE_TYPE* type, System_SFile::ARCHIVEREC** archive) {
+    const uint8_t* embedded;
+    uint32_t embeddedSize;
+
+    if (EmbeddedFileFind(name, &embedded, &embeddedSize)) {
+        if (archive) *archive = nullptr;
+        Blizzard::String::Copy(path, name, size);
+        *type = SFILE_RETAIL;
+        return true;
+    }
+
 #if defined(WOWDECOMP_RETAIL_ASSETS)
     if (Retail::SourceForPath(name).Handles(name)) {
         if (archive) *archive = nullptr;
@@ -1092,6 +1103,29 @@ int32_t STORMAPI SFile::OpenEx(SArchive* archive, const char* name, uint32_t fla
 
     if (!archive && sExtensionMgr->OnFileOpen(name, redirected, sizeof(redirected))) {
         name = redirected;
+    }
+
+    // Not in the original: files compiled into the executable open as memory files.
+    const uint8_t* embedded;
+    uint32_t embeddedSize;
+
+    if (!archive && EmbeddedFileFind(name, &embedded, &embeddedSize)) {
+        SFileImpl* file = new (0u, __FILE__, __LINE__) SFileImpl(SFILE_RETAIL);
+        file->m_size = embeddedSize;
+        file->m_position = 0;
+        file->m_name = Blizzard::String::Duplicate(name);
+        file->m_data = static_cast<uint8_t*>(Blizzard::Memory::Allocate(std::max(uint32_t(1), embeddedSize), 0, __FILE__, __LINE__));
+
+        if (!file->m_data) {
+            delete file;
+            SErrSetLastError(8);
+            return 0;
+        }
+
+        std::memcpy(file->m_data, embedded, embeddedSize);
+        *result = file;
+        sExtensionMgr->OnFileOpened(name, file);
+        return 1;
     }
 
 #if defined(WOWDECOMP_RETAIL_ASSETS)
@@ -1376,6 +1410,13 @@ int32_t STORMAPI SFileOpenFile(const char* name, SFileImpl** result) {
 // VERIFY: 933721df auto
 // OFFSET: 0x004217A0
 int32_t STORMAPI SFile::FileIsLocal(const char* name, int32_t flags) {
+    const uint8_t* embedded;
+    uint32_t embeddedSize;
+
+    if (EmbeddedFileFind(name, &embedded, &embeddedSize)) {
+        return 1;
+    }
+
 #if defined(WOWDECOMP_RETAIL_ASSETS)
     // A named reference may still need a CDN fetch. Open handles have already completed it.
     if (Retail::SourceForPath(name).Handles(name)) {
@@ -1396,6 +1437,13 @@ int32_t STORMAPI SFile::FileIsLocal(SFileImpl* file, int32_t flags) {
 // VERIFY: 06d4e040 auto
 // OFFSET: 0x00421800
 int32_t STORMAPI SFile::MakeFileLocal(const char* name, int32_t priority, bool wait) {
+    const uint8_t* embedded;
+    uint32_t embeddedSize;
+
+    if (EmbeddedFileFind(name, &embedded, &embeddedSize)) {
+        return 1;
+    }
+
 #if defined(WOWDECOMP_RETAIL_ASSETS)
     if (Retail::SourceForPath(name).Handles(name)) {
         if (!wait) {
