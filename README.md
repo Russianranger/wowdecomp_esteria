@@ -1,19 +1,68 @@
-# wowdecomp
+# wowdecomp: Esteria fork
 
-A C++ decompilation of the World of Warcraft 3.3.5a client (`Wow.exe`, build 12340, June 2010).
+A fork of [SatyPardus/wowdecomp](https://github.com/SatyPardus/wowdecomp), the C++ decompilation of the World of
+Warcraft 3.3.5a client (`Wow.exe`, build 12340, June 2010), maintained for the Esteria private realm.
 
-Join the discord for other clients and to show off some cool stuff you build.
+Every upstream function is reconstructed from the original binary and keeps the address it came from in an
+`// OFFSET:` tag, so each one can be compared against the original. The source tree follows the layout of the
+original client (`Engine/Source/<Module>`, `WoW/Source/<Module>`, original file names). Everything this fork
+adds on top is described below, and none of it is in the original binary.
 
-https://discord.gg/DsZMGUD8aT
+x64 is the main target. Win32 still builds and is used to check struct layouts against the 32-bit original.
 
-Every function is reconstructed from the original binary and keeps the address it came from in an
-`// OFFSET:` tag, so each one can be compared against the original. The source tree follows the layout
-of the original client (`Engine/Source/<Module>`, `WoW/Source/<Module>`, original file names).
+Join the upstream discord for other clients and to show off what you build: https://discord.gg/DsZMGUD8aT
 
-x64 is the main target. Win32 still builds and is used to check struct layouts against the 32-bit
-original.
+## What this fork adds
 
-## Progress
+Most of this is opt-in at build time or needs a matching server. No game data is included in the repository, and
+the client never modifies your original MPQs.
+
+### Rendering
+
+| Feature | What it does |
+|---|---|
+| Vulkan backend | Experimental renderer selected with `-vulkan` or the `gxApi` CVar. Uses retail assets by default, with a larger texture table and offline shader translation ([instructions](Tools/VulkanShaders/README.md)). D3D11 stays available with `-d3d11` |
+| Native M3 models | The [ASECM3](Extensions/ASECM3/README.md) extension loads and animates M3 models in-process: materials, skinning, particles, ribbons, cloth and rigid-body physics. Still in progress |
+| Retail model adapter | Loads supported Retail M2 models (mounts, creatures such as Darkfallen and the Writhing Brood) straight from Blizzard's CDN, with no export step and no generated MPQ |
+
+### Retail races and character creation
+
+| Feature | What it does |
+|---|---|
+| Retail race appearance | Retail customization choices, skin colors, faces and hair drive the 3.3.5a creator and roster. Includes Kyrian and Venthyr appearances |
+| Extra options without new DB2 | `Esteria\RetailExtras.txt` in an MPQ clones existing choices under new IDs, so custom faces and skins (for example extra Nightborne faces and Venthyr skins) show up beside the retail ones |
+| Expanded creator | Restyled and expanded character creation, creator zoom, and polished character selection |
+| Body sliders | A Body page in the creator, saved per character and synced to nearby players ([plan](docs/body-sliders-creator-plan.md)) |
+| Eye lightning toggle | Per-character toggle for glowing eyes |
+| Two forms | Worgen/Gilnean and Dracthyr/Visage, with both looks saved on the server ([design](TWOFORMS.md), [server](docs/two-forms-server.md), [test plan](docs/two-forms-e2e-test.md)). Work in progress |
+
+Retail looks travel to the server and to other players in a 132-byte `RLK1` footer and the `0x524` opcode, so these
+features need the matching Esteria server.
+
+### Interface and gameplay
+
+| Feature | What it does |
+|---|---|
+| DigitalInventory | Searchable five-column carried inventory with a server-side item index, via the [DigitalInventory](Extensions/DigitalInventory/README.md) extension and the `EsteriaInventory` addon in `Addons/` |
+| Extended limits | Optional 1000-quest and 254-class layouts and larger containers ([details](docs/uncaps.md)) |
+| Video and cursor options | Extra video controls and a native cursor selector, see [Running](#running) |
+| Bundled addons | `WowDecompBodyShape` and `WowDecompViewDistance` in `Addons/` |
+
+### Retail content (optional)
+
+Off by default. `WOWDECOMP_RETAIL_ASSETS` enables local CASC/CDN access and the Retail model adapter, with durable
+decoded caches and background downloads. See [support boundaries and setup](docs/retail-casc.md),
+[CDN downloads](docs/cdn-downloads.md) and [native Retail imports](docs/retail-native-importer.md). Support is
+partial: not every Retail creature or item works yet.
+
+### Stability and fixes
+
+- Fixes for guild bank packets, `IsTransport` on units, Lua `UnitAttackPower` return types and the console
+- A crash logger in the `WowClient` target that writes `WowClient_crash.log`
+- Extension hook system ([upstream PR #10](https://github.com/SatyPardus/wowdecomp/pull/10)) so features such as the
+  ones above stay out of core files
+
+## About the upstream decompilation
 
 The percentages below measure how much of the original binary has a counterpart in this source tree. They do
 **not** say how much of the game works, and the missing part is not missing gameplay: the client builds into a
@@ -49,7 +98,7 @@ parts of FMOD Ex).
 From a Developer PowerShell or any shell with `cmake` on `PATH`:
 
 ```powershell
-git clone https://github.com/SatyPardus/wowdecomp.git
+git clone https://github.com/STRHercules/wowdecomp.git
 cd wowdecomp
 
 # x64 (main target)
@@ -128,6 +177,9 @@ rendering or gameplay correctness.
 | `WoW/Common/` | Code shared by the game modules |
 | `ThirdParty/` | Libraries linked from their upstream sources |
 | `Tools/WowClient/` | The `WowClient` executable target |
+| `Extensions/` | Optional client extensions: ASECM3, DigitalInventory, BodyShapeSync, RetailPreview, HelloWorld |
+| `Addons/` | Bundled Lua addons and the native cursor converter |
+| `Tools/RetailAssets/` | Retail asset, race and glue-screen tooling |
 | `Tools/XvidDecoder/` | x64 movie decoder that replaces the original 32-bit `DivxDecoder.dll` |
 
 ## Special thanks
@@ -137,4 +189,6 @@ rendering or gameplay correctness.
 - [whoa](https://github.com/whoahq/whoa)
 - TOMRUS, for the initial IDB
 - Everyone who has reported bugs so far
+- [SatyPardus](https://github.com/SatyPardus/wowdecomp), for the upstream decompilation
+- [manatactical/wooooow](https://github.com/manatactical/wooooow), for the README layout
 - The WoW modding community
