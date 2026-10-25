@@ -15,6 +15,10 @@
 // Payload (132 bytes): version(1) race(1) sex(1) count(1), then 64 little-endian u16 indices. Indices past `count` are
 // zero. The race/sex are the character's at the time of saving, so a stale look after a race change is ignored.
 //
+// Two Forms (Worgen Wolf/Human, Dracthyr Dragon/Visage): a look of the race's default model is version 1, as above.
+// A look that names its form is version 2: the form (1..4, see MaxForm) sits in the high nibble of the sex byte, the
+// size is unchanged. A reader that only knows version 1 rejects version 2 and falls back to the five stock bytes.
+//
 // Framing, same scheme as the body-slider and eye-lightning data:
 //   - client -> server: optional footer = payload + 'RLK1', after everything else (so it is the last thing in the
 //     create / customize / faction / race change packet, stripped before 'BSH1').
@@ -23,10 +27,13 @@
 namespace CharacterRetailLook
 {
     inline constexpr uint8_t Version = 1;
+    inline constexpr uint8_t VersionForm = 2;
+    inline constexpr uint8_t MaxForm = 4;
     inline constexpr size_t MaxOptions = 64;
     inline constexpr size_t PayloadSize = 4 + 2 * MaxOptions;
     inline constexpr uint32_t FooterMagic = 0x314B4C52; // "RLK1"
     inline constexpr uint32_t EnumMagic = 0x31454C52;   // "RLE1"
+    inline constexpr uint32_t ParkedMagic = 0x31504C52; // "RLP1": same layout as RLE1, the Two Forms look that is not showing
     inline constexpr size_t FooterSize = PayloadSize + 4;
     inline constexpr size_t EnumStride = 8 + PayloadSize;
 
@@ -34,13 +41,14 @@ namespace CharacterRetailLook
     {
         uint8_t race = 0;
         uint8_t sex = 0;
+        uint8_t form = 0; // 0: the race's default model (version 1)
         uint8_t count = 0;
         std::array<uint16_t, MaxOptions> index{};
     };
 
     inline bool Valid(Look const& look)
     {
-        if (!look.race || look.sex > 1 || look.count > MaxOptions)
+        if (!look.race || look.sex > 1 || look.form > MaxForm || look.count > MaxOptions)
             return false;
         for (size_t i = look.count; i < MaxOptions; ++i)
             if (look.index[i] != 0)
@@ -50,9 +58,9 @@ namespace CharacterRetailLook
 
     inline void WritePayload(uint8_t* out, Look const& look)
     {
-        out[0] = Version;
+        out[0] = look.form ? VersionForm : Version;
         out[1] = look.race;
-        out[2] = look.sex;
+        out[2] = static_cast<uint8_t>(look.sex | (look.form << 4));
         out[3] = look.count;
         for (size_t i = 0; i < MaxOptions; ++i)
         {
@@ -64,11 +72,14 @@ namespace CharacterRetailLook
     // False for a wrong version or an invalid look; `look` is only written when the payload is good.
     inline bool ReadPayload(uint8_t const* in, size_t size, Look& look)
     {
-        if (!in || size != PayloadSize || in[0] != Version)
+        if (!in || size != PayloadSize || (in[0] != Version && in[0] != VersionForm))
             return false;
         Look read;
         read.race = in[1];
-        read.sex = in[2];
+        read.sex = in[0] == VersionForm ? static_cast<uint8_t>(in[2] & 0x0F) : in[2];
+        read.form = in[0] == VersionForm ? static_cast<uint8_t>(in[2] >> 4) : uint8_t{0};
+        if (in[0] == VersionForm && read.form == 0)
+            return false;
         read.count = in[3];
         for (size_t i = 0; i < MaxOptions; ++i)
             read.index[i] = static_cast<uint16_t>(in[4 + 2 * i] | (in[5 + 2 * i] << 8));

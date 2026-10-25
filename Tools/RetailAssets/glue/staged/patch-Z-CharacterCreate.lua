@@ -4064,14 +4064,76 @@ local function RaceTick()
     UpdateCard();
 end
 
+-- Two Forms (Worgen Wolf/Human, Dracthyr Dragon/Visage): a tab per form, each with its own option set.
+local function BuildFormTabs()
+    SK.formTabs = {};
+    for index = 0, 1 do
+        local tab = CreateFrame("CheckButton", "CreatorSkinFormTab" .. index, CharacterCreateFrame);
+        tab:SetSize(110, 30);
+        tab:SetFrameLevel(CharacterCreateFrame:GetFrameLevel() + 5);
+        tab:SetPoint("TOP", CharacterCreateFrame, "TOP", index == 0 and -120 or 0, -56);
+        GlueLook(tab);
+        tab.label = Text(tab, HEAD_FONT, 12, GOLD);
+        tab.label:SetPoint("CENTER", tab, "CENTER", 0, 2);
+        tab:SetScript("OnClick", function()
+            CycleCharCustomization("EA_FORM_SET", index);
+            CharacterCreate_UpdateHairCustomization();
+        end);
+        SK.formTabs[index] = tab;
+    end
+    -- Shows both forms in the viewport at once; the tabs still pick which one the rows edit.
+    local both = CreateFrame("CheckButton", "CreatorSkinFormBoth", CharacterCreateFrame);
+    both:SetSize(110, 30);
+    both:SetFrameLevel(CharacterCreateFrame:GetFrameLevel() + 5);
+    both:SetPoint("TOP", CharacterCreateFrame, "TOP", 120, -56);
+    GlueLook(both);
+    both.label = Text(both, HEAD_FONT, 12, GOLD);
+    both.label:SetPoint("CENTER", both, "CENTER", 0, 2);
+    both.label:SetText("BOTH");
+    both:SetScript("OnClick", function()
+        local on = CycleCharCustomization("EA_FORM_DUAL", 2) == 1;
+        CycleCharCustomization("EA_FORM_DUAL", on and 0 or 1);
+    end);
+    SK.formBoth = both;
+end
+
+local function UpdateFormTabs(show)
+    local ok, count = pcall(CycleCharCustomization, "EA_FORM_COUNT", 1);
+    show = show and EA_IS_RETAIL() and ok and count == 2;
+    if show and not SK.formTabs then BuildFormTabs(); end
+    if not SK.formTabs then return; end
+    local current = show and CycleCharCustomization("EA_FORM_GET", 1);
+    for index = 0, 1 do
+        local tab = SK.formTabs[index];
+        if show then
+            tab:Show();
+            tab.label:SetText(string.upper(CycleCharCustomization("EA_FORM_NAME", index) or ""));
+            tab:SetChecked(current == index and 1 or nil);
+            if current == index then tab.label:SetTextColor(1, 1, 1); else tab.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]); end
+        else
+            tab:Hide();
+        end
+    end
+    local both = SK.formBoth;
+    if show then
+        both:Show();
+        local on = CycleCharCustomization("EA_FORM_DUAL", 2) == 1;
+        both:SetChecked(on and 1 or nil);
+        if on then both.label:SetTextColor(1, 1, 1); else both.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3]); end
+    else
+        both:Hide();
+    end
+end
+
 local function Tick()
     if RacePage() then
+        UpdateFormTabs(false);
         SetSkin(true);
         RaceTick();
         return;
     end
     if SK.card then SK.card:Hide(); end
-    if not Personalizing() then SK.mode = nil; SetSkin(false); return; end
+    if not Personalizing() then UpdateFormTabs(false); SK.mode = nil; SetSkin(false); return; end
     SetSkin(true);
     SK.mode = "custom";
     PlaceHeaders(false);
@@ -4086,6 +4148,7 @@ local function Tick()
     for button in pairs(SK.buttons) do ApplyButton(button, true); end
 
     local body = BodyPage();
+    UpdateFormTabs(not body);
     if body then
         SkinBodyPage();
         for i = 1, 128 do

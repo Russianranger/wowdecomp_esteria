@@ -4,10 +4,10 @@
 #include "Engine/Source/Retail/SourceContext.h"
 
 namespace Retail {
-// Verified in the pinned Retail ChrModel/CreatureDisplayInfo graph: 127 -> 4395382
-// (male Visage), 128 -> 4220448 (female Visage). Target race identity stays Dracthyr.
-inline uint32_t CharacterModel(uint32_t race, uint32_t sex, uint32_t defaultModel) {
-    return currentSource == SourceKind::Retail && (race == 52 || race == 70) && sex < 2 ? 127 + sex : defaultModel;
+// The race's own ChrRaceXChrModel row is its native form (Dracthyr: the Dragon, ChrModel 89). The Visage models (127 ->
+// 4395382 male, 128 -> 4220448 female) are reached explicitly, as a form (app::FormVisage), not as the race default.
+inline uint32_t CharacterModel(uint32_t /*race*/, uint32_t /*sex*/, uint32_t defaultModel) {
+    return defaultModel;
 }
 // Helmet masks describe visual anatomy, not faction/skill eligibility. Always bound the shift:
 // target custom races above 31 cannot index the installed 32-bit HelmetGeosetVisData directly.

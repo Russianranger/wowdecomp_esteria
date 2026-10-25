@@ -2310,7 +2310,7 @@ CTexture* TextureCreate(EGxTexTarget target, uint32_t width, uint32_t height, ui
 CTexture* TextureCreateFromBlpData(const char* name, CGxTexFlags texFlags, void* blpData) {
     CTexture* texture = new ("HTEXTURE", SLOG_OBJECT) CTexture;
     texture->m_gxTexFlags = texFlags;
-    SStrCopy(texture->m_filename, name, STORM_MAX_STR);
+    SStrCopy(texture->m_filename, name, sizeof(texture->m_filename));
 
     if (!PumpBlpTextureAsync(texture, blpData)) {
         FillInSolidTexture(*reinterpret_cast<const CImVector*>(&s_defaultColor), texture);

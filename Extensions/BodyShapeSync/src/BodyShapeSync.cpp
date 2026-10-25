@@ -15,6 +15,7 @@
 namespace {
 constexpr uint32_t SMSG_ESTERIA_BODY_SHAPE = 0x523;
 constexpr uint32_t SMSG_ESTERIA_RETAIL_LOOK = 0x524;
+constexpr uint32_t SMSG_ESTERIA_FORM_LOOK_ACK = 0x526;
 
 int32_t Receive(void*, NETMESSAGE, uint32_t, CDataStore* message) {
     constexpr uint32_t Size = 8 + CharacterBodyShape::PayloadSize;
@@ -69,6 +70,23 @@ int32_t ReceiveLook(void*, NETMESSAGE, uint32_t, CDataStore* message) {
     return 1;
 }
 
+// guid(8) + revision(4) + result(1): the server's answer to a Two Forms commit (docs/two-forms-server.md).
+int32_t ReceiveFormAck(void*, NETMESSAGE, uint32_t, CDataStore* message) {
+    constexpr uint32_t Size = 8 + 4 + 1;
+    if (!message || message->m_read > message->m_size || message->m_size - message->m_read != Size) {
+        return 0;
+    }
+
+    uint64_t guid = 0;
+    uint32_t revision = 0;
+    uint8_t result = 0;
+    message->Get(guid);
+    message->Get(revision);
+    message->Get(result);
+    RetailFormCommitAck(guid, revision, result);
+    return 1;
+}
+
 class Lifecycle : public ClientScript {
 public:
     Lifecycle() : ClientScript("BodyShapeSyncLifecycle") { }
@@ -83,5 +101,6 @@ public:
 void AddBodyShapeSyncExtension() {
     sExtensionMgr->RegisterMessageHandler(SMSG_ESTERIA_BODY_SHAPE, Receive, nullptr);
     sExtensionMgr->RegisterMessageHandler(SMSG_ESTERIA_RETAIL_LOOK, ReceiveLook, nullptr);
+    sExtensionMgr->RegisterMessageHandler(SMSG_ESTERIA_FORM_LOOK_ACK, ReceiveFormAck, nullptr);
     new Lifecycle();
 }

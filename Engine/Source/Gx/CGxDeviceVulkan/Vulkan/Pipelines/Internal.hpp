@@ -50,6 +50,7 @@ namespace gxvk::vk::pipelines::detail
     using gxvk::vk::pipelines::kPixelExtraRows;
     using gxvk::vk::pipelines::kVertexRowsSmall;
     using gxvk::vk::pipelines::kVertexRowsLarge;
+    using gxvk::vk::pipelines::kVertexRowsXL;
     using gxvk::vk::pipelines::Attribute;
     using gxvk::vk::pipelines::Draw;
     using gxvk::vk::pipelines::Texture;
@@ -96,6 +97,9 @@ namespace gxvk::vk::pipelines::detail
     /// A record with extended pixel constants reads them at a fixed offset after the large class.
     constexpr uint32_t kSliceExtraOffset = kSliceBytesLarge;
     constexpr uint32_t kSliceBytesExtra  = kSliceExtraOffset + kPixelExtraRows * 16;
+    /// The XL vertex class is never paired with extended pixel constants (they sit inside its rows), so it needs its own size.
+    constexpr uint32_t kSliceBytesXL     = kSliceHeadBytes + kVertexRowsXL * 16;
+    constexpr uint32_t kSliceBytesMax    = kSliceBytesXL > kSliceBytesExtra ? kSliceBytesXL : kSliceBytesExtra;
 
     /// The constant stream a vertex without a colour or a texcoord reads at stride 0: 16 bytes of
     /// D3DCOLOR white at 0 (opaque white), 16 zero bytes at 16 (a zero texcoord).
@@ -213,7 +217,7 @@ namespace gxvk::vk::pipelines::detail
         uint32_t        regsCursor = 0;        ///< next free byte of the current chunk
         uint64_t        regsSerial = 0;        ///< the frame the ring was last reset for
         /// The last slice written this frame, to bind again rather than write twice.
-        uint8_t         lastSlice[kSliceBytesExtra] = {};
+        uint8_t         lastSlice[kSliceBytesMax] = {};
         uint32_t        lastSliceBytes  = 0;
         VkDescriptorSet lastSliceSet    = VK_NULL_HANDLE;
         uint32_t        lastSliceOffset = 0;

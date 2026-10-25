@@ -95,7 +95,7 @@ static void LogStack(CONTEXT* context) {
 static LONG CALLBACK FirstChanceHandler(EXCEPTION_POINTERS* info) {
     DWORD code = info->ExceptionRecord->ExceptionCode;
 
-    if (code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_ILLEGAL_INSTRUCTION || code == EXCEPTION_INT_DIVIDE_BY_ZERO || code == EXCEPTION_STACK_OVERFLOW || code == EXCEPTION_PRIV_INSTRUCTION || code == EXCEPTION_BREAKPOINT || code == EXCEPTION_ARRAY_BOUNDS_EXCEEDED || code == EXCEPTION_IN_PAGE_ERROR || code == 0xC0000409) {
+    if (code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_ILLEGAL_INSTRUCTION || code == EXCEPTION_INT_DIVIDE_BY_ZERO || code == EXCEPTION_STACK_OVERFLOW || code == EXCEPTION_PRIV_INSTRUCTION || code == EXCEPTION_BREAKPOINT || code == EXCEPTION_ARRAY_BOUNDS_EXCEEDED || code == EXCEPTION_IN_PAGE_ERROR || code == 0xC0000409 || code == 0xC0000374) {
         char where[MAX_PATH + 32];
         ModuleOffset(info->ExceptionRecord->ExceptionAddress, where, sizeof(where));
 

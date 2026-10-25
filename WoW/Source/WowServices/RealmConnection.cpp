@@ -1,3 +1,4 @@
+#include "WoW/Common/ComponentCore/RetailRace.h"
 #include "RealmConnection.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Util/SHA1.h"
@@ -120,6 +121,12 @@ int32_t RealmConnection::HandleCharEnum(uint32_t msgId, uint32_t time, CDataStor
     if (!success) {
         this->m_characterList.Clear();
     }
+
+    for (uint32_t i = 0; i < this->m_characterList.Count(); i++) {
+        const CHARACTER_INFO& info = this->m_characterList[i];
+        RetailFormCommitOffer(info.m_name, info.m_raceID, info.m_sexID, info.m_guid.m_guid);
+    }
+    RetailFormCommitListDone();
 
     this->m_realmResponse->CharacterListReceived(this, this->m_characterList, success);
 

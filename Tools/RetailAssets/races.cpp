@@ -39,6 +39,32 @@ int main(int argc, char** argv) {
         }
         return 0;
     }
+    if (argc == 4 && std::string(argv[2]) == "forms") {
+        // RetailRaceProbe <ini> forms <chrRaceId>: model, options and default-choice recipe of each Two Forms form, both sexes.
+        _putenv_s(forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
+        if (!app::Status().loaded) return 1;
+        const uint32_t race = uint32_t(std::strtoul(argv[3], nullptr, 10));
+        static const char* const names[] = {"default", "wolf", "human", "dragon", "visage"};
+        int failures = 0;
+        for (uint32_t form = 0; form <= app::FormVisage; ++form) for (uint32_t sex = 0; sex < 2; ++sex) {
+            const uint32_t model = app::ChrModelForRace(race, sex, form);
+            const uint32_t optionCount = model ? app::OptionCount(model) : 0;
+            std::vector<uint32_t> defaults;
+            for (uint32_t i = 0; i < optionCount; ++i) {
+                app::ChrOption option{};
+                app::ChrChoice choice{};
+                if (app::OptionAt(model, i, option) && app::ChoiceAt(option.id, 0, choice)) defaults.push_back(choice.id);
+            }
+            app::Recipe recipe;
+            const bool ok = model && app::BuildForCharacter(race, sex, defaults.data(), uint32_t(defaults.size()), recipe, form);
+            std::printf("race %u sex %u %-7s: chrModel %u, %zu options, %zu layers, m2 file %u, %zu geosets, %zu attached%s\n", race, sex, names[form],
+                model, size_t(optionCount), ok ? recipe.layers.size() : 0, ok ? recipe.modelFileDataId : 0,
+                ok ? recipe.geosets.size() : 0, ok ? recipe.attached.size() : 0, ok ? "" : " (none)");
+            if (ok && std::getenv("WOW_FORMS_GEOSETS")) { for (const auto geoset : recipe.geosets) std::printf(" %u", unsigned(geoset)); std::printf("\n"); }
+            if (form != app::FormDefault && !ok) ++failures;
+        }
+        return failures ? 1 : 0;
+    }
     if (argc == 4 && std::string(argv[2]) == "choices") {
         _putenv_s(forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
         if (!app::Status().loaded) return 1;

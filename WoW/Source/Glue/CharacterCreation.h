@@ -18,6 +18,8 @@ class CCharacterCreation {
     static const uint32_t MAX_RACES = 129;
     static CharacterPreferences* m_charPreferences[MAX_RACES][2];
     static CCharacterComponent* m_character;
+    // Two Forms creator: a second preview showing the form the main character is not.
+    static CCharacterComponent* m_formMirror;
     static CNameGen m_nameGen;
     static CSimpleModelFFX* m_charCustomizeFrame;
     static float m_charFacing;
@@ -36,6 +38,10 @@ class CCharacterCreation {
     static void CreateCharacter(const char* name);
     static void CycleCharCustomization(CHAR_CUSTOMIZATION_TYPE type, int32_t delta);
     static void Dress();
+    static void Dress(CCharacterComponent* target);
+    static void Undress(CCharacterComponent* target);
+    static void SyncFormMirror();
+    static void ClearFormMirror();
     static int32_t GetExistingClassIndex();
     static int32_t GetExistingRaceIndex();
     static int32_t GetRandomClassID();

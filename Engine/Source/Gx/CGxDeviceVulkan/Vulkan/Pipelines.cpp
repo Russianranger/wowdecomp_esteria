@@ -67,9 +67,9 @@ namespace gxvk::vk::pipelines
         s.anisoMax  = h->samplerAnisotropy ? props.limits.maxSamplerAnisotropy : 1.0f;
         s.regsAlign = props.limits.minUniformBufferOffsetAlignment ? static_cast<uint32_t>(props.limits.minUniformBufferOffsetAlignment) : 256u;
         s.wireframe = h->fillModeNonSolid;
-        if (props.limits.maxUniformBufferRange < kSliceBytesExtra)
+        if (props.limits.maxUniformBufferRange < kSliceBytesMax)
         {
-            Write(Error, "vulkan: pipelines: maxUniformBufferRange %u cannot hold a %u-byte slice; declining", props.limits.maxUniformBufferRange, kSliceBytesExtra);
+            Write(Error, "vulkan: pipelines: maxUniformBufferRange %u cannot hold a %u-byte slice; declining", props.limits.maxUniformBufferRange, kSliceBytesMax);
             return false;
         }
 

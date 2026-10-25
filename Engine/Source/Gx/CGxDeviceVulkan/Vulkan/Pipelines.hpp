@@ -53,6 +53,8 @@ namespace gxvk::vk::pipelines
     constexpr uint32_t kPixelExtraRows  = 96;
     constexpr uint32_t kVertexRowsSmall = 64;
     constexpr uint32_t kVertexRowsLarge = 512;
+    /// Retail character bodies skin with a 246-bone palette (3 rows a bone from c31), past the large class.
+    constexpr uint32_t kVertexRowsXL    = 1024;
 
     enum class VertexProgram : uint32_t
     {

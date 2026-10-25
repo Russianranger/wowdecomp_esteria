@@ -5,6 +5,7 @@
 #include <cstdint>
 
 class CCharacterComponent;
+struct CharacterPreferences;
 class CGUnit_C;
 class CM2Model;
 struct lua_State;
@@ -31,7 +32,30 @@ float RetailRacePreviewScale(uint32_t race);
 bool RetailRaceOwns(uint32_t race, uint32_t sex);
 
 // Writes the virtual model path ("retail/<FileDataID>.m2") that replaces the stock CreatureModelData path.
-bool RetailRaceModelPath(uint32_t race, uint32_t sex, char* path, size_t size);
+// `form` is an app::Form for Two Forms races; 0 keeps the race's default model.
+bool RetailRaceModelPath(uint32_t race, uint32_t sex, char* path, size_t size, uint32_t form = 0);
+
+// Two Forms side-by-side preview in the creator. FormDual: both forms are being shown. FormOffset: where `character`'s
+// preview model stands. MirrorSetup: prepares the second component for the form `main` is not showing.
+bool RetailRaceNaked(CCharacterComponent* character);
+// The creator rebuilds its component on class, sex and race changes: Store before freeing the old one, Restore on the
+// new one before its model is made (returns the form to build it for), ClearMemory when the creator closes.
+void RetailRaceFormStore(CCharacterComponent* character);
+uint32_t RetailRaceFormRestore(CCharacterComponent* character, CharacterPreferences& prefs);
+void RetailRaceFormClearMemory();
+
+// Two Forms commit to the server after a character is created (see docs/two-forms-server.md). Prepare as the creator
+// submits; CreateResult with the create reply; Offer for each character of the next list (GUID discovery) and ListDone
+// after it; Ack with SMSG_ESTERIA_FORM_LOOK_ACK; Tick each frame on the character screen to resend.
+void RetailFormCommitPrepare(const char* name, uint32_t race, uint32_t sex);
+void RetailFormCommitCreateResult(bool success);
+bool RetailFormCommitOffer(const char* name, uint32_t race, uint32_t sex, uint64_t guid);
+void RetailFormCommitListDone();
+void RetailFormCommitAck(uint64_t guid, uint32_t revision, uint32_t result);
+void RetailFormCommitTick();
+bool RetailRaceFormDual(CCharacterComponent* main);
+bool RetailRaceFormOffset(CCharacterComponent* character, float& x, float& y);
+uint32_t RetailRaceMirrorSetup(CCharacterComponent* mirror, CCharacterComponent* main, CharacterPreferences& prefs);
 
 // Shows customization geosets and binds hair/eye textures. Called from GeosRenderPrep.
 bool RetailRaceGeometry(CCharacterComponent* character);
@@ -75,7 +99,15 @@ void BodyShapeCreateFooter(CDataStore* packet, bool always);
 namespace CharacterRetailLook { struct Look; }
 void RetailLookCreateFooter(CDataStore* packet);
 void RetailRaceSetLook(uint64_t guid, const CharacterRetailLook::Look& look);
+// The form (an app::Form) a character's saved look names, 0 if unknown: the model to create for it.
+uint32_t RetailRaceLookForm(uint64_t guid);
+// True for a Dracthyr player showing its dragon body (the client flies it with the dragon's own animations).
+bool RetailRaceDragon(uint32_t race, uint64_t guid);
 void RetailRaceClearLooks();
+// Two Forms: the look a character is not showing (its other form), for the second model in character select.
+void RetailRaceSetParkedLook(uint64_t guid, const CharacterRetailLook::Look& look);
+bool RetailRaceParkedForm(uint64_t guid, uint32_t& form);
+bool RetailRaceApplyParkedTo(CCharacterComponent* character, uint64_t guid);
 // Applies the look saved for `guid` to a component (character select, creator). False when there is none or it
 // does not fit the component's race and sex.
 bool RetailRaceApplyLookTo(CCharacterComponent* character, uint64_t guid, bool refresh);

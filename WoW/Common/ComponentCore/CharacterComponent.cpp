@@ -1080,14 +1080,18 @@ void CCharacterComponent::PasteTransparent8Bit(void* texture, const BlpPalPixel*
 
     for (uint32_t mip = srcMipLevel; mip < srcInfo.m_mipCount; mip++) {
         const uint8_t* src = static_cast<const uint8_t*>(TextureCacheGetMip(texture, mip));
-        const uint8_t* end = src + srcWidth * height;
-        const uint8_t* alpha = end;
+        // A mip holds srcWidth x mipHeight palette indices followed by the same-sized alpha plane; never read past it.
+        const uint32_t mipHeight = (srcInfo.m_height >> mip) ? srcInfo.m_height >> mip : 1;
+        const uint32_t rows = height < mipHeight ? height : mipHeight;
+        const uint32_t columns = width < srcWidth ? width : srcWidth;
+        const uint8_t* end = src + srcWidth * rows;
+        const uint8_t* alpha = src + srcWidth * mipHeight;
         uint8_t* dst = reinterpret_cast<uint8_t*>(dstMips->m_mip[mip + dstMipOffset]) + dstStride * dstPos.y + 4 * dstPos.x;
 
         for (; src < end; src += srcWidth, alpha += srcWidth, dst += dstStride) {
             uint8_t* pixel = dst;
 
-            for (uint32_t x = 0; x < width; x++, pixel += 4) {
+            for (uint32_t x = 0; x < columns; x++, pixel += 4) {
                 const BlpPalPixel& color = pal[src[x]];
                 uint32_t a = alpha[x];
                 pixel[3] = 0xFF;

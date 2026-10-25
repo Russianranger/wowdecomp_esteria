@@ -88,6 +88,9 @@ int ComposeCase(int argc, char** argv) {
     }
     _putenv_s(Retail::currentSource == Retail::SourceKind::Forever ? "WOW_FOREVER_CONFIG" : "WOW_RETAIL_CONFIG", argv[1]);
     const uint32_t race = uint32_t(std::strtoul(argv[2], nullptr, 10)), sex = uint32_t(std::atoi(argv[3]));
+    // WOW_COMPOSE_FORM selects a Two Forms model (app::Form value, e.g. 3 = Dracthyr Dragon).
+    const char* formEnv = std::getenv("WOW_COMPOSE_FORM");
+    const uint32_t form = formEnv ? uint32_t(std::strtoul(formEnv, nullptr, 10)) : 0;
     std::vector<uint32_t> choices;
     // Arguments are choice IDs, or "optionId:index" to pick the index-th choice of an option (others default to 0).
     std::vector<std::pair<uint32_t, uint32_t>> picks;
@@ -99,7 +102,7 @@ int ComposeCase(int argc, char** argv) {
         else choices.push_back(uint32_t(std::strtoul(arg.c_str(), nullptr, 10)));
     }
     if (choices.empty()) {
-        const uint32_t model = app::ChrModelForRace(race, sex);
+        const uint32_t model = app::ChrModelForRace(race, sex, form);
         for (uint32_t i = 0, n = app::OptionCount(model); i < n; ++i) {
             app::ChrOption option{};
             app::ChrChoice choice{};
@@ -110,7 +113,7 @@ int ComposeCase(int argc, char** argv) {
     }
     for (uint32_t id : choices) std::printf("choice %u\n", id);
     app::Recipe recipe;
-    if (!app::BuildForCharacter(race, sex, choices.data(), uint32_t(choices.size()), recipe)) {
+    if (!app::BuildForCharacter(race, sex, choices.data(), uint32_t(choices.size()), recipe, form)) {
         std::fprintf(stderr, "No model for race %u sex %u\n", race, sex);
         return 1;
     }

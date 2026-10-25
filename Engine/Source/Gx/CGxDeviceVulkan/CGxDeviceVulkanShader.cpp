@@ -353,7 +353,8 @@ uint32_t CGxDeviceVulkan::IShaderPrograms(pipelines::Draw& draw) {
     if (vsTranslated) {
         draw.vertex = pipelines::VertexProgram::Translated;
         draw.vertexRecord = vs->record;
-        draw.vertexRows = vs->record->vconst == pipelines::kVertexRowsLarge ? pipelines::kVertexRowsLarge : pipelines::kVertexRowsSmall;
+        draw.vertexRows = vs->record->vconst == pipelines::kVertexRowsXL ? pipelines::kVertexRowsXL
+            : vs->record->vconst == pipelines::kVertexRowsLarge ? pipelines::kVertexRowsLarge : pipelines::kVertexRowsSmall;
     } else {
         draw.vertex = pipelines::VertexProgram::FixedFunctionSemantic;
 

@@ -574,8 +574,23 @@ namespace Retail::Db2::appearance
         return State().status;
     }
 
+    // Worgen's Human form borrows generic Human (Retail race 1): no distinct Gilnean ChrModel exists.
+    static uint32_t ModelForForm(uint32_t chrRaceId, uint32_t sex, uint32_t form, uint32_t rowModel)
+    {
+        if (currentSource != SourceKind::Retail) return rowModel;
+        const bool dracthyr = chrRaceId == 52 || chrRaceId == 70;
+        if (form == FormDragon && dracthyr) return rowModel;
+        if (form == FormVisage && dracthyr && sex < 2) return 127 + sex;
+        if (form == FormWolf && chrRaceId == 22) return rowModel;
+        if (form == FormHuman && chrRaceId == 22) {
+            const auto human = State().modelByRaceSex.find(RaceSexKey(1, sex));
+            return human != State().modelByRaceSex.end() ? human->second : 0;
+        }
+        return CharacterModel(chrRaceId, sex, rowModel);
+    }
+
     bool BuildForCharacter(uint32_t chrRaceId, uint32_t sex, const uint32_t* choiceIds,
-                           uint32_t choiceCount, Recipe& out)
+                           uint32_t choiceCount, Recipe& out, uint32_t form)
     {
         if (currentSource == SourceKind::Retail && chrRaceId == Centaur::Profile)
             return Centaur::Build(sex, choiceIds, choiceCount, out);
@@ -588,7 +603,7 @@ namespace Retail::Db2::appearance
         const auto pair = State().modelByRaceSex.find(RaceSexKey(chrRaceId, sex));
         if (pair == State().modelByRaceSex.end()) return false;
 
-        const uint32_t selectedModel = CharacterModel(chrRaceId, sex, pair->second);
+        const uint32_t selectedModel = ModelForForm(chrRaceId, sex, form, pair->second);
         const wdc5::Row* model = State().chrModel.Find(selectedModel);
         if (!model) return false;
 
@@ -630,7 +645,7 @@ namespace Retail::Db2::appearance
         return true;
     }
 
-    uint32_t ChrModelForRace(uint32_t chrRaceId, uint32_t sex)
+    uint32_t ChrModelForRace(uint32_t chrRaceId, uint32_t sex, uint32_t form)
     {
         if (currentSource == SourceKind::Retail && chrRaceId == Centaur::Profile)
             return sex < 2 ? Centaur::Profile + sex : 0;
@@ -639,7 +654,7 @@ namespace Retail::Db2::appearance
         EnsureLoaded();
         if (!State().status.loaded) return 0;
         const auto pair = State().modelByRaceSex.find(RaceSexKey(chrRaceId, sex));
-        return pair != State().modelByRaceSex.end() ? CharacterModel(chrRaceId, sex, pair->second) : 0;
+        return pair != State().modelByRaceSex.end() ? ModelForForm(chrRaceId, sex, form, pair->second) : 0;
     }
 
     bool CreationChoiceAllowed(uint32_t chrModelId, uint32_t choiceId)

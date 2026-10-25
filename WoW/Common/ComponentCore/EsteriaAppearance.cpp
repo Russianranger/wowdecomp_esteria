@@ -2132,7 +2132,7 @@ void EsteriaEnumExtra(CDataStore* packet) {
         uint32_t magic = *reinterpret_cast<uint32_t*>(bytes + size - 4);
         uint32_t stride = magic == 0x31455848 ? 9 : magic == 0x32455848 ? 16 : magic == 0x31475743 ? 12
             : magic == CharacterBodyShape::EnumMagic ? CharacterBodyShape::EnumStride
-            : magic == CharacterRetailLook::EnumMagic ? CharacterRetailLook::EnumStride : 0;
+            : magic == CharacterRetailLook::EnumMagic || magic == CharacterRetailLook::ParkedMagic ? CharacterRetailLook::EnumStride : 0;
         if (!stride) {
             break;
         }
@@ -2152,7 +2152,8 @@ void EsteriaEnumExtra(CDataStore* packet) {
             } else if (stride == CharacterRetailLook::EnumStride) {
                 CharacterRetailLook::Look look;
                 if (CharacterRetailLook::ReadPayload(bytes + start + i * stride + 8, CharacterRetailLook::PayloadSize, look)) {
-                    RetailRaceSetLook(guid, look);
+                    if (magic == CharacterRetailLook::ParkedMagic) RetailRaceSetParkedLook(guid, look);
+                    else RetailRaceSetLook(guid, look);
                 }
             } else if (stride == CharacterBodyShape::EnumStride) {
                 CharacterBodyShape::Values wire{};

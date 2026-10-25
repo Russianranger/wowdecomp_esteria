@@ -44,7 +44,7 @@ PCONST = 20
 # A pixel record may read constants c20..c(20+PEXT-1) from regs.x[], a block placed after v[512] at a fixed offset,
 # so a record that does not use them keeps the old layout. The device fills it only for records with `pext=`.
 PEXT = 96
-VCONST_SMALL, VCONST_LARGE = 64, 512
+VCONST_SMALL, VCONST_LARGE, VCONST_XL = 64, 512, 1024
 
 # vs_2_0 fixed-function output registers -> semantic
 VS2_OUT = {'oPos': 'position0', 'oD0': 'color0', 'oD1': 'color1', 'oFog': 'fog0', 'oPts': 'psize0'}
@@ -142,8 +142,8 @@ class Emitter(object):
             return 'c%d' % o.index
         self.cmax = max(self.cmax, o.index)
         if self.vs:
-            if o.index >= VCONST_LARGE:
-                raise Refused('vertex constant c%d beyond the 512-row window' % o.index)
+            if o.index >= VCONST_XL:
+                raise Refused('vertex constant c%d beyond the %d-row window' % (o.index, VCONST_XL))
             return 'regs.v[%d]' % o.index
         if o.index >= PCONST:
             if o.index >= PCONST + PEXT:
@@ -583,7 +583,8 @@ class Emitter(object):
                         self.outputs.append(s)
             if 'position0' not in self.outputs:
                 raise Refused('no position output')
-            self.vconst = VCONST_LARGE if (self.relative or self.cmax >= VCONST_SMALL) else VCONST_SMALL
+            # Indexed reads are skinning palettes: Retail bodies run past row 512 (246 bones x 3 rows from c31).
+            self.vconst = VCONST_XL if self.relative else VCONST_LARGE if self.cmax >= VCONST_SMALL else VCONST_SMALL
         else:
             self.reads = []
             for nm, s in self.inputs.items():

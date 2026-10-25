@@ -27,6 +27,11 @@ namespace Retail::Db2::appearance
     /// Everything needed to draw one appearance, in the model side's vocabulary rather than the
     /// tables'. Both producers below fill this same shape: a creature's parts and a character's are
     /// the same question asked of different tables, and the consumer should not have to know which.
+    /// Which of a race's two Two Forms models to use. FormDefault keeps the single model the race
+    /// has always resolved to (Dracthyr stays Visage); the others are only meaningful for the
+    /// Worgen (Retail 22) and Dracthyr (Retail 52/70) rows named here and fall back to default otherwise.
+    enum Form : uint32_t { FormDefault = 0, FormWolf, FormHuman, FormDragon, FormVisage };
+
     struct Recipe
     {
         uint32_t modelFileDataId = 0;
@@ -82,7 +87,7 @@ namespace Retail::Db2::appearance
      * @return false when the tables hold no model for that race and sex.
      */
     bool BuildForCharacter(uint32_t chrRaceId, uint32_t sex, const uint32_t* choiceIds,
-                           uint32_t choiceCount, Recipe& out);
+                           uint32_t choiceCount, Recipe& out, uint32_t form = FormDefault);
 
     /**
      * @brief The appearance of a creature or NPC, entirely from its display entry.
@@ -95,7 +100,7 @@ namespace Retail::Db2::appearance
     /// The ChrModel a race and sex resolve to, 0 when the tables pair them with none. The unit a
     /// model's customization hangs off is the ChrModel, not the race, so this is where an enumeration
     /// starts.
-    uint32_t ChrModelForRace(uint32_t chrRaceId, uint32_t sex);
+    uint32_t ChrModelForRace(uint32_t chrRaceId, uint32_t sex, uint32_t form = FormDefault);
     // Every reachable choice's acquisition roots, including related-choice combinations.
     // The downloader follows M2/SKEL edges from these roots separately.
     struct CharacterAssets { std::vector<uint32_t> models, textures, skeletons; };

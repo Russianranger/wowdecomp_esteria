@@ -4009,6 +4009,12 @@ uint32_t CGUnit_C::ResolveAnimForModel(uint32_t animId, CM2Model* model) {
         model = this->GetObjectModel();
     }
 
+    // A retail-only animation (the Dracthyr dragon's hover and cast set, ids past the stock range) plays as itself when
+    // the model has it; the tier lookup below only knows stock ids and would swap it for the tier's default.
+    if (animId >= ANIM_COUNT && animId != 0xFFFFFFFF && model->HasSequence(animId)) {
+        return animId;
+    }
+
     uint32_t result = static_cast<uint16_t>(animId);
     int32_t visited[ANIM_COUNT];
     memset(visited, 0, sizeof(visited));
@@ -7872,6 +7878,48 @@ int32_t CGUnit_C::IsRunning() const {
     return this->m_movementData.m_walkSpeed + this->m_movementData.m_walkSpeed >= this->m_movementData.GetBaseSpeed(0);
 }
 
+// Retail animation ids the Dracthyr dragon flies with (the 3.3.5 client flies units with the swim set): hovering in place on
+// DracHoverIdle, sustained wing-powered flight on the flying-mount family.
+enum DragonFlightAnim : uint32_t {
+    DRAGON_HOVER_IDLE = 1604,
+    DRAGON_FLIGHT_BACKWARD = 550,   // MountFlightBackwards
+    DRAGON_FLIGHT_LEFT = 552,       // MountFlightLeft
+    DRAGON_FLIGHT_RIGHT = 554,      // MountFlightRight
+    DRAGON_FLIGHT_RUN = 556,        // MountFlightRun
+    DRAGON_FLIGHT_SPRINT = 558,     // MountFlightSprint
+};
+
+static bool IsFlyingDragon(const CGUnit_C* unit) {
+    return (unit->m_obj->m_type & TYPEMASK_PLAYER) && (unit->m_movementData.m_flags & MOVEMENTFLAG_FLYING)
+        && !(unit->m_movementData.m_flags & MOVEMENTFLAG_SWIMMING)
+        && RetailRaceDragon(unit->m_unit->m_unitFieldBytes0[0], unit->m_obj->m_guid.m_guid);
+}
+
+// A unit mounted without a mount model (Running Wild) stays on its own model's self-mount set (the Worgen wolf on all fours)
+// for as long as it is mounted, not just while the spell casts.
+enum SelfMountAnim : uint32_t {
+    SELF_MOUNT_IDLE = 618,
+    SELF_MOUNT_WALK = 620,
+    SELF_MOUNT_RUN = 622,
+    SELF_MOUNT_SPRINT = 624,
+    SELF_MOUNT_SHUFFLE_LEFT = 630,
+    SELF_MOUNT_SHUFFLE_RIGHT = 632,
+    SELF_MOUNT_WALK_BACKWARDS = 634,
+};
+
+static bool IsSelfMounted(const CGUnit_C* unit) {
+    if (!(unit->m_obj->m_type & TYPEMASK_PLAYER) || !(unit->m_unit->m_unitFieldFlags & 0x08000000) || unit->m_mountModel) {
+        return false;
+    }
+
+    CM2Model* model = unit->m_worldModel;
+    return model && model->IsLoaded(0, 0) && model->HasSequence(SELF_MOUNT_IDLE);
+}
+
+// Dracthyr Glide (110681): the dragon falls on its retail glide animation.
+static const int32_t SPELL_DRACTHYR_GLIDE = 110681;
+static const uint32_t DRAGON_GLIDE = 1694;
+
 // VERIFY: 2be9606e manual
 // OFFSET: 0x00717050
 int32_t CGUnit_C::ChooseMovementAnim(uint32_t flags, uint32_t* anim) const {
@@ -7884,6 +7932,32 @@ int32_t CGUnit_C::ChooseMovementAnim(uint32_t flags, uint32_t* anim) const {
     uint32_t state = this->m_animationState;
 
     if (!(state & 0x70) || !(flags & 0x4) || (state & 0x800000) || (state & 0x2000000)) {
+        return 1;
+    }
+
+    if (IsSelfMounted(this) && !(moveFlags & (MOVEMENTFLAG_SWIMMING | MOVEMENTFLAG_FLYING))) {
+        if (moveFlags & (MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT)) {
+            *anim = (moveFlags & MOVEMENTFLAG_STRAFE_LEFT) ? SELF_MOUNT_SHUFFLE_LEFT : SELF_MOUNT_SHUFFLE_RIGHT;
+        } else if (moveFlags & MOVEMENTFLAG_BACKWARD) {
+            *anim = SELF_MOUNT_WALK_BACKWARDS;
+        } else {
+            const float speed = this->m_movementData.GetBaseSpeed(0);
+            *anim = speed >= 11.0f ? SELF_MOUNT_SPRINT
+                : (this->m_movementData.m_walkSpeed + this->m_movementData.m_walkSpeed < speed ? SELF_MOUNT_RUN : SELF_MOUNT_WALK);
+        }
+
+        return 1;
+    }
+
+    if (IsFlyingDragon(this)) {
+        if (moveFlags & (MOVEMENTFLAG_STRAFE_LEFT | MOVEMENTFLAG_STRAFE_RIGHT)) {
+            *anim = (moveFlags & MOVEMENTFLAG_STRAFE_LEFT) ? DRAGON_FLIGHT_LEFT : DRAGON_FLIGHT_RIGHT;
+        } else if (moveFlags & MOVEMENTFLAG_BACKWARD) {
+            *anim = DRAGON_FLIGHT_BACKWARD;
+        } else {
+            *anim = this->m_movementData.GetBaseSpeed(0) >= 14.0f ? DRAGON_FLIGHT_SPRINT : DRAGON_FLIGHT_RUN;
+        }
+
         return 1;
     }
 
@@ -7975,7 +8049,8 @@ int32_t CGUnit_C::GetModelFileName(const char** name) const {
     if ((this->m_obj->m_type & TYPEMASK_PLAYER) && effectiveDisplay == static_cast<int32_t>(this->m_unit->m_unitFieldNativedisplayid)) {
         static thread_local char retailPath[260];
 
-        if (RetailRaceModelPath(this->m_unit->m_unitFieldBytes0[0], this->m_unit->m_unitFieldBytes0[2], retailPath, sizeof(retailPath))) {
+        if (RetailRaceModelPath(this->m_unit->m_unitFieldBytes0[0], this->m_unit->m_unitFieldBytes0[2], retailPath, sizeof(retailPath),
+                                RetailRaceLookForm(this->m_obj->m_guid.m_guid))) {
             *name = retailPath;
             return 1;
         }
@@ -8296,6 +8371,15 @@ int32_t CGUnit_C::ChooseFallAnim(uint32_t* anim) const {
     }
 
     uint32_t current = (this->m_worldModel && this->m_worldModel->IsLoaded(0, 0)) ? this->m_worldModel->GetBoneSequenceId(0xFFFFFFFF) : 0xFFFFFFFF;
+
+    if ((this->m_obj->m_type & TYPEMASK_PLAYER) && this->m_worldModel && this->m_worldModel->IsLoaded(0, 0)
+        && this->m_worldModel->HasSequence(DRAGON_GLIDE)
+        && RetailRaceDragon(this->m_unit->m_unitFieldBytes0[0], this->m_obj->m_guid.m_guid)
+        && const_cast<CGUnit_C*>(this)->HasAuraBySpellId(SPELL_DRACTHYR_GLIDE)) {
+        *anim = current == DRAGON_GLIDE ? ANIM_COUNT : DRAGON_GLIDE;
+        return 1;
+    }
+
     *anim = IsAirborneAnim(current) ? ANIM_COUNT : ANIM_FALL;
     return 1;
 }
@@ -8441,6 +8525,16 @@ void CGUnit_C::ChooseDefaultAnim(uint32_t& anim, int32_t force) const {
 
     if (!force && GetAnimBehaviorId(torso) == 464) {
         anim = torso;
+        return;
+    }
+
+    if (IsFlyingDragon(this)) {
+        anim = DRAGON_HOVER_IDLE;
+        return;
+    }
+
+    if (IsSelfMounted(this)) {
+        anim = SELF_MOUNT_IDLE;
         return;
     }
 

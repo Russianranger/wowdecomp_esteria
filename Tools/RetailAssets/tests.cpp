@@ -11,6 +11,7 @@
 #include "Engine/Source/Retail/Db2.h"
 #include "Engine/Source/Retail/CreationPolicy.h"
 #include "Engine/Source/Retail/EyeEffects.h"
+#include "Engine/Source/Retail/RetailLookWire.h"
 #include "Engine/Source/Retail/SlimeGiant.h"
 #include "Engine/Source/Retail/Centaur.h"
 #include "Engine/Source/Retail/CentaurAppearance.h"
@@ -87,7 +88,35 @@ std::vector<uint8_t> Skin() {
 }
 }
 
+
+// The look wire format: version 1 is a default-model look, version 2 names a Two Forms form in the sex byte's high nibble.
+static void TestLookWire() {
+    namespace W = CharacterRetailLook;
+    uint8_t payload[W::PayloadSize];
+    W::Look in;
+    in.race = 12; in.sex = 1; in.count = 3; in.index[0] = 5; in.index[1] = 65535; in.index[2] = 2;
+    W::WritePayload(payload, in);
+    Check(payload[0] == W::Version && payload[2] == 1, "default-form look stays version 1 with a plain sex byte");
+    W::Look out;
+    Check(W::ReadPayload(payload, W::PayloadSize, out) && out.form == 0 && out.sex == 1 && out.index[1] == 65535, "version 1 round trip");
+    for (uint8_t form = 1; form <= W::MaxForm; ++form) {
+        in.form = form;
+        W::WritePayload(payload, in);
+        Check(payload[0] == W::VersionForm && payload[2] == (1 | form << 4), "form look is version 2 with the form in the high nibble");
+        Check(W::ReadPayload(payload, W::PayloadSize, out) && out.form == form && out.sex == 1 && out.race == 12 && out.count == 3, "version 2 round trip");
+    }
+    payload[2] = 1;          // version 2 without a form
+    Check(!W::ReadPayload(payload, W::PayloadSize, out), "version 2 needs a form");
+    in.form = 4; W::WritePayload(payload, in); payload[2] = 0x51; // form 5
+    Check(!W::ReadPayload(payload, W::PayloadSize, out), "form beyond MaxForm rejected");
+    in.form = 0; W::WritePayload(payload, in); payload[2] = 0x11;   // a version 1 reader must not accept a form nibble as sex
+    Check(!W::ReadPayload(payload, W::PayloadSize, out), "version 1 with a form nibble rejected");
+    payload[0] = 3;
+    Check(!W::ReadPayload(payload, W::PayloadSize, out), "unknown version rejected");
+}
+
 int main(int argc, char** argv) {
+    TestLookWire();
     if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--centaur-source") {
         Retail::CascSource source;
         std::string error;

@@ -56,6 +56,7 @@ CSimpleModelFFX* CCharacterCreation::m_charCustomizeFrame;
 
 // STATIC: 0x00B6B188
 float CCharacterCreation::m_charFacing;
+CCharacterComponent* CCharacterCreation::m_formMirror;
 
 // STATIC: 0x00B6B18C
 uint32_t CCharacterCreation::m_prevSkinIndex;
@@ -215,6 +216,8 @@ void CCharacterCreation::Initialize() {
 // OFFSET: 0x004E1E20
 void CCharacterCreation::Shutdown() {
     ResetZoomCamera();
+    CCharacterCreation::ClearFormMirror();
+    RetailRaceFormClearMemory();
     if (CCharacterCreation::m_character) {
         CCharacterComponent::FreeComponent(CCharacterCreation::m_character);
         CCharacterCreation::m_character = nullptr;
@@ -265,6 +268,7 @@ void CCharacterCreation::GetRandomRaceAndSex(ComponentData* data) {
 // OFFSET: 0x004DFFC0
 void CCharacterCreation::OnHide() {
     ResetZoomCamera();
+    CCharacterCreation::ClearFormMirror();
     EventUnregister(EVENT_ID_IDLE, &CCharacterCreation::Idle);
     LoadingScreenMiniDisable();
 }
@@ -319,10 +323,13 @@ void CCharacterCreation::SetCharCustomizeModel(const char* modelName) {
 void CCharacterCreation::SetCharacterFacing(float facing) {
     CCharacterCreation::m_charFacing = facing;
 
-    if (CCharacterCreation::m_character->m_data.m_model) {
-        C3Vector position(0.0f, 0.0f, 0.0f);
-        CCharacterCreation::m_character->m_data.m_model->SetWorldTransform(position, facing,
-            RetailRacePreviewScale(CCharacterCreation::m_character->m_data.m_preferences.m_raceID));
+    for (CCharacterComponent* character : { CCharacterCreation::m_character, CCharacterCreation::m_formMirror }) {
+        if (character && character->m_data.m_model) {
+            C3Vector position(0.0f, 0.0f, 0.0f);
+            RetailRaceFormOffset(character, position.x, position.y);
+            character->m_data.m_model->SetWorldTransform(position, facing,
+                RetailRacePreviewScale(character->m_data.m_preferences.m_raceID));
+        }
     }
 }
 
@@ -532,8 +539,26 @@ int32_t CCharacterCreation::GetRandomClassID() {
 // VERIFY: b15e5451 auto
 // OFFSET: 0x004E0FD0
 void CCharacterCreation::Dress() {
+    CCharacterCreation::Dress(CCharacterCreation::m_character);
+}
+
+void CCharacterCreation::Undress(CCharacterComponent* target) {
+    if (!target || !target->m_data.m_model) return;
+    for (int32_t slot = 0; slot < NUM_ITEM_SLOTS; slot++) target->RemoveItem(static_cast<ITEM_SLOT>(slot));
+    CCharacterComponent::RemoveHandItem(target->m_data.m_model, INVSLOT_MAINHAND, SHEATHE_NONE, false);
+    CCharacterComponent::RemoveHandItem(target->m_data.m_model, INVSLOT_OFFHAND, SHEATHE_NONE, false);
+    CCharacterComponent::RemoveHandItem(target->m_data.m_model, INVSLOT_OFFHAND, SHEATHE_NONE, true);
+    target->m_handItemDisplayID[0] = target->m_handItemDisplayID[1] = 0;
+    target->m_flags |= 0x4;
+}
+
+void CCharacterCreation::Dress(CCharacterComponent* target) {
+    if (RetailRaceNaked(target)) {
+        CCharacterCreation::Undress(target);
+        return;
+    }
     // Esteria: a race whose model failed to load leaves a component without a model.
-    if (!CCharacterCreation::m_character || !CCharacterCreation::m_character->m_data.m_model) {
+    if (!target || !target->m_data.m_model) {
         return;
     }
 
@@ -566,9 +591,9 @@ void CCharacterCreation::Dress() {
                 int32_t visual = found && g_itemVisualsDB.GetRecord(itemRec.m_itemVisual) ? 0 : itemVisual;
 
                 if (slot != INVSLOT_MAINHAND && slot != INVSLOT_OFFHAND && slot != INVSLOT_RANGED) {
-                    CCharacterCreation::m_character->AddItemBySlot(static_cast<INVENTORY_SLOTS>(slot), displayID, visual);
+                    target->AddItemBySlot(static_cast<INVENTORY_SLOTS>(slot), displayID, visual);
                 } else if (found) {
-                    CCharacterComponent::AddHandItem(CCharacterCreation::m_character->m_data.m_model, &itemRec, static_cast<INVENTORY_SLOTS>(slot), SHEATHE_NONE, false, display->m_characterInfo.m_inventoryItemType[slot] == INVTYPE_SHIELD, false, visual);
+                    CCharacterComponent::AddHandItem(target->m_data.m_model, &itemRec, static_cast<INVENTORY_SLOTS>(slot), SHEATHE_NONE, false, display->m_characterInfo.m_inventoryItemType[slot] == INVTYPE_SHIELD, false, visual);
                 }
 
                 if (slot == INVSLOT_TABARD && found && (itemRec.m_flags & 0x1)) {
@@ -579,7 +604,7 @@ void CCharacterCreation::Dress() {
                     int32_t background;
 
                     if (GuildGetGuildTabard(display->m_characterInfo.m_guid, display->m_characterInfo.m_guildID, nullptr, nullptr, emblemStyle, emblemColor, borderStyle, borderColor, background)) {
-                        CCharacterCreation::m_character->ApplyGuildColor(emblemStyle, emblemColor, borderStyle, borderColor, background);
+                        target->ApplyGuildColor(emblemStyle, emblemColor, borderStyle, borderColor, background);
                     }
                 }
             }
@@ -589,13 +614,13 @@ void CCharacterCreation::Dress() {
     }
 
     for (uint32_t i = 0; i < NUM_ITEM_SLOTS; i++) {
-        CCharacterCreation::m_character->RemoveItem(static_cast<ITEM_SLOT>(i));
+        target->RemoveItem(static_cast<ITEM_SLOT>(i));
     }
 
-    CCharacterComponent::RemoveHandItem(CCharacterCreation::m_character->m_data.m_model, INVSLOT_MAINHAND, SHEATHE_NONE, false);
-    CCharacterComponent::RemoveHandItem(CCharacterCreation::m_character->m_data.m_model, INVSLOT_OFFHAND, SHEATHE_NONE, false);
-    CCharacterComponent::RemoveHandItem(CCharacterCreation::m_character->m_data.m_model, INVSLOT_OFFHAND, SHEATHE_NONE, true);
-    CCharacterComponent::RemoveHandItem(CCharacterCreation::m_character->m_data.m_model, INVSLOT_RANGED, SHEATHE_NONE, false);
+    CCharacterComponent::RemoveHandItem(target->m_data.m_model, INVSLOT_MAINHAND, SHEATHE_NONE, false);
+    CCharacterComponent::RemoveHandItem(target->m_data.m_model, INVSLOT_OFFHAND, SHEATHE_NONE, false);
+    CCharacterComponent::RemoveHandItem(target->m_data.m_model, INVSLOT_OFFHAND, SHEATHE_NONE, true);
+    CCharacterComponent::RemoveHandItem(target->m_data.m_model, INVSLOT_RANGED, SHEATHE_NONE, false);
 
     // Visual class sets are creator-only. The create packet still uses outfit
     // zero, so these previews do not grant items or alter starter equipment.
@@ -612,13 +637,13 @@ void CCharacterCreation::Dress() {
         {11,{50823,50822,50820,50819,49894,16830,16828}} // Lasherweave
     };
     bool classArmor=false;
-    const auto race = CCharacterCreation::m_character->m_data.m_preferences.m_raceID;
+    const auto race = target->m_data.m_preferences.m_raceID;
     if (race == 75 || race == 76) for (auto const& set:classSets) {
         if (set.classID!=CCharacterCreation::m_selectedClassID)continue;
         for (int32_t itemID:set.items) {
             auto const* item=g_itemDB.GetRecord(itemID);
             if (!item||item->m_displayInfoID<=0||item->m_inventoryType==INVTYPE_HEAD)continue;
-            CCharacterCreation::m_character->AddItemByType(static_cast<INVENTORY_TYPES>(item->m_inventoryType),item->m_displayInfoID);
+            target->AddItemByType(static_cast<INVENTORY_TYPES>(item->m_inventoryType),item->m_displayInfoID);
             classArmor=true;
         }
         break;
@@ -627,7 +652,7 @@ void CCharacterCreation::Dress() {
     for (int32_t i = 0; i < g_charStartOutfitDB.m_numRecords; i++) {
         CharStartOutfitRec* outfit = i >= 0 && i < g_charStartOutfitDB.m_numRecords ? &g_charStartOutfitDB.m_records[i] : nullptr;
 
-        if (static_cast<uint8_t>(outfit->m_raceID) != CCharacterCreation::m_character->m_data.m_preferences.m_raceID || static_cast<uint8_t>(outfit->m_classID) != CCharacterCreation::m_selectedClassID || static_cast<uint8_t>(outfit->m_sexID) != CCharacterCreation::m_character->m_data.m_preferences.m_sexID) {
+        if (static_cast<uint8_t>(outfit->m_raceID) != target->m_data.m_preferences.m_raceID || static_cast<uint8_t>(outfit->m_classID) != CCharacterCreation::m_selectedClassID || static_cast<uint8_t>(outfit->m_sexID) != target->m_data.m_preferences.m_sexID) {
             continue;
         }
 
@@ -658,10 +683,10 @@ void CCharacterCreation::Dress() {
                         ItemDisplayInfoRec itemRec;
 
                         if (g_itemDisplayInfoDB.GetRecord(displayID, &itemRec)) {
-                            GEOCOMPONENTLINKS link = CCharacterComponent::AddHandItem(CCharacterCreation::m_character->m_data.m_model, &itemRec, INVSLOT_RANGED, SHEATHE_NONE, false, false, mainHand, 0);
+                            GEOCOMPONENTLINKS link = CCharacterComponent::AddHandItem(target->m_data.m_model, &itemRec, INVSLOT_RANGED, SHEATHE_NONE, false, false, mainHand, 0);
 
                             if (type == INVTYPE_RANGED) {
-                                for (CM2Model* attached = CCharacterCreation::m_character->m_data.m_model->m_attachList; attached; attached = attached->m_attachNext) {
+                                for (CM2Model* attached = target->m_data.m_model->m_attachList; attached; attached = attached->m_attachNext) {
                                     if (attached->m_attachmentId == static_cast<uint32_t>(link)) {
                                         attached->SetLoadedCallback(&CCharacterSelection::ModelLoadedCallback, nullptr);
                                         break;
@@ -677,7 +702,7 @@ void CCharacterCreation::Dress() {
                         ItemDisplayInfoRec itemRec;
 
                         if (g_itemDisplayInfoDB.GetRecord(displayID, &itemRec) && *itemRec.m_modelName[0]) {
-                            CCharacterCreation::m_character->AddItem(ITEMSLOT_11, &itemRec, 0);
+                            target->AddItem(ITEMSLOT_11, &itemRec, 0);
                         }
 
                         break;
@@ -689,7 +714,7 @@ void CCharacterCreation::Dress() {
                 }
             }
 
-            CCharacterCreation::m_character->AddItemByType(static_cast<INVENTORY_TYPES>(type), displayID);
+            target->AddItemByType(static_cast<INVENTORY_TYPES>(type), displayID);
         }
 
         return;
@@ -713,12 +738,14 @@ void CCharacterCreation::InitCharacterComponents(ComponentData* data, bool rando
             CCharacterCreation::m_character->m_data.m_model->DetachFromParent();
         }
 
+        RetailRaceFormStore(CCharacterCreation::m_character);
         CCharacterComponent::FreeComponent(CCharacterCreation::m_character);
     }
 
     CCharacterCreation::m_character = CCharacterComponent::AllocComponent();
+    const uint32_t form = RetailRaceFormRestore(CCharacterCreation::m_character, data->m_preferences);
     char retailPath[260];
-    const bool retailModel = RetailRaceModelPath(data->m_preferences.m_raceID, data->m_preferences.m_sexID, retailPath, sizeof(retailPath));
+    const bool retailModel = RetailRaceModelPath(data->m_preferences.m_raceID, data->m_preferences.m_sexID, retailPath, sizeof(retailPath), form);
     data->m_model = CCharacterCreation::m_charCustomizeFrame->GetScene()->CreateModel(retailModel ? retailPath : modelRec->m_modelName, 0);
 
     if (!data->m_model) {
@@ -755,6 +782,57 @@ void CCharacterCreation::InitCharacterComponents(ComponentData* data, bool rando
     if (CCharacterCreation::m_charCustomizeFrame->m_model) {
         CCharacterCreation::m_character->m_data.m_model->AttachToParent(CCharacterCreation::m_charCustomizeFrame->m_model, 0, nullptr, 0);
     }
+
+    CCharacterCreation::SyncFormMirror();
+}
+
+void CCharacterCreation::ClearFormMirror() {
+    CCharacterComponent* mirror = CCharacterCreation::m_formMirror;
+    if (!mirror) return;
+    CCharacterCreation::m_formMirror = nullptr;
+    if (mirror->m_data.m_model && mirror->m_data.m_model->m_attachParent) mirror->m_data.m_model->DetachFromParent();
+    CCharacterComponent::FreeComponent(mirror);
+}
+
+// Rebuilds the second preview: the form the main character is not showing, with that form's own selections.
+void CCharacterCreation::SyncFormMirror() {
+    CCharacterCreation::ClearFormMirror();
+    CCharacterComponent* main = CCharacterCreation::m_character;
+    if (!main || !main->m_data.m_model || !CCharacterCreation::m_charCustomizeFrame || !RetailRaceFormDual(main)) return;
+
+    ComponentData data;
+    data.m_preferences.m_raceID = main->m_data.m_preferences.m_raceID;
+    data.m_preferences.m_sexID = main->m_data.m_preferences.m_sexID;
+    data.m_preferences.m_classId = main->m_data.m_preferences.m_classId;
+    CCharacterComponent* mirror = CCharacterComponent::AllocComponent();
+    if (!mirror) return;
+    const uint32_t form = RetailRaceMirrorSetup(mirror, main, data.m_preferences);
+    char path[260];
+    if (!form || !RetailRaceModelPath(data.m_preferences.m_raceID, data.m_preferences.m_sexID, path, sizeof(path), form)) {
+        CCharacterComponent::FreeComponent(mirror);
+        return;
+    }
+    data.m_model = CCharacterCreation::m_charCustomizeFrame->GetScene()->CreateModel(path, 0);
+    if (!data.m_model) {
+        CCharacterComponent::FreeComponent(mirror);
+        return;
+    }
+
+    CCharacterCreation::m_charCustomizeFrame->m_lightArray2[0].unk_01BC = 1;
+    data.m_model->m_lightingCallback = &CCharacterSelection::GenericLightingCallback;
+    data.m_model->m_lightingArg = CCharacterCreation::m_charCustomizeFrame->m_lightArray2;
+    data.m_model->SetBoneSequence(0xFFFFFFFF, 0, 0, 0, 1.0f, 1, 1);
+    data.m_flags |= 0x2;
+
+    mirror->Init(&data, nullptr);
+    CCharacterCreation::m_formMirror = mirror;
+    CCharacterCreation::SetCharacterFacing(CCharacterCreation::m_charFacing);
+    CCharacterCreation::Dress(mirror);
+    mirror->RenderPrep(0);
+    if (CCharacterCreation::m_charCustomizeFrame->m_model) {
+        mirror->m_data.m_model->AttachToParent(CCharacterCreation::m_charCustomizeFrame->m_model, 0, nullptr, 0);
+    }
+    CGlueLoading::StartLoad(mirror, 1);
 }
 
 // VERIFY: 68a365e1 manual

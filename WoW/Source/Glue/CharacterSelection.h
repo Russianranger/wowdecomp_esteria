@@ -32,6 +32,7 @@ class CCharacterSelection {
     static void OnHide();
     static void SetBackgroundModel(const char* modelName);
     static void ShowCharacter();
+    static void DressComponent(const CHARACTER_INFO& info, CCharacterComponent* component);
     static void Shutdown();
     static void UpdateCharacterList();
     static void UpdateCharacterName(WOWGUID guid, const char* name);
