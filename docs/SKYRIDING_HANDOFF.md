@@ -19,8 +19,10 @@ abilities work. The retail-art HUD is installed but **not yet seen in game**.
 | Server module, opcodes, anticheat exemption | deployed |
 | Flying everywhere (no-fly zones opened, open world only) | deployed, both sides |
 | Retail HUD art | deployed, untested in game |
-| Wind/speed effects | mapped only |
-| Retail mount models / AdvFly animations | mapped only |
+| Wind/speed effects | local player: six FX_Speed4 models on the mount while diving or above thrill speed (`/console skyriding wind` forces it). Meshes seen in game; particles and ribbons now converted, untested |
+| Fixes found in game | native auto-land under 1.5 yd killed Lift Off (s_flightStatusTime refreshed); fly-path Animate skipped OnUnitWorldTransformUpdated (hook added) |
+| AdvFly animations | local player: `UnitScript::OnUnitMountSequence` + state machine in `Extensions/Skyriding`; used only when the mount model has the ids; built, untested |
+| Retail drake mount packs, remote riders (RiderState), sounds | not started |
 | Commits | **nothing committed in either repo** |
 
 ### Deployed right now

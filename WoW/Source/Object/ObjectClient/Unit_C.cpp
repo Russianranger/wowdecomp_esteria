@@ -1232,6 +1232,8 @@ int32_t CGUnit_C::Animate(float elapsed) {
         CM2Model* model = this->GetObjectModel();
         model->m_fFlags |= 0x8000;
         model->m_worldTransform = matrix;
+        // Not in the original: the swim / fly matrix path places the model too (UpdateWorldTransform is skipped).
+        sExtensionMgr->OnUnitWorldTransformUpdated(this, elapsed);
         this->UpdateMountTransitionModel();
         return 1;
     }
@@ -4693,6 +4695,11 @@ void CGUnit_C::PlayBaseAnimation(uint32_t animId, int32_t flags) {
         updateTorso = 0;
         previousAnim = 0xFFFFFFFF;
         this->UnsetKeyBoneSequence(this->m_worldModel, this->m_torsoKeyBone, 1, 0, 0);
+    }
+
+    // Not in the original: a script may choose the mount's sequence (skyriding animations).
+    if (updateMount && this->m_mountModel && mountSlot.m_sequenceId != 0xFFFFFFFF) {
+        sExtensionMgr->OnUnitMountSequence(this, &mountSlot.m_sequenceId);
     }
 
     if (updateMount && this->m_mountModel && mountSlot.m_sequenceId != 0xFFFFFFFF && (mount.m_sequenceId != mountSlot.m_sequenceId || fabsf(mount.m_speed - mountSlot.m_speed) > 0.01f)) {

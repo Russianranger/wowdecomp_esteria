@@ -43,7 +43,7 @@ D3D11 handles the source's large bone palette with a larger constant buffer. The
 native material path supports its third saddle glow texture, preserving stock
 reflection, lighting, fog and shadow permutations. Constant camera FOV tracks and
 single-texture ribbon tracks are decoded in memory. Shared SKELs, chunked external
-animations, animated camera FOV and Retail particle layouts remain unsupported.
+animations and animated camera FOV remain unsupported; Retail particles are approximated (see below).
 
 ## Validation
 
@@ -88,8 +88,10 @@ ground mount and the first model using chunked `.anim` files. Additions it requi
   is dropped when the file is opened (originals stay untouched on disk). Shared-skeleton animations
   can also contain `AFSB` bone and `AFSA` attachment payloads. Those files retain their chunks, and
   validation/runtime relocation select the corresponding payload base for each track category.
-- Particle emitters use a newer layout and are **omitted** (count cleared); mesh, skinning,
-  ribbons and animation are unaffected.
+- Particle emitters use the 0x1EC Cataclysm+ layout; they are repacked into the 3.3.5 0x1DC layout (first
+  texture of a multi-texture emitter, compressed gravity reduced to its vertical part, Retail-only flags
+  cleared). Emitters of models with external `.anim` files, or with unreadable tracks, are still omitted.
+  Multi-texture ribbons keep their first texture and material.
 - Explicit shader 0x15 (`Diffuse_EdgeFade_T1_T2` / `Combiners_Mod_Mod`) maps to
   `Diffuse_T1_T2` / `Combiners_Mod_Mod` without the edge fade (no EdgeFade vertex shader in 3.3.5).
 - The batch geoset index is not used by the legacy renderer and is no longer range-checked.

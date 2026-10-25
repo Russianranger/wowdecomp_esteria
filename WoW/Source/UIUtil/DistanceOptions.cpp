@@ -21,7 +21,7 @@ local sub = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
 sub:SetPoint("RIGHT", -32, 0)
 sub:SetJustifyH("LEFT")
-sub:SetText("Draw distance, horizon and fog. Drag a slider, use the mouse wheel for small steps, or type an exact value.")
+sub:SetText("Draw distance, horizon, fog and field of view.Drag a slider, use the mouse wheel for small steps, or type an exact value.")
 
 local stock = VideoOptionsEffectsPanelViewDistance
 
@@ -63,6 +63,8 @@ local function MakeSlider(name, cvar, y, entry, low, high, format, wheel)
     slider:SetScript("OnValueChanged", function(self, value)
         self.newValue = value
         if not readout:HasFocus() then readout:SetText(format(value)) end
+        -- FoV previews live; Cancel still restores the old value through SetValue.
+        if cvar == "cameraFov" then SetCVar(cvar, value) end
         if cvar == "farclip" and stock and stock.SetDisplayValue then
             stock:SetValueStep(1) -- the stock slider re-snaps itself to tenths of its range on login
             stock:SetDisplayValue(value)
@@ -100,8 +102,13 @@ end
 
 panel:SetScript("OnShow", function() distance:SetDisplayValue(tonumber(GetCVar("farclip")) or 350) end)
 
+MakeSlider("WowDecompFovSlider", "cameraFov", -288,
+    { text = "Field of view", minValue = 50, maxValue = 120, valueStep = 1,
+      tooltip = "Camera field of view in degrees. Stock is 90. Mouse wheel nudges by 1." },
+    "50", "120", function(v) return string.format("%d", v + 0.5) end, 1)
+
 local note = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-note:SetPoint("TOPLEFT", 24, -274)
+note:SetPoint("TOPLEFT", 24, -338)
 note:SetWidth(380)
 note:SetJustifyH("LEFT")
 note:SetText("Large view distances load much more terrain: expect higher memory use and longer streaming. Fog above 100% shows the far clip edge of the world.")

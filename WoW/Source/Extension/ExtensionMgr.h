@@ -141,6 +141,8 @@ class ExtensionMgr {
     void OnUnitMovementMessage(CGUnit_C* unit, uint32_t msgId, CDataStore* msg);
     // True when a script supplied the step's displacement in move (UnitScript::OnUnitPlotLocalMove).
     bool OnUnitPlotLocalMove(CGUnit_C* unit, uint32_t time, uint32_t elapsed, C3Vector* move);
+    // True when a script replaced the mount model's sequence (UnitScript::OnUnitMountSequence).
+    bool OnUnitMountSequence(CGUnit_C* unit, uint32_t* sequenceId);
 
     public: /* UIScript */
     // Registration API: adds an XML element type (and CreateFrame type) backed by factory. Takes

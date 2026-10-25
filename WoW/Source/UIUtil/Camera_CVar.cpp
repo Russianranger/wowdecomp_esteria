@@ -2,6 +2,10 @@
 #include "Engine/Source/ConsoleBase/IConsole.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/UIUtil/Camera.h"
+#include "WoW/Source/Ui/WorldFrame.h"
+
+// Esteria: base field of view in degrees, driven by the Esteria video options slider.
+CVar* s_cvCameraFov;
 
 // STATIC: 0x00C24970
 CVar* s_cvCameraSmoothTimeMax;
@@ -443,6 +447,23 @@ static bool ValidateCameraSmoothStyle(CVar* var, const char* oldValue, const cha
     return false;
 }
 
+static bool ValidateCameraFov(CVar* var, const char* oldValue, const char* value, void* arg) {
+    float fov = SStrToFloat(value);
+
+    if (fov < 50.0f || fov > 120.0f) {
+        ConsoleWriteA("Value out of range (%f - %f)\n", DEFAULT_COLOR, 50.0, 120.0);
+        return false;
+    }
+
+    if (CGWorldFrame::s_currentWorldFrame) {
+        if (CGCamera* camera = CGWorldFrame::GetActiveCamera()) {
+            camera->m_fov = fov * 0.017453292f;
+        }
+    }
+
+    return true;
+}
+
 // STATIC: 0x00AD2054
 static bool (*s_cameraViewDataValidators[3])(CVar*, const char*, const char*, void*) = { ValidateCameraDistance, ValidateCameraPitch, ValidateCameraYaw };
 
@@ -463,7 +484,8 @@ void CameraRegisterCVars() {
     s_cvCameraYawMoveSpeed = CVar::Register("cameraYawMoveSpeed", nullptr, 0x10, "180", ValidateCameraAngularSpeed, CATEGORY_DEFAULT, false, nullptr, false);
     s_cvCameraBobbingSmoothSpeed = CVar::Register("cameraBobbingSmoothSpeed", nullptr, 0x10, "0.8", ValidateCameraLinearSpeed, CATEGORY_DEFAULT, false, nullptr, false);
     s_cvCameraFoVSmoothSpeed = CVar::Register("cameraFoVSmoothSpeed", nullptr, 0x10, "0.5", ValidateCameraAngularSpeed, CATEGORY_DEFAULT, false, nullptr, false);
-    s_cvCameraDistanceSmoothSpeed = CVar::Register("cameraDistanceSmoothSpeed", nullptr, 0x10, "8.33", ValidateCameraLinearSpeed, CATEGORY_DEFAULT, false, nullptr, false);
+    s_cvCameraFov = CVar::Register("cameraFov", nullptr, 0x10, "90", ValidateCameraFov, CATEGORY_DEFAULT, false, nullptr, false);
+    s_cvCameraDistanceSmoothSpeed =CVar::Register("cameraDistanceSmoothSpeed", nullptr, 0x10, "8.33", ValidateCameraLinearSpeed, CATEGORY_DEFAULT, false, nullptr, false);
     s_cvCameraGroundSmoothSpeed = CVar::Register("cameraGroundSmoothSpeed", nullptr, 0x10, "7.5", ValidateCameraAngularSpeed, CATEGORY_DEFAULT, false, nullptr, false);
     s_cvCameraHeightSmoothSpeed = CVar::Register("cameraHeightSmoothSpeed", nullptr, 0x10, "1.2", ValidateCameraLinearSpeed, CATEGORY_DEFAULT, false, nullptr, false);
     s_cvCameraPitchSmoothSpeed = CVar::Register("cameraPitchSmoothSpeed", nullptr, 0x10, "45", ValidateCameraAngularSpeed, CATEGORY_DEFAULT, false, nullptr, false);

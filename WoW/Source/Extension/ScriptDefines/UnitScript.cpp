@@ -44,6 +44,16 @@ bool ExtensionMgr::OnUnitPlotLocalMove(CGUnit_C* unit, uint32_t time, uint32_t e
     return false;
 }
 
+bool ExtensionMgr::OnUnitMountSequence(CGUnit_C* unit, uint32_t* sequenceId) {
+    for (UnitScript* script : ScriptRegistry<UnitScript>::ScriptPointerList) {
+        if (script->OnUnitMountSequence(*unit, *sequenceId)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 UnitScript::UnitScript(const char* name) : ScriptObject(name) {
     ScriptRegistry<UnitScript>::AddScript(this);
     sExtensionMgr->Log("Extensions: registered UnitScript %s", name);

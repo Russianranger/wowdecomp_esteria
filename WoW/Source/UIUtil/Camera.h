@@ -300,6 +300,7 @@ extern CVar* s_cvCameraTerrainTiltTimeMin;
 extern CVar* s_cvCameraTerrainTiltTimeMax;
 extern CVar* s_cvCameraGroundSmoothSpeed;
 extern CVar* s_cvCameraFoVSmoothSpeed;
+extern CVar* s_cvCameraFov;
 extern CVar* s_cvCameraHeightSmoothSpeed;
 extern CVar* s_cvCameraFlyingMountHeightSmoothSpeed;
 extern CVar* s_cvCameraHeightIgnoreStandState;

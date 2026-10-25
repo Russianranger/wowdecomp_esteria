@@ -47,7 +47,8 @@ class UnitScript : public ScriptObject {
     // auras (one bit per SpellAura effect type present). Fires whenever the aura set changes.
     virtual void OnUnitAuraEffectMaskUpdated(CGUnit_C& unit) {}
 
-    // End of CGUnit_C::UpdateWorldTransform: the smoothed ground normal is updated and the unit's
+    // End of CGUnit_C::UpdateWorldTransform, and of CGUnit_C::Animate's swim / fly matrix path that replaces it while
+    // swimming or flying in motion: the smoothed ground normal is updated and the unit's
     // model received its world transform (position, render facing, true scale, ground normal).
     // Per frame per displayed unit: keep it cheap.
     virtual void OnUnitWorldTransformUpdated(CGUnit_C& unit, float elapsed) {}
@@ -66,6 +67,11 @@ class UnitScript : public ScriptObject {
     // it, so the native plot starts from the new position. The first script that returns true wins. time is the
     // step's start, elapsed its length in ms. Per step of the local player only: keep it cheap.
     virtual bool OnUnitPlotLocalMove(CGUnit_C& unit, uint32_t time, uint32_t elapsed, C3Vector& move) { return false; }
+
+    // CGUnit_C's animation update, right before it sets the mount model's sequence: sequenceId is the animation the
+    // native code chose for the mount (vehicle and spell overrides already applied). A script that returns true
+    // replaces it (the model must have that sequence). The first script that returns true wins.
+    virtual bool OnUnitMountSequence(CGUnit_C& unit, uint32_t& sequenceId) { return false; }
 };
 
 #endif

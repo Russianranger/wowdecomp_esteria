@@ -194,6 +194,69 @@ bool Cameras(std::vector<uint8_t>& b, std::string& error) {
     return true;
 }
 
+// Retail particle emitters (Cataclysm and later) are 0x1EC bytes: the 3.3.5 0x1DC layout followed by two
+// multi-texture parameter pairs. Repack them into the legacy layout and translate the fields whose meaning
+// changed; the legacy emitter then draws them with its first texture. Returns false (with the reason) when a
+// model's emitters cannot be read; the caller omits them and keeps the model.
+// Layout: wowdev.wiki M2#Particle_emitters.
+bool Particles(std::vector<uint8_t>& b, const ModelFiles& files, std::string& reason) {
+    constexpr size_t kRetail = 0x1ec, kLegacy = 0x1dc;
+    if (!U32(b, 0x128)) return true;
+    if (!Array(b, 0x128, kRetail)) return Fail(reason, "particle array exceeds payload");
+    // shortcut: tracks stored in external .anim files are not relocated for particles; such models keep none.
+    if (!files.animations.empty()) return Fail(reason, "particles with external animation files");
+    std::vector<uint8_t> out;
+    for (uint32_t i = 0; i < U32(b, 0x128); ++i) {
+        const size_t p = U32(b, 0x12c) + size_t(i) * kRetail;
+        for (size_t track : {0x34u, 0x48u, 0x5cu, 0x70u, 0x84u, 0x98u, 0xb0u, 0xc8u, 0xdcu, 0xf0u}) {
+            if (!Track(b, p + track, U16(b, p + track) >= 2 ? 12 : 4)) return Fail(reason, "invalid particle track");
+        }
+        if (!Track(b, p + 0x1c8, 1)) return Fail(reason, "invalid particle visibility track");
+        struct Block { size_t at, value; };
+        for (const Block& block : {Block{0x104, 12}, Block{0x114, 2}, Block{0x124, 8}, Block{0x13c, 2}, Block{0x14c, 2}}) {
+            if (!Array(b, p + block.at, 2) || !Array(b, p + block.at + 8, block.value)) return Fail(reason, "invalid particle block");
+        }
+        if (!String(b, p + 0x18) || !String(b, p + 0x20) || !Array(b, p + 0x1c0, 12)) return Fail(reason, "invalid particle model name or spline");
+
+        uint32_t flags = U32(b, p + 4);
+        // 0x800000: gravity keys are compressed vectors (int8 x, int8 y, int16 magnitude). The legacy emitter only
+        // knows a downward scalar, so keep the vertical component (legacy g pulls along -z).
+        if (flags & 0x800000) {
+            const size_t g = p + 0x84;
+            for (uint32_t j = 0; j < U32(b, g + 12); ++j) {
+                const size_t pair = U32(b, g + 16) + size_t(j) * 8;
+                if (!Array(b, pair, U16(b, g) >= 2 ? 12 : 4)) continue;
+                const size_t stride = U16(b, g) >= 2 ? 12 : 4;
+                for (uint32_t k = 0; k < U32(b, pair); ++k) {
+                    const size_t key = U32(b, pair + 4) + size_t(k) * stride;
+                    const float x = int8_t(b[key]) / 128.0f, y = int8_t(b[key + 1]) / 128.0f;
+                    float z = std::sqrt(std::max(0.0f, 1.0f - x * x - y * y));
+                    float magnitude = int16_t(U16(b, key + 2)) * 0.04238648f;
+                    if (magnitude < 0) { z = -z; magnitude = -magnitude; }
+                    const float scalar = -z * magnitude;
+                    uint32_t bits; std::memcpy(&bits, &scalar, 4);
+                    Put(b, key, bits);
+                    if (stride == 12) { Put(b, key + 4, 0); Put(b, key + 8, 0); }
+                }
+            }
+        }
+        const size_t o = out.size();
+        out.insert(out.end(), b.begin() + p, b.begin() + p + kLegacy);
+        // 0x10000000: the texture field packs three 5-bit indices; draw the first.
+        if (flags & 0x10000000) { out[o + 0x16] = uint8_t(U16(b, p + 0x16) & 0x1f); out[o + 0x17] = 0; }
+        if (U16(out, o + 0x16) >= U32(b, 0x50)) return Fail(reason, "particle texture index out of range");
+        // Keep the flags the 3.3.5 emitter defines (through 0x400000); the rest are Retail additions.
+        Put(out, o + 4, flags & 0x7fffff);
+        // Retail blend modes beyond the legacy particle set fall back to additive; emitter types to plane.
+        if (out[o + 0x28] > 4) out[o + 0x28] = 4;
+        if (out[o + 0x29] > 3) out[o + 0x29] = 1;
+    }
+    while (b.size() % 4) b.push_back(0);
+    Put(b, 0x12c, uint32_t(b.size()));
+    b.insert(b.end(), out.begin(), out.end());
+    return true;
+}
+
 // Shared skeletons (SKEL). The .skel chunks (SKS1 sequences, SKB1 bones, SKA1 attachments) hold the arrays an
 // ordinary model keeps in its own body, with offsets relative to each chunk. Append each chunk to the body
 // and rebase its offsets, so the rest of the pipeline sees an ordinary self-contained model.
@@ -837,9 +900,13 @@ bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepa
     }
     if (!Array(b, 0x1c, 64)) return Fail(error, "Invalid sequence array");
     // 0x200000 only marks chunked .anim files (AFM2 wraps the legacy payload); see StripAnimationChunk.
-    // Retail particle emitters use a newer layout the legacy emitter cannot read. Omit them; the mesh,
-    // skinning, ribbons and animation are unaffected. Documented limitation in retail-native-mounts.md.
-    Put(b, 0x128, 0);
+    // Retail particle emitters are repacked into the legacy layout; unreadable ones are omitted, the model kept.
+    {
+        std::string reason;
+        if (!Particles(b, files, reason)) {
+            Put(b, 0x128, 0);
+        }
+    }
     if (!Cameras(b, error)) return false;
     if ((U32(b, 0x10) & 8) && !Array(b, 0x130, 2)) return Fail(error, "Invalid texture combiner array");
     // Retail added blend modes 7-14 beyond the legacy 7-entry table. Map each onto the closest legacy mode
@@ -851,6 +918,16 @@ bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepa
             const uint16_t blend = U16(b, m + 2);
             if (blend < sizeof(kBlend)) { b[m + 2] = kBlend[blend]; b[m + 3] = 0; }
             b[m] &= 0x1f; b[m + 1] = 0;
+        }
+    }
+    // Retail ribbons can blend several textures (the skyriding speed aura, 4640283) and use the last header byte;
+    // the legacy ribbon draws one texture and material: keep the first of each.
+    if (Array(b, 0x120, 176)) {
+        for (uint32_t i = 0; i < U32(b, 0x120); ++i) {
+            const size_t p = U32(b, 0x124) + size_t(i) * 176;
+            if (U32(b, p + 20) > 1) Put(b, p + 20, 1);
+            if (U32(b, p + 28) > 1) Put(b, p + 28, 1);
+            b[p + 175] = 0;
         }
     }
     if (!Validate(b, files, error)) return false;
@@ -1106,6 +1183,10 @@ bool PrepareSkin(std::vector<uint8_t>& b, const std::vector<uint8_t>& m, std::st
             // Draw them with their first texture and the plain opaque combiner instead of failing the model.
             b[p] = b[p + 1] = 0;
             b[p + 12] = 1; b[p + 13] = 0;
+        } else if ((shader & 0x8000) && U16(b, p + 12) == 2) {
+            // Other two-texture explicit shaders (the skyriding speed aura's 0x8021): draw with Diffuse_T1_T2 /
+            // Combiners_Mod_Mod. shortcut: approximate combiner, map the shader exactly if an effect looks wrong.
+            b[p] = 0x12; b[p + 1] = 0x80;
         } else if (shader & 0x8000) {
             return Fail(error, ("Retail explicit shader is not implemented yet: 0x" + HexWord(shader) + " in batch " + std::to_string(i) + " (textures " + std::to_string(U16(b, U32(b, 40) + size_t(i) * 24 + 14)) + ")").c_str());
         }

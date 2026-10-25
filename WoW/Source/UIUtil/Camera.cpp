@@ -173,7 +173,7 @@ C3Vector CGCamera::Up() const {
 
 // VERIFY: 6dc11132 auto
 // OFFSET: 0x00606B30
-CGCamera::CGCamera() : CSimpleCamera(World::s_nearClip, World::s_farClip, 1.5707964f) {
+CGCamera::CGCamera() : CSimpleCamera(World::s_nearClip, World::s_farClip, s_cvCameraFov ? s_cvCameraFov->m_floatValue * 0.017453292f : 1.5707964f) {
     this->m_model = nullptr;
     this->m_someTime = OsGetAsyncTimeMs();
     this->m_modelCameraHandle = nullptr;
