@@ -139,6 +139,8 @@ class ExtensionMgr {
     void OnUnitAuraEffectMaskUpdated(CGUnit_C* unit);
     void OnUnitWorldTransformUpdated(CGUnit_C* unit, float elapsed);
     void OnUnitMovementMessage(CGUnit_C* unit, uint32_t msgId, CDataStore* msg);
+    // True when a script supplied the step's displacement in move (UnitScript::OnUnitPlotLocalMove).
+    bool OnUnitPlotLocalMove(CGUnit_C* unit, uint32_t time, uint32_t elapsed, C3Vector* move);
 
     public: /* UIScript */
     // Registration API: adds an XML element type (and CreateFrame type) backed by factory. Takes

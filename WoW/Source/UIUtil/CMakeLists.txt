@@ -6,6 +6,7 @@ set(BUILTIN_DATA "${CMAKE_CURRENT_BINARY_DIR}/BuiltinAddOnData.cpp")
 embed_files("${BUILTIN_DATA}" g_builtinBlobs
     "lua:WowDecompBodyShape=${CMAKE_SOURCE_DIR}/Addons/WowDecompBodyShape/WowDecompBodyShape.lua"
     "lua:EsteriaInventory=${CMAKE_SOURCE_DIR}/Addons/EsteriaInventory/EsteriaInventory.lua"
+    "lua:EsteriaSkyriding=${CMAKE_SOURCE_DIR}/Addons/EsteriaSkyriding/EsteriaSkyriding.lua"
     "file:Interface/EsteriaInventory/MenuIcon.tga=${CMAKE_SOURCE_DIR}/Addons/EsteriaInventory/Textures/MenuIcon.tga"
     "file:Interface/EsteriaInventory/SlotBackdrop.tga=${CMAKE_SOURCE_DIR}/Addons/EsteriaInventory/Textures/SlotBackdrop.tga"
 )

@@ -5,6 +5,7 @@
 #include "WoW/Source/Extension/ScriptObject.h"
 
 class AuraData;
+class C3Vector;
 class CDataStore;
 class CGUnit_C;
 
@@ -57,6 +58,14 @@ class UnitScript : public ScriptObject {
     // only for messages the unit is allowed to send. Observe only; NetScript::OnMessageSent sees
     // the same message a step later.
     virtual void OnUnitMovementMessage(CGUnit_C& unit, uint32_t msgId, CDataStore& msg) {}
+
+    // CMovement_C::ApplyMovement, once per movement step of the active mover when it is off spline, right after the
+    // native plot (which has already turned and pitched unit.m_movementData). move holds the plotted displacement
+    // from the current position (the anchors are current, see below). A script that returns true replaces it with its
+    // own world-space displacement; the step still goes through CollideRequestMove and the anchors are reset after
+    // it, so the native plot starts from the new position. The first script that returns true wins. time is the
+    // step's start, elapsed its length in ms. Per step of the local player only: keep it cheap.
+    virtual bool OnUnitPlotLocalMove(CGUnit_C& unit, uint32_t time, uint32_t elapsed, C3Vector& move) { return false; }
 };
 
 #endif
