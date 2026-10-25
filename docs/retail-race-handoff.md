@@ -1,4 +1,4 @@
-# Handoff: Retail race customization
+# Handoff: Retail race customization 
 
 Current state: all requested race slots are enabled in the installed native Retail client, with both
 sexes. **The roster expansion is installed; live acceptance is pending.** Human armor/helmets/emotes
