@@ -137,6 +137,8 @@ namespace gxvk::vk::pipelines::detail
             }
             if (ss.regsUsed == ss.regsCount && !CreateChunk(ss))
             {
+                if (!s.stats.regsFull)
+                    Write(Warn, "vulkan: pipelines: a frame filled %u uniform chunks; further draws are skipped (logged once)", kMaxRegsChunks);
                 ++s.stats.regsFull;
                 return false;
             }

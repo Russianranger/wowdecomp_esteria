@@ -77,7 +77,9 @@ namespace gxvk::vk::pipelines::detail
 
     /// Set-0 descriptor sets one frame may allocate, and the combined image samplers behind them.
     constexpr uint32_t kSetsPerSlot        = 4096;
-    constexpr uint32_t kDescriptorsPerSlot = 4 * kSetsPerSlot;
+    // Every set may fill all its slots: the shadow-receiving map object shaders bind stages 4..7 too,
+    // and an average of 4 ran the pool dry at the higher shadow qualities.
+    constexpr uint32_t kDescriptorsPerSlot = kTextureStages * kSetsPerSlot;
 
     /// The per-slot cache over those sets: twice the sets, a power of two, for short probes.
     constexpr uint32_t kCacheSlots = 2 * kSetsPerSlot;
@@ -86,7 +88,8 @@ namespace gxvk::vk::pipelines::detail
     /// The uniform ring: chunks per frame slot, each a mapped UNIFORM_BUFFER with one set-1
     /// descriptor over it; a frame that fills a chunk moves to the next.
     constexpr uint32_t     kRegsChunkBytes = 4u * 1024u * 1024u;
-    constexpr uint32_t     kMaxRegsChunks  = 16;
+    // Made on demand; the higher shadow qualities draw each model again per shadow band and filled 16.
+    constexpr uint32_t     kMaxRegsChunks  = 64;
 
     /// One uniform slice of the translated interface: p[16], misc, v[rows] (Shaders: the Regs
     /// block). The set-1 descriptor's range is the larger class; a 64-row module reads the first
