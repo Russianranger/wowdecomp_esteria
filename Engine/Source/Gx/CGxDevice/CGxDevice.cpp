@@ -171,6 +171,11 @@ void CGxDevice::ScenePresent() {
     this->m_frameCount++;
     this->m_scrShotClick = 0;
     this->m_intF5C = 0;
+
+    // NOT IN BINARY: latch the performance overlay's frame counters.
+    if (GxPerfEnabled()) {
+        GxPerfFrameEnd();
+    }
 }
 
 // VERIFY: 7c26f822 auto

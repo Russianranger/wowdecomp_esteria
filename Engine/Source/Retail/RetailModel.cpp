@@ -886,7 +886,7 @@ bool InspectModel(const std::vector<uint8_t>& bytes, ModelFiles& files, std::str
 }
 
 bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepared, ModelFiles& files, std::string& error,
-    const std::vector<uint8_t>* skeleton) {
+    const std::vector<uint8_t>* skeleton, bool mapFlight) {
     error.clear();
     prepared.clear();
     Chunks chunks;
@@ -963,7 +963,7 @@ bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepa
                 if (v == ix) put16(hash + size_t(i) * 2, uint16_t(iy)); else if (v == iy) put16(hash + size_t(i) * 2, uint16_t(ix));
             }
         };
-        if (first(135) >= 0 && first(229) >= 0 && first(364) >= 0 && first(41) >= 0 && first(42) >= 0) {
+        if (mapFlight && first(135) >= 0 && first(229) >= 0 && first(364) >= 0 && first(41) >= 0 && first(42) >= 0) {
             swapIds(41, 229);
             swapIds(42, 364);
         }

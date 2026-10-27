@@ -9,6 +9,7 @@
 #include "Engine/Source/Model2/M2Shared.h"
 #include "Engine/Source/Retail/RetailModel.h"
 #include "Engine/Source/Retail/CascSource.h"
+#include "Engine/Source/Retail/Ethereal.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/Rec/ItemDisplayInfoRec.h"
@@ -87,6 +88,21 @@ int ReportLoaded(lua_State* L) {
     auto* frame = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
     if (!frame->m_model || !frame->m_model->IsLoaded(0, 0)) { lua_pushboolean(L, false); return 1; }
     const auto* shared = frame->m_model->m_shared;
+    if (const uint32_t id = Retail::Ethereal::PathModel(shared->m_fileName)) {
+        Retail::Db2::appearance::Recipe recipe;
+        const uint32_t form = id == Retail::Ethereal::Bodies[2]
+            ? Retail::Db2::appearance::FormDreadnaught : Retail::Db2::appearance::FormDarkweaver;
+        if (Retail::Ethereal::Build(id == Retail::Ethereal::Bodies[1], nullptr, 0, recipe, form)) {
+            frame->m_model->SetGeometryVisible(0, 65535, 0);
+            for (uint16_t geoset : recipe.geosets) frame->m_model->SetGeometryVisible(geoset, geoset, 1);
+            for (const auto& layer : recipe.layers)
+                frame->ReplaceTexture(layer.textureType, Retail::FileName(layer.fileDataId, ".blp").c_str());
+            frame->m_model->SetEmittersEnabled(1);
+            frame->m_model->SetRibbonsEnabled(1);
+            if (form == Retail::Db2::appearance::FormDreadnaught)
+                Retail::Ethereal::ApplyEffects(*frame->m_model, nullptr, 0);
+        }
+    }
     // A bare Model frame has no studio light or embedded model camera. Fit the
     // actual bounds in a separate perspective camera instead of using UI-pixel scale.
     frame->m_facing = 0;
@@ -95,7 +111,8 @@ int ReportLoaded(lua_State* L) {
     frame->m_position = C3Vector(0, 0, 0);
     const auto& box = shared->m_data->m_bounds.m_extent;
     const C3Vector center((box.b.x + box.t.x) * 0.5f, (box.b.y + box.t.y) * 0.5f, (box.b.z + box.t.z) * 0.5f);
-    const float radius = std::max(0.1f, shared->m_data->m_bounds.m_radius);
+    const float radius = Retail::Ethereal::PathModel(shared->m_fileName)
+        ? 1.8f : std::max(0.1f, shared->m_data->m_bounds.m_radius);
     if (CCamera* camera = CameraCreate()) {
         CameraSetCoord(camera, 7, C3Vector(center.x + radius * 2.5f, center.y - radius * 2, center.z + radius));
         CameraSetCoord(camera, 8, center);
@@ -141,12 +158,15 @@ int32_t Preview(const char*, const char* arguments) {
         return 0;
     }
     Retail::SourceScope scope(kind);
-    if (std::getenv("WOW_RETAIL_PREVIEW_CHARACTER")) Retail::Source().RegisterCharacterModel(values[0]);
+    const bool character = std::getenv("WOW_RETAIL_PREVIEW_CHARACTER") != nullptr;
+    if (character) Retail::Source().RegisterCharacterModel(values[0]);
+    const auto modelPath = character && kind == Retail::SourceKind::Retail && Retail::Ethereal::Model(values[0])
+        ? Retail::Ethereal::Path(values[0]) : Retail::FileName(values[0], ".m2");
     char script[2300];
     std::snprintf(script, sizeof(script),
         "local f=RetailModelPreview or CreateFrame('Model','RetailModelPreview'); "
         "f:SetWidth(650); f:SetHeight(650); f:SetPoint('CENTER'); f:SetFrameStrata('TOOLTIP'); "
-        "f:SetModel('%s%u.m2'); f:SetFacing(0.8); f:SetCamera(0); f:Show(); "
+        "f:SetModel('%s'); f:SetFacing(0.8); f:SetCamera(0); f:Show(); "
         "f.retailTime=0; f.retailTexture=%u; f.retailType=%u; f.retailTexture2=%u; "
         "f:SetScript('OnUpdate',function(self,dt) "
         "self.retailTime=self.retailTime+dt; "
@@ -155,7 +175,7 @@ int32_t Preview(const char*, const char* arguments) {
         "if self.retailTexture2>0 then RetailModelBindTexture(self,self.retailTexture2,12) end; "
         "self:SetScript('OnUpdate',nil) "
         "elseif self.retailTime>30 then self:SetScript('OnUpdate',nil) end end)",
-        Retail::SourcePrefix(), values[0], values[1], values[2], values[3]);
+        modelPath.c_str(), values[1], values[2], values[3]);
     sExtensionMgr->Log("Retail preview requested: model %u, texture %u, type %u", values[0], values[1], values[2]);
     FrameScript_Execute(script, "RetailPreview", nullptr);
     return 1;

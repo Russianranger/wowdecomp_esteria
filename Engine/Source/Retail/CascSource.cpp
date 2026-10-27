@@ -5,6 +5,8 @@
 #include "Engine/Source/Retail/ClientTables.h"
 #include "Engine/Source/Retail/SlimeGiant.h"
 #include "Engine/Source/Retail/Centaur.h"
+#include "Engine/Source/Retail/Ethereal.h"
+#include "Engine/Source/Retail/EtherealModel.h"
 #include <CascLib.h>
 #include <algorithm>
 #include <charconv>
@@ -83,6 +85,7 @@ struct Model {
     bool slimeGiant = false;
     bool centaur = false;
     bool centaurFemale = false;
+    uint32_t ethereal = 0;
 };
 struct Reference {
     uint32_t id = 0;
@@ -145,6 +148,7 @@ struct CascSource::Impl {
         if (alias != names.end()) { ref.id = alias->second; return true; }
         if (kind == SourceKind::Retail && (ref.id = SlimeGiant::PathModel(name))) return true;
         if (kind == SourceKind::Retail && (ref.id = Centaur::PathModel(name))) return true;
+        if (kind == SourceKind::Retail && (ref.id = Ethereal::PathModel(name))) return true;
         if (name.compare(0, Prefix().size(), Prefix()) != 0) return Failure(error, "No CDN alias for this path");
         internal = name.substr(Prefix().size());
         const auto dot = internal.find('.');
@@ -525,7 +529,8 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
         model->slimeGiant = s.kind == SourceKind::Retail && SlimeGiant::PathModel(key) == ref.id;
         model->centaur = s.kind == SourceKind::Retail && Centaur::PathModel(key) == ref.id;
         model->centaurFemale = model->centaur && ref.id == Centaur::Bodies[1];
-        model->character = model->slimeGiant || model->centaur || s.characterModels.count(ref.id) != 0;
+        model->ethereal = s.kind == SourceKind::Retail ? Ethereal::PathModel(key) : 0;
+        model->character = model->slimeGiant || model->centaur || model->ethereal || s.characterModels.count(ref.id) != 0;
         // A shared skeleton lives in its own file; fetch it before the model is prepared.
         ModelFiles inspected;
         std::vector<uint8_t> skeleton;
@@ -533,9 +538,31 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
             std::vector<uint32_t> chain;
             success = s.LoadSkeleton(inspected.skeleton, skeleton, error, chain);
         }
-        success = success && PrepareModel(bytes, model->bytes, model->files, error, skeleton.empty() ? nullptr : &skeleton);
+        if (success && model->ethereal) {
+            // Both Ethereal bodies share the male Nightborne-sized main joint layout.
+            const uint32_t donorId = 1814471;
+            std::vector<uint8_t> donor, donorSkeleton, donorPrepared;
+            ModelFiles donorGraph, donorFiles;
+            const bool borrowMotion = model->ethereal != Ethereal::Bodies[2];
+            if (borrowMotion) success = s.Fetch(Reference{donorId}, "", donor, error) && InspectModel(donor, donorGraph, error);
+            if (success && borrowMotion && donorGraph.skeleton) {
+                std::vector<uint32_t> chain;
+                success = s.LoadSkeleton(donorGraph.skeleton, donorSkeleton, error, chain);
+            }
+            if (success && borrowMotion) success = PrepareModel(donor, donorPrepared, donorFiles, error,
+                donorSkeleton.empty() ? nullptr : &donorSkeleton, false);
+            const auto read = [&](uint32_t id, std::vector<uint8_t>& out, std::string& reason) {
+                return s.Fetch(Reference{id}, "", out, reason);
+            };
+            success = success && Ethereal::Motion::Prepare(bytes, donorPrepared, donorFiles, read,
+                model->bytes, model->files, error, borrowMotion);
+        } else {
+            success = success && PrepareModel(bytes, model->bytes, model->files, error, skeleton.empty() ? nullptr : &skeleton);
+        }
         if (success && model->slimeGiant) success = SlimeGiant::PrepareModel(model->bytes, ref.id, error);
         if (success && model->centaur) success = Centaur::PrepareModel(model->bytes, ref.id, error);
+        if (success && model->ethereal && model->ethereal != Ethereal::Bodies[2])
+            success = Ethereal::PrepareArmorModel(model->bytes, error);
         std::map<std::string, Reference> pending;
         const auto base = key.substr(0, key.find_last_of('.'));
         // Check every advertised profile before exposing the model to the renderer.
@@ -546,6 +573,10 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
             success = s.Fetch(skin, "", raw, error);
             if (success && model->slimeGiant) success = SlimeGiant::PrepareSkin(raw, error);
             if (success && model->centaur) success = Centaur::PrepareSkin(raw, error, model->centaurFemale);
+            if (success && model->ethereal && model->ethereal != Ethereal::Bodies[2])
+                success = Ethereal::CompactSkin(raw, model->bytes, error);
+            if (success && model->ethereal)
+                success = Ethereal::PrepareSkin(raw, model->ethereal == Ethereal::Bodies[2], error, &model->bytes);
             success = success && PrepareSkin(raw, model->bytes, error, model->character || model->files.skeleton != 0);
             char suffix[16];
             std::snprintf(suffix, sizeof(suffix), "%02u.skin", static_cast<unsigned>(i));
@@ -574,6 +605,10 @@ bool CascSource::Read(const char* name, std::vector<uint8_t>& bytes, std::string
         if (!success) error = "Open the Retail model before its skin";
         if (success && ref.owner->slimeGiant) success = SlimeGiant::PrepareSkin(bytes, error);
         if (success && ref.owner->centaur) success = Centaur::PrepareSkin(bytes, error, ref.owner->centaurFemale);
+        if (success && ref.owner->ethereal && ref.owner->ethereal != Ethereal::Bodies[2])
+            success = Ethereal::CompactSkin(bytes, ref.owner->bytes, error);
+        if (success && ref.owner->ethereal)
+            success = Ethereal::PrepareSkin(bytes, ref.owner->ethereal == Ethereal::Bodies[2], error, &ref.owner->bytes);
         success = success && PrepareSkin(bytes, ref.owner->bytes, error, ref.owner->character || ref.owner->files.skeleton != 0);
     } else if (ext == ".anim") {
         success = ref.owner ? (StripAnimationChunk(bytes, error) && ValidateAnimation(bytes, ref.owner->bytes, ref.animation, ref.variation, error)) :

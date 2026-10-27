@@ -172,7 +172,7 @@ namespace gxvk::vk::pipelines
             samplerMask = draw.fragmentRecord->samplerMask;
             cubeMask    = draw.fragmentRecord->cubeMask;
         }
-        else if (draw.fragment == FragmentProgram::FixedFunction || draw.fragment == FragmentProgram::FixedFunctionTranslated)
+        else if (draw.fragment == FragmentProgram::FixedFunction || draw.fragment == FragmentProgram::FixedFunctionTranslated || draw.fragment == FragmentProgram::OutlineEdge)
             samplerMask = 3u;
         uint32_t layoutIndex = 0;
         if (!LayoutFor(samplerMask, layoutIndex))

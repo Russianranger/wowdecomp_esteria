@@ -27,7 +27,9 @@
 #include "Engine/Source/lua-5.1/src/lauxlib.h"
 #include "Engine/Source/lua-5.1/src/lua.h"
 #include "Engine/Source/Os/OsFile.h"
+#include "Engine/Source/Os/System.h"
 #include "Engine/Source/Os/Time.h"
+#include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Scrn/Scrn.h"
 #include "Engine/Source/ShaderEffect/ShadowCache.h"
@@ -2549,6 +2551,65 @@ static int32_t Script_GetMirrorTimerInfo(lua_State* L) {
     lua_pushnumber(L, timer.m_paused);
     lua_pushstring(L, GetMirrorTimerLabel(timer.m_type, timer.m_spellId));
     return 6;
+}
+
+// Not in the original binary: the performance overlay's data source. One call returns everything so the overlay
+// never sees a frame split across two reads. cpuPercent is the process's kernel+user time over the interval since
+// the previous call, as a share of the whole machine; the first call has no baseline and reports 0. ms is derived
+// from the averaged frame rate, not measured on the GPU.
+static int32_t Script_GetPerformanceStats(lua_State* L) {
+    static bool haveSample = false;
+    static uint64_t lastCpu100ns = 0;
+    static uint32_t lastSampleMs = 0;
+    static float lastCpuPercent = 0.0f;
+
+    FILETIME creation;
+    FILETIME exit;
+    FILETIME kernel;
+    FILETIME user;
+    uint64_t cpu100ns = 0;
+
+    // The baseline only advances on a successful sample; after a failure the next delta would otherwise span
+    // the process's whole lifetime.
+    bool sampled = GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user) != 0;
+
+    if (sampled) {
+        cpu100ns = (static_cast<uint64_t>(kernel.dwHighDateTime) << 32 | kernel.dwLowDateTime) +
+                   (static_cast<uint64_t>(user.dwHighDateTime) << 32 | user.dwLowDateTime);
+    }
+
+    uint32_t nowMs = OsGetAsyncTimeMs();
+
+    if (haveSample && sampled && nowMs > lastSampleMs) {
+        uint32_t cores = OsGetNumberOfProcessors();
+
+        if (cores && cpu100ns >= lastCpu100ns) {
+            double cpuMs = static_cast<double>(cpu100ns - lastCpu100ns) * 0.0001;
+            lastCpuPercent = static_cast<float>(cpuMs / static_cast<double>(nowMs - lastSampleMs) * 100.0 / static_cast<double>(cores));
+        }
+
+        lastCpu100ns = cpu100ns;
+        lastSampleMs = nowMs;
+    } else if (!haveSample && sampled) {
+        lastCpu100ns = cpu100ns;
+        lastSampleMs = nowMs;
+    }
+
+    haveSample = sampled;
+
+    // The cvar callback normally switches counting; a value loaded from Config.wtf may not have run it.
+    if (g_showPerformanceCVar && g_showPerformanceCVar->m_intValue != 0 && !GxPerfEnabled()) {
+        GxPerfSetEnabled(true);
+    }
+
+    double framerate = World::GetFramerate();
+
+    lua_pushnumber(L, framerate);
+    lua_pushnumber(L, framerate > 0.0 ? 1000.0 / framerate : 0.0);
+    lua_pushnumber(L, static_cast<double>(GxPerfDrawCalls()));
+    lua_pushnumber(L, static_cast<double>(GxPerfTriangles()));
+    lua_pushnumber(L, static_cast<double>(lastCpuPercent));
+    return 5;
 }
 
 // VERIFY: facf946d auto
@@ -6218,6 +6279,7 @@ static FrameScript_Method s_ScriptFunctions[] = {
     { "SetConsoleKey", &Script_SetConsoleKey },
     { "Screenshot", &Script_Screenshot },
     { "GetFramerate", &Script_GetFramerate },
+    { "GetPerformanceStats", &Script_GetPerformanceStats },
     { "TogglePerformanceDisplay", &Script_TogglePerformanceDisplay },
     { "TogglePerformancePause", &Script_TogglePerformancePause },
     { "TogglePerformanceValues", &Script_TogglePerformanceValues },

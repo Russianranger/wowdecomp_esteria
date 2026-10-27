@@ -28,7 +28,7 @@ namespace CharacterRetailLook
 {
     inline constexpr uint8_t Version = 1;
     inline constexpr uint8_t VersionForm = 2;
-    inline constexpr uint8_t MaxForm = 4;
+    inline constexpr uint8_t MaxForm = 6;
     inline constexpr size_t MaxOptions = 64;
     inline constexpr size_t PayloadSize = 4 + 2 * MaxOptions;
     inline constexpr uint32_t FooterMagic = 0x314B4C52; // "RLK1"
@@ -36,6 +36,11 @@ namespace CharacterRetailLook
     inline constexpr uint32_t ParkedMagic = 0x31504C52; // "RLP1": same layout as RLE1, the Two Forms look that is not showing
     inline constexpr size_t FooterSize = PayloadSize + 4;
     inline constexpr size_t EnumStride = 8 + PayloadSize;
+
+    inline constexpr uint8_t FirstFormForRace(uint32_t race)
+    {
+        return race == 12 ? 1 : race == 28 ? 3 : (race == 77 || race == 78) ? 5 : 0;
+    }
 
     struct Look
     {

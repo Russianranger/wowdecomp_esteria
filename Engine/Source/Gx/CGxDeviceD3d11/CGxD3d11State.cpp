@@ -788,6 +788,7 @@ void CGxDeviceD3d11::Draw(CGxBatch* batch, int32_t count) {
 
     this->IStateSync();
     this->m_statDraws++;
+    GxPerfCountBatch(batch);
 
     static int32_t s_terrainLogs = 0;
     ShaderData* dbgVs = this->IBoundVertexShader();

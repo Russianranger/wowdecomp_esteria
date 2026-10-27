@@ -22,6 +22,7 @@
 #include "Engine/Source/Tempest/C33Matrix.h"
 #include "Engine/Source/Tempest/C3Ray.h"
 #include "Engine/Source/Tempest/NTempest.h"
+#include "Engine/Source/UnitOutline/UnitOutline.h"
 #include "WoW/Source/Extension/ExtensionMgr.h"
 
 // STATIC: 0x00A45374
@@ -1277,6 +1278,15 @@ int32_t CM2Scene::SortOpaque(uint32_t a, uint32_t b, const void* param) {
     M2Element* elementA = &scene->m_elements.m_data[a];
     M2Element* elementB = &scene->m_elements.m_data[b];
 
+    // Not in the original binary: the outline's targets draw last in the pass. Their stamps read the depth buffer,
+    // and this puts the rest of the world into it first, so a tree hides the part of the line it covers.
+    bool targetA = CUnitOutline::IsTarget(elementA->m_model);
+    bool targetB = CUnitOutline::IsTarget(elementB->m_model);
+
+    if (targetA != targetB) {
+        return targetA ? 1 : -1;
+    }
+
     if (elementA->m_type < elementB->m_type) {
         return -1;
     }
@@ -2281,9 +2291,19 @@ void CM2Scene::Draw(M2PASS pass) {
     }
 
     CM2SceneRender render(this);
+
+    // Not in the original binary: instanced doodads (trees, props) draw after the models. The outline's targets
+    // stamp against the depth buffer, so with something to outline the doodads go first or every tree would
+    // draw after the unit behind it and the line would cover the trunk. Otherwise the shipped order is kept.
+    bool doodadsFirst = pass == M2PASS_0 && CUnitOutline::HasTargets();
+
+    if (doodadsFirst) {
+        render.Draw(M2PASS_0, this->m_elements.m_data, this->m_doodadElements.m_data, this->m_doodadElements.m_count);
+    }
+
     render.Draw(pass, this->m_elements.m_data, this->m_passElements[pass].m_data, this->m_passElements[pass].m_count);
 
-    if (pass == M2PASS_0) {
+    if (pass == M2PASS_0 && !doodadsFirst) {
         render.Draw(M2PASS_0, this->m_elements.m_data, this->m_doodadElements.m_data, this->m_doodadElements.m_count);
     }
 }

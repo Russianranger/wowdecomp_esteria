@@ -10,6 +10,7 @@
 #include "Engine/Source/Event/Event.h"
 #include "Engine/Source/Frame/CSimpleRender.h"
 #include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
+#include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Model2/M2Cache.h"
 #include "Engine/Source/Os/Input.h"
 #include "Engine/Source/Os/System.h"
@@ -22,6 +23,9 @@
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Hardware.h"
 #include "WoW/Source/UIUtil/Cursor.h"
+#include "WoW/Source/Ui/LootBeam.h"
+#include "WoW/Source/Ui/OptionCVars.h"
+#include "WoW/Source/Ui/UnitOutlineGather.h"
 #include "WoW/Source/WowSysMessageOutput.h"
 
 // STATIC: 0x00AB6004
@@ -119,6 +123,7 @@ CVar* g_accountListVar;
 
 // STATIC: 0x00B2F990
 CVar* g_accountNameVar;
+CVar* g_showPerformanceCVar;
 
 // STATIC: 0x00B2F9F8
 CVar* s_cvarUIFaster;
@@ -637,11 +642,42 @@ bool LocaleCallback(CVar* var, const char* oldValue, const char* value, void* ar
 }
 
 // VERIFY: 9951b118 manual
+// Not in the original binary. Draw counting costs a branch per batch, so it follows the cvar.
+static bool ShowPerformanceCallback(CVar* var, const char* oldValue, const char* value, void* arg) {
+    GxPerfSetEnabled(value && SStrToInt(value) != 0);
+    return true;
+}
+
 // OFFSET: 0x00401B60
 void ClientRegisterConsoleCommands() {
     CursorRegisterCVars();
     ConsoleCommandRegister("reloadUI", CCommand_ReloadUI, CATEGORY_GRAPHICS, nullptr);
     ConsoleCommandRegister("perf", CCommand_Perf, CATEGORY_DEBUG, nullptr);
+
+    // Not in the original binary: the Esteria gameplay options. Flag 1 saves them in Config.wtf with the other video options.
+    LootBeam::RegisterCVars();
+
+    // The performance overlay's options; the overlay itself is Lua (UIUtil/DistanceOptions.cpp).
+    static const struct { const char* name; const char* help; const char* value; } perfOptions[] = {
+        { "perfOverlayFps", "Performance overlay: show the frame rate", "1" },
+        { "perfOverlayFrameTime", "Performance overlay: show the frame time", "1" },
+        { "perfOverlayDrawCalls", "Performance overlay: show draw calls", "1" },
+        { "perfOverlayTriangles", "Performance overlay: show triangles", "1" },
+        { "perfOverlayCpu", "Performance overlay: show CPU use", "1" },
+        { "perfOverlayScale", "Performance overlay scale", "1" },
+        { "perfOverlayAlpha", "Performance overlay opacity", "0.8" },
+        { "perfOverlayInterval", "Performance overlay update interval in seconds", "0.25" },
+        { "perfOverlayBackground", "Performance overlay: dark background", "1" },
+        { "perfOverlayLocked", "Performance overlay: lock position", "0" },
+        { "perfOverlayPos", "Performance overlay position, screen x,y", "" },
+    };
+
+    for (const auto& option : perfOptions) {
+        OptionCVars::Register(option.name, option.help, option.value);
+    }
+    CUnitOutlineGather::RegisterCVars();
+
+    g_showPerformanceCVar = CVar::Register("showPerformance", "Show the performance overlay (fps, draw calls, cpu)", 1, "0", ShowPerformanceCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 
     g_accountNameVar = CVar::Register("accountName", "Saved account name", 0x40, "", nullptr, CATEGORY_GAME, false, nullptr, false);
     g_accountListVar = CVar::Register("accountList", "List of wow accounts for saved Blizzard account", 0, "", nullptr, CATEGORY_GAME, false, nullptr, false);

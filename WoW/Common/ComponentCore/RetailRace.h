@@ -21,6 +21,8 @@ bool RetailRaceMapped(uint32_t race);
 
 // Bounded visual donor mask for stock helmet hides, including mapped custom race IDs >= 32.
 uint32_t RetailRaceHelmetMask(uint32_t race);
+uint32_t RetailRaceHelmetRace(uint32_t race);
+bool RetailRaceHidesArmor(CCharacterComponent* character);
 
 // True if the component's model is a Retail model of a mapped race. Retail geoset/texture logic must only run
 // on such components: NPCs and other humanoids of the same race keep their stock models.

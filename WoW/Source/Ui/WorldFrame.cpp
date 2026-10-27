@@ -86,6 +86,9 @@
 #include "WoW/Source/WorldClient/MapEntity.h"
 #include "WoW/Source/WorldClient/MapWeather.h"
 #include "WoW/Source/WorldClient/World.h"
+#include "Engine/Source/UnitOutline/UnitOutline.h"
+#include "WoW/Source/Ui/LootBeam.h"
+#include "WoW/Source/Ui/UnitOutlineGather.h"
 #include <cfloat>
 #include <cmath>
 #include "WoW/Source/Ui/SpellBookFrame.h"
@@ -1726,6 +1729,9 @@ void CGWorldFrame::OnWorldRender() {
     }
 
     CShaderEffect::UpdateProjMatrix();
+    // Not in the original binary: the outline's target list is built before any model batch goes by, because a
+    // target is stamped from the batches of the frame it is drawn in.
+    CUnitOutlineGather::Update();
     CWorld::Render(this->m_camera->m_position, this->m_elapsedSec);
     CMap::RenderFootprints();
     ClntObjMgrEnumVisibleObjects(UnitPostAnimateProc, this);
@@ -1742,6 +1748,7 @@ void CGWorldFrame::OnWorldRender() {
     CM2Scene* scene = World::s_m2Scene;
 
     if (!scene) {
+        CUnitOutline::Composite();
         return;
     }
 
@@ -1788,6 +1795,11 @@ void CGWorldFrame::OnWorldRender() {
     if (CWorld::enables & 0x20000000) {
         GxMasterEnableSet(GxMasterEnable_PolygonFill, 1);
     }
+
+    // Not in the original binary: the loot beam and the unit outline draw onto the finished 3D view, under the
+    // interface, while the world's own projection, render target and depth are still the ones bound.
+    LootBeam::Update(this->m_elapsedSec);
+    CUnitOutline::Composite();
 
     g_theGxDevicePtr->RsPop();
     SmartScreenRectClearGrid(1);

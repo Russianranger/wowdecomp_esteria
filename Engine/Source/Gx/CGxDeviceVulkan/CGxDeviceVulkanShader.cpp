@@ -40,6 +40,7 @@ namespace {
     Program g_uiVertex   = { pipelines::VertexProgram::Ui, pipelines::FragmentProgram::FixedFunction, nullptr };
     Program g_uiPixel    = { pipelines::VertexProgram::FixedFunction, pipelines::FragmentProgram::Ui, nullptr };
     Program g_desaturate = { pipelines::VertexProgram::FixedFunction, pipelines::FragmentProgram::Desaturate, nullptr };
+    Program g_outlineEdge = { pipelines::VertexProgram::FixedFunction, pipelines::FragmentProgram::OutlineEdge, nullptr };
 
     Program* g_translated      = nullptr;   ///< one per manifest record, made at first need
     uint32_t g_translatedCount = 0;
@@ -79,6 +80,11 @@ namespace {
 
             if (!SStrCmpI(name, "Desaturate", STORM_MAX_STR)) {
                 return &g_desaturate;
+            }
+
+            // Not a stock shader: the unit outline's edge pass (Engine/Source/UnitOutline) names it.
+            if (!SStrCmpI(name, "UnitOutlineEdge", STORM_MAX_STR)) {
+                return &g_outlineEdge;
             }
         }
 
@@ -347,7 +353,7 @@ uint32_t CGxDeviceVulkan::IShaderPrograms(pipelines::Draw& draw) {
 
         // The fixed-function pixel stages read texture stages 0 and 1; the UI and Desaturate
         // shaders stage 0 alone.
-        return draw.fragment == pipelines::FragmentProgram::FixedFunction ? 3u : 1u;
+        return draw.fragment == pipelines::FragmentProgram::FixedFunction || draw.fragment == pipelines::FragmentProgram::OutlineEdge ? 3u : 1u;
     }
 
     if (vsTranslated) {

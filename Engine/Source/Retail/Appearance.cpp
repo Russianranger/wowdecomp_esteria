@@ -5,6 +5,7 @@
 #include "Engine/Source/Retail/CreationPolicy.h"
 #include "Engine/Source/Retail/SlimeGiant.h"
 #include "Engine/Source/Retail/Centaur.h"
+#include "Engine/Source/Retail/Ethereal.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -592,6 +593,8 @@ namespace Retail::Db2::appearance
     bool BuildForCharacter(uint32_t chrRaceId, uint32_t sex, const uint32_t* choiceIds,
                            uint32_t choiceCount, Recipe& out, uint32_t form)
     {
+        if (currentSource == SourceKind::Retail && chrRaceId == Ethereal::Profile)
+            return Ethereal::Build(sex, choiceIds, choiceCount, out, form);
         if (currentSource == SourceKind::Retail && chrRaceId == Centaur::Profile)
             return Centaur::Build(sex, choiceIds, choiceCount, out);
         if (currentSource == SourceKind::Retail && chrRaceId == SlimeGiant::Profile)
@@ -647,6 +650,8 @@ namespace Retail::Db2::appearance
 
     uint32_t ChrModelForRace(uint32_t chrRaceId, uint32_t sex, uint32_t form)
     {
+        if (currentSource == SourceKind::Retail && chrRaceId == Ethereal::Profile)
+            return Ethereal::ModelForForm(sex, form);
         if (currentSource == SourceKind::Retail && chrRaceId == Centaur::Profile)
             return sex < 2 ? Centaur::Profile + sex : 0;
         if (currentSource == SourceKind::Retail && chrRaceId == SlimeGiant::Profile)
@@ -659,6 +664,8 @@ namespace Retail::Db2::appearance
 
     bool CreationChoiceAllowed(uint32_t chrModelId, uint32_t choiceId)
     {
+        if (currentSource == SourceKind::Retail && Ethereal::ProfileModel(chrModelId))
+            return Ethereal::Allowed(chrModelId, choiceId);
         if (currentSource == SourceKind::Retail && Centaur::ProfileModel(chrModelId))
             return Centaur::CreationAllowed(chrModelId, choiceId);
         if (currentSource == SourceKind::Retail && chrModelId == SlimeGiant::Profile)
@@ -674,6 +681,23 @@ namespace Retail::Db2::appearance
 
     bool CollectCharacterAssets(uint32_t race, uint32_t sex, CharacterAssets& assets, std::string& error)
     {
+        if (currentSource == SourceKind::Retail && race == Ethereal::Profile) {
+            assets = {};
+            if (sex > 1) { error = "Ethereal sex is out of range"; return false; }
+            assets.models = {Ethereal::Bodies[sex], Ethereal::Bodies[2], 1814471u};
+            for (uint32_t model : {Ethereal::Profile + sex, Ethereal::Profile + 2})
+                for (uint32_t option = 0; option < (model == Ethereal::Profile + 2 ? 2u : 4u); ++option)
+                    for (uint32_t value = 0; value < Ethereal::Count(Ethereal::Option(model, option)); ++value) {
+                        const uint32_t choice = Ethereal::FirstChoice(model, option) + value;
+                        Recipe recipe;
+                        Ethereal::Build(sex, &choice, 1, recipe, model == Ethereal::Profile + 2 ? FormDreadnaught : FormDarkweaver);
+                        for (const auto& layer : recipe.layers)
+                            if (Ethereal::TexturePath(layer.fileDataId).empty()) assets.textures.push_back(layer.fileDataId);
+                    }
+            std::sort(assets.textures.begin(), assets.textures.end());
+            assets.textures.erase(std::unique(assets.textures.begin(), assets.textures.end()), assets.textures.end());
+            return true;
+        }
         assets = {};
         error.clear();
         if (currentSource == SourceKind::Retail && race == Centaur::Profile) {
@@ -731,6 +755,8 @@ namespace Retail::Db2::appearance
 
     uint32_t OptionCount(uint32_t chrModelId)
     {
+        if (currentSource == SourceKind::Retail && Ethereal::ProfileModel(chrModelId))
+            return Ethereal::OptionCount(chrModelId);
         if (currentSource == SourceKind::Retail && Centaur::ProfileModel(chrModelId))
             return chrModelId == Centaur::Profile ? 3 : 2;
         if (currentSource == SourceKind::Retail && chrModelId == SlimeGiant::Profile) return 2;
@@ -742,6 +768,11 @@ namespace Retail::Db2::appearance
 
     bool OptionAt(uint32_t chrModelId, uint32_t index, ChrOption& out)
     {
+        if (currentSource == SourceKind::Retail && Ethereal::ProfileModel(chrModelId)) {
+            if (index >= Ethereal::OptionCount(chrModelId)) return false;
+            out = {Ethereal::Option(chrModelId, index), 0, index, 0};
+            return true;
+        }
         if (currentSource == SourceKind::Retail && Centaur::ProfileModel(chrModelId)) {
             if (index >= (chrModelId == Centaur::Profile ? 3u : 2u)) return false;
             out = {Centaur::Option(chrModelId, index), 0, index, 0};
@@ -767,6 +798,8 @@ namespace Retail::Db2::appearance
 
     uint32_t ChoiceCount(uint32_t chrCustomizationOptionId)
     {
+        if (currentSource == SourceKind::Retail && Ethereal::Count(chrCustomizationOptionId))
+            return Ethereal::Count(chrCustomizationOptionId);
         if (currentSource == SourceKind::Retail && Centaur::Count(chrCustomizationOptionId))
             return Centaur::Count(chrCustomizationOptionId);
         if (currentSource == SourceKind::Retail && SlimeGiant::Count(chrCustomizationOptionId))
@@ -779,6 +812,8 @@ namespace Retail::Db2::appearance
 
     bool ChoiceAt(uint32_t chrCustomizationOptionId, uint32_t index, ChrChoice& out)
     {
+        if (currentSource == SourceKind::Retail && Ethereal::Count(chrCustomizationOptionId))
+            return Ethereal::Choice(chrCustomizationOptionId, index, out);
         if (currentSource == SourceKind::Retail && Centaur::Count(chrCustomizationOptionId))
             return Centaur::Choice(chrCustomizationOptionId, index, out);
         if (currentSource == SourceKind::Retail && SlimeGiant::Count(chrCustomizationOptionId))
@@ -861,6 +896,8 @@ namespace Retail::Db2::appearance
 
     std::string OptionName(uint32_t optionId)
     {
+        if (currentSource == SourceKind::Retail && !Ethereal::OptionName(optionId).empty())
+            return Ethereal::OptionName(optionId);
         if (currentSource == SourceKind::Retail && !Centaur::OptionName(optionId).empty())
             return Centaur::OptionName(optionId);
         if (currentSource == SourceKind::Retail && optionId == SlimeGiant::ColorOption) return "Slime Color";
@@ -873,6 +910,8 @@ namespace Retail::Db2::appearance
 
     std::string ChoiceName(uint32_t choiceId)
     {
+        if (currentSource == SourceKind::Retail && !Ethereal::ChoiceName(choiceId).empty())
+            return Ethereal::ChoiceName(choiceId);
         if (currentSource == SourceKind::Retail && !Centaur::ChoiceName(choiceId).empty())
             return Centaur::ChoiceName(choiceId);
         if (currentSource == SourceKind::Retail && !SlimeGiant::ChoiceName(choiceId).empty())

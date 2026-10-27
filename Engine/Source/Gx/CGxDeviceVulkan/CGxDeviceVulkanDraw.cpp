@@ -8,6 +8,7 @@
 #include <cstring>
 #include "Engine/Source/Gx/CGxDeviceVulkan/CGxDeviceVulkan.h"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Frame.hpp"
+#include "Engine/Source/Gx/Gx.h"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Pipelines.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Log.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Manifest.hpp"
@@ -259,6 +260,8 @@ void CGxDeviceVulkan::Draw(CGxBatch* batch, int32_t count) {
     if (!recorded) {
         return;
     }
+
+    GxPerfCountBatch(batch);
 
     for (uint32_t stream = 0; stream < d.streamCount; stream++) {
         this->INoteBufDrawn(streamBufs[stream]);

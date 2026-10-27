@@ -68,6 +68,15 @@ static TSGrowableArray<void (*)()> s_destroyCallbacks;
 // STATIC: 0x00C5DFA4
 static TSGrowableArray<GxDrawListEntry> s_drawLists[GxuCats_Last];
 
+// NOT IN BINARY: performance overlay counters. The frame totals accumulate while the frame draws and the
+// last finished frame's totals are latched at present, so a reader never sees a half-counted frame.
+// Counting stays off until the showPerformance cvar turns it on.
+bool g_gxPerfEnabled = false;
+static uint32_t s_perfFrameDrawCalls;
+static uint32_t s_perfFrameTriangles;
+static uint32_t s_perfLastDrawCalls;
+static uint32_t s_perfLastTriangles;
+
 // VERIFY: 39e42562 auto
 // OFFSET: 0x00681310
 static void DrawListPreprocessB2F(GxDrawListEntry* entry, const C3Vector& viewPos) {
@@ -307,6 +316,51 @@ char* GxBufLock(CGxBuf* buf) {
 void GxBufUnlock(CGxBuf* buf, uint32_t size) {
     g_theGxDevicePtr->BufUnlock(buf, size);
     buf->m_hasData = 1;
+}
+
+// NOT IN BINARY
+void GxPerfSetEnabled(bool enabled) {
+    g_gxPerfEnabled = enabled;
+    s_perfFrameDrawCalls = 0;
+    s_perfFrameTriangles = 0;
+    s_perfLastDrawCalls = 0;
+    s_perfLastTriangles = 0;
+}
+
+// NOT IN BINARY: one submitted batch. Only triangle primitives add triangles; PrimCalcCount subtracts from an
+// unsigned count, so a degenerate batch underflows to a huge value that is not a real batch.
+void GxPerfCountBatch(const CGxBatch* batch) {
+    if (!g_gxPerfEnabled || !batch) {
+        return;
+    }
+
+    s_perfFrameDrawCalls++;
+
+    if (batch->m_primType == GxPrim_Triangles || batch->m_primType == GxPrim_TriangleStrip || batch->m_primType == GxPrim_TriangleFan) {
+        uint32_t count = g_theGxDevicePtr->PrimCalcCount(batch->m_primType, batch->m_count);
+
+        if (count < 0x10000000) {
+            s_perfFrameTriangles += count;
+        }
+    }
+}
+
+// NOT IN BINARY
+void GxPerfFrameEnd() {
+    s_perfLastDrawCalls = s_perfFrameDrawCalls;
+    s_perfLastTriangles = s_perfFrameTriangles;
+    s_perfFrameDrawCalls = 0;
+    s_perfFrameTriangles = 0;
+}
+
+// NOT IN BINARY
+uint32_t GxPerfDrawCalls() {
+    return s_perfLastDrawCalls;
+}
+
+// NOT IN BINARY
+uint32_t GxPerfTriangles() {
+    return s_perfLastTriangles;
 }
 
 // VERIFY: 13b86081 manual

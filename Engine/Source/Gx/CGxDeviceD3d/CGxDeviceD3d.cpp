@@ -3287,6 +3287,7 @@ void CGxDeviceD3d::Draw(CGxBatch* batch, int32_t count) {
     }
 
     this->IStateSync();
+    GxPerfCountBatch(batch);
 
     uint32_t baseVertexIndex = 0;
 

@@ -4,6 +4,12 @@
 #include "Engine/Source/Retail/SourceContext.h"
 
 namespace Retail {
+// Ethereal inherited an NPC barefoot flag, but its player body has complete shoe surfaces.
+inline bool BareFeet(uint32_t gameRace, uint32_t raceFlags) {
+    return gameRace != 77 && gameRace != 78 && (raceFlags & 2) != 0;
+}
+// Nightborne anatomy uses the installed Night Elf helmet family; only the new Ethereal needs this file alias.
+inline uint32_t HelmetModelRace(uint32_t gameRace) { return gameRace == 77 || gameRace == 78 ? 4 : gameRace; }
 // The race's own ChrRaceXChrModel row is its native form (Dracthyr: the Dragon, ChrModel 89). The Visage models (127 ->
 // 4395382 male, 128 -> 4220448 female) are reached explicitly, as a form (app::FormVisage), not as the race default.
 inline uint32_t CharacterModel(uint32_t /*race*/, uint32_t /*sex*/, uint32_t defaultModel) {
@@ -13,6 +19,7 @@ inline uint32_t CharacterModel(uint32_t /*race*/, uint32_t /*sex*/, uint32_t def
 // target custom races above 31 cannot index the installed 32-bit HelmetGeosetVisData directly.
 inline uint32_t HelmetMaskRace(uint32_t retailRace) {
     switch (retailRace) {
+        case 0xf0030000u: return 4;          // Ethereal's Nightborne-compatible equipment anatomy.
         case 0xf0010000u: return 1;          // SlimeSkeleton shares Kul Tiran's Human helmet-mask alias.
         case 0xf0020000u: return 11;         // Centaur legacy helmets use the fitted Draenei family.
         case 27: return 4;                  // Nightborne -> Night Elf

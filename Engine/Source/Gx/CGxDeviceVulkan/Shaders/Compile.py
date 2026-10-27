@@ -27,6 +27,7 @@ OUTPUTS = [
         ("Desaturate.frag", "kDesaturateFrag"),
         ("FfSem.vert", "kFfSemVert"),
         ("FfTranslated.frag", "kFfTranslatedFrag"),
+        ("OutlineEdge.frag", "kOutlineEdgeFrag"),
     ]),
     ("PresentSpirv.inc", [
         ("Present.vert", "kPresentVert"),

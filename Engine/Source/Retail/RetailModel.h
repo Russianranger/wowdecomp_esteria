@@ -55,7 +55,7 @@ bool InspectModel(const std::vector<uint8_t>& bytes, ModelFiles& files, std::str
 bool MergeSkeleton(const std::vector<uint8_t>& child, const std::vector<uint8_t>& parent,
     std::vector<uint8_t>& merged, std::string& error);
 bool PrepareModel(const std::vector<uint8_t>& bytes, std::vector<uint8_t>& prepared,
-    ModelFiles& files, std::string& error, const std::vector<uint8_t>* skeleton = nullptr);
+    ModelFiles& files, std::string& error, const std::vector<uint8_t>* skeleton = nullptr, bool mapFlight = true);
 bool ValidateSkin(const std::vector<uint8_t>& bytes, const std::vector<uint8_t>& model,
     std::string& error);
 bool PrepareSkin(std::vector<uint8_t>& bytes, const std::vector<uint8_t>& model,

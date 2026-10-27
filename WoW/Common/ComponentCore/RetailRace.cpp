@@ -33,6 +33,7 @@
 #include "Engine/Source/Retail/RacePolicy.h"
 #include "Engine/Source/Retail/SlimeGiant.h"
 #include "Engine/Source/Retail/Centaur.h"
+#include "Engine/Source/Retail/Ethereal.h"
 #include "Engine/Source/Retail/CentaurAppearance.h"
 #include "Engine/Source/Retail/RetailModel.h"
 #include "Engine/Source/Services/Texture.h"
@@ -148,6 +149,7 @@ Retail::SourceKind RaceSource(uint32_t race) {
 }
 
 uint32_t RetailRaceId(uint32_t race) {
+    if (Retail::Ethereal::Race(race)) return Retail::Ethereal::Profile;
     if (Retail::Centaur::Race(race)) return Retail::Centaur::Profile;
     if (Retail::SlimeGiant::Race(race)) return Retail::SlimeGiant::Profile;
     const auto forever = ForeverRaceMap().find(race);
@@ -289,12 +291,15 @@ uint32_t ActiveForm(CCharacterComponent* character) {
     return found == g_form.end() ? uint32_t(app::FormDefault) : found->second;
 }
 
-bool FormsRace(uint32_t retail) { return retail == 22 || retail == 52 || retail == 70; }
+bool FormsRace(uint32_t retail) {
+    return retail == 22 || retail == 52 || retail == 70 || retail == Retail::Ethereal::Profile;
+}
 uint32_t FormByIndex(uint32_t retail, uint32_t index) {
+    if (retail == Retail::Ethereal::Profile) return index ? app::FormDreadnaught : app::FormDarkweaver;
     return retail == 22 ? (index ? app::FormHuman : app::FormWolf) : (index ? app::FormVisage : app::FormDragon);
 }
 // The race's native form, the one a component shows until a look names another: Wolf, Dragon.
-uint32_t DefaultForm(uint32_t retail) { return retail == 22 ? app::FormWolf : app::FormDragon; }
+uint32_t DefaultForm(uint32_t retail) { return FormByIndex(retail, 0); }
 uint32_t EffectiveForm(CCharacterComponent* character, uint32_t retail) {
     return ActiveForm(character) ? ActiveForm(character) : DefaultForm(retail);
 }
@@ -476,6 +481,38 @@ void BindCollectionTextures(CM2Model* parent) {
     }
 }
 
+void SyncEtherealHands(CCharacterComponent* character) {
+    if (!Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID)) return;
+    CM2Model* parent = character->m_data.m_model;
+    if (!parent || !(parent->m_fFlags & 1)) return;
+    const bool gloved = character->m_itemDisplayID[ITEMSLOT_GLOVES]
+        && (character->m_section[2].m_layerMask & 1) && !RetailRaceNaked(character);
+    bool bareEnabled = true;
+    const auto state = g_collections.find(character);
+    if (state != g_collections.end())
+    {
+        bareEnabled = false;
+        for (auto const& part : state->second.geosets)
+            if (part.first.find("custom/ethereal/") == 0)
+                bareEnabled = bareEnabled || std::find(part.second.begin(),part.second.end(),
+                    Retail::Ethereal::BareHandGeoset) != part.second.end();
+    }
+    bool replaced = false;
+    for (CM2Model* child = parent->m_attachList; child; child = child->m_attachNext) {
+        if (child->m_attachmentId != CollectionSocket || !(child->m_fFlags & 1) || !child->HasSkinParent(parent)) continue;
+        if (CollectionName(child).find("custom/ethereal/") != 0) continue;
+        bool textured = false;
+        if (child->m_textures)
+            for (uint32_t i = 0; i < child->m_shared->m_data->m_textures.m_count; ++i)
+                textured = textured || (child->m_shared->m_data->m_textures[i].m_type == 14 && child->m_textures[i]);
+        const bool useGloves = gloved && textured;
+        child->SetGeometryVisible(6301,6301,useGloves ? 1 : 0);
+        replaced = replaced || useGloves;
+    }
+    parent->SetGeometryVisible(Retail::Ethereal::BareHandGeoset,Retail::Ethereal::BareHandGeoset,
+        !replaced && bareEnabled ? 1 : 0);
+}
+
 void FinishCollections(CCharacterComponent* character, bool refresh = false) {
     const auto state = g_collections.find(character);
     CM2Model* parent = character->m_data.m_model;
@@ -495,8 +532,24 @@ void FinishCollections(CCharacterComponent* character, bool refresh = false) {
             child->SetGeometryVisible(0, 65535, 0);
             for (const auto geoset : selected->second) child->SetGeometryVisible(geoset, geoset, 1);
             if (Retail::SlimeGiant::Race(character->m_data.m_preferences.m_raceID) ||
-                Retail::Centaur::Race(character->m_data.m_preferences.m_raceID))
+                Retail::Centaur::Race(character->m_data.m_preferences.m_raceID) ||
+                Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID))
                 for (const auto geoset : character->m_data.m_geosets) child->SetGeometryVisible(geoset, geoset, 1);
+            if (Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID)) {
+                Retail::ApplyLegacyFootGeometry(*child,character->m_itemDisplayID[ITEMSLOT_BOOTS],true);
+                if (character->m_itemDisplayID[ITEMSLOT_BOOTS])
+                {
+                    const uint32_t bandage = character->m_data.m_preferences.m_sexID ? 6002 : 6006;
+                    child->SetGeometryVisible(bandage,bandage,0);
+                }
+                child->SetGeometryVisible(1500,1599,0);
+                ItemDisplayInfoRec cape;
+                if (character->m_itemDisplayID[ITEMSLOT_CAPE] &&
+                    g_itemDisplayInfoDB.GetRecord(character->m_itemDisplayID[ITEMSLOT_CAPE],&cape)) {
+                    const uint32_t geoset = 1501+cape.m_geosetGroup[0];
+                    child->SetGeometryVisible(geoset,geoset,1);
+                }
+            }
             if (Retail::Centaur::Race(character->m_data.m_preferences.m_raceID)) {
                 child->SetGeometryVisible(2002, 2002, character->m_itemDisplayID[ITEMSLOT_BOOTS] ? 1 : 0);
                 child->SetGeometryVisible(1800, 1899, 0);
@@ -512,6 +565,7 @@ void FinishCollections(CCharacterComponent* character, bool refresh = false) {
             BindCollectionTextures(parent);
         }
     }
+    SyncEtherealHands(character);
 }
 
 // Whether the equipped helmet hides HelmetGeosetVisData slot `slot` (0 hair, 1..3 facial, 4 ears, 5..6 other) for
@@ -535,6 +589,9 @@ void SyncCollections(CCharacterComponent* character, const app::Recipe& recipe) 
         state.geosets["custom/slimegiant/" + std::to_string(recipe.modelFileDataId) + "-clothing.m2"] = {1};
     if (Retail::Centaur::Race(character->m_data.m_preferences.m_raceID))
         state.geosets["custom/centaur/" + std::to_string(recipe.modelFileDataId) + "-clothing.m2"] = {1};
+    if (Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID)
+        && recipe.modelFileDataId != Retail::Ethereal::Bodies[2])
+        state.geosets["custom/ethereal/" + std::to_string(recipe.modelFileDataId) + "-clothing.m2"] = recipe.geosets;
     const uint16_t ears = ElfEarGeoset(character, RetailRaceId(character->m_data.m_preferences.m_raceID));
     if (ears && !HelmetHides(character, 4)) // geometry and equipment share one refresh, so this follows the helm
         state.geosets["custom/humanears/" + std::to_string(recipe.modelFileDataId) + "-ears.m2"] = {ears};
@@ -584,6 +641,7 @@ bool SyncBodyModel(CCharacterComponent* character) {
     if (!app::BuildForCharacter(retail, prefs.m_sexID, choices.data(), uint32_t(choices.size()), recipe, form) ||
         !recipe.modelFileDataId) return false;
     const std::string path = retail == Retail::SlimeGiant::Profile ? Retail::SlimeGiant::Path(recipe.modelFileDataId)
+        : retail == Retail::Ethereal::Profile ? Retail::Ethereal::Path(recipe.modelFileDataId)
         : retail == Retail::Centaur::Profile ? Retail::Centaur::Path(recipe.modelFileDataId)
         : Retail::FileName(recipe.modelFileDataId, ".m2");
     if (!_stricmp(CollectionName(old).c_str(), path.c_str())) return false;
@@ -701,7 +759,8 @@ bool ExtrasFromArchive(std::string& text) {
 const bool g_extrasRegistered = (app::SetExtrasProvider(&ExtrasFromArchive), true);
 
 bool FetchBlp(uint32_t fileDataId, std::vector<uint8_t>& bytes, void*) {
-    const auto local = fileDataId >= kExtraTextureFirst && fileDataId < kExtraTextureLimit
+    const auto ethereal = Retail::Ethereal::TexturePath(fileDataId);
+    const auto local = !ethereal.empty() ? ethereal : fileDataId >= kExtraTextureFirst && fileDataId < kExtraTextureLimit
         ? "custom\\nightborne\\faces\\" + std::to_string(fileDataId) + ".blp"
         : Retail::SlimeGiant::TexturePath(fileDataId);
     if (!local.empty()) {
@@ -709,7 +768,7 @@ bool FetchBlp(uint32_t fileDataId, std::vector<uint8_t>& bytes, void*) {
         uint32_t size = 0;
         bytes.clear();
         if (!SFileLoadFileEx(nullptr, local.c_str(), &data, &size, 0, 0, nullptr)) return false;
-        const bool valid = data && size >= 148 && size <= 4 * 1024 * 1024;
+        const bool valid = data && size >= 148 && size <= (ethereal.empty() ? 4u : 8u) * 1024 * 1024;
         if (valid) bytes.assign(static_cast<const uint8_t*>(data), static_cast<const uint8_t*>(data) + size);
         SFileUnloadFile(data);
         return valid;
@@ -800,7 +859,8 @@ Look& LookFor(uint32_t retail, uint32_t sex, const std::vector<uint32_t>& choice
         if (retail == 1 && Retail::currentSource == Retail::SourceKind::Retail)
             for (auto& texture : look.composed)
                 if (texture.textureType == 1) PaintElfEars(look.recipe.modelFileDataId, texture.image);
-        if (retail == Retail::SlimeGiant::Profile || retail == Retail::Centaur::Profile) {
+        if (retail == Retail::SlimeGiant::Profile || retail == Retail::Centaur::Profile ||
+            (retail == Retail::Ethereal::Profile && look.recipe.modelFileDataId != Retail::Ethereal::Bodies[2])) {
             uint32_t width = 0, height = 0;
             if (app::LayoutSize(look.recipe.textureLayoutId, width, height))
                 look.composed.push_back({14, {width, height, std::vector<uint8_t>(size_t(width) * height * 4, 0)}});
@@ -832,7 +892,8 @@ CTexture* MakeTexture(const std::string& name, const Retail::Image& image) {
 void BindBody(CCharacterComponent* character, CM2Model* model, const Look& look, const std::string& key,
     bool belt = false) {
     const bool clothing = Retail::SlimeGiant::Race(character->m_data.m_preferences.m_raceID) ||
-        Retail::Centaur::Race(character->m_data.m_preferences.m_raceID);
+        Retail::Centaur::Race(character->m_data.m_preferences.m_raceID) ||
+        Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID);
     const Retail::ComposedTexture* body = nullptr;
     for (const auto& texture : look.composed)
         if (texture.textureType == (clothing ? 14u : 1u)) body = &texture;
@@ -907,7 +968,12 @@ void BindBody(CCharacterComponent* character, CM2Model* model, const Look& look,
             for (uint32_t i = 0, n = app::SectionCount(look.recipe.textureLayoutId); i < n; ++i) {
                 app::TextureSection section{};
                 if (app::SectionAt(look.recipe.textureLayoutId, i, section) && section.sectionType == uint32_t(destination))
+                {
+                    if (Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID) && layer.section == 1
+                        && layer.displayId && layer.displayId == character->m_itemDisplayID[ITEMSLOT_GLOVES])
+                        Retail::Ethereal::FitGloveSection(section);
                     Retail::PaintImage(sheet, item, section.x, section.y, section.width, section.height, 2);
+                }
             }
         }
         CTexture* texture = MakeTexture(name, sheet);
@@ -954,6 +1020,9 @@ void FitLegacyHelmet(CCharacterComponent* character) {
     if (Retail::Centaur::Race(prefs.m_raceID))
         donorName = prefs.m_sexID ? "Character\\Draenei\\Female\\DraeneiFemale.m2"
             : "Character\\Draenei\\Male\\DraeneiMale.m2";
+    if (Retail::Ethereal::Race(prefs.m_raceID))
+        donorName = prefs.m_sexID ? "Character\\NightElf\\Female\\NightElfFemale.m2"
+            : "Character\\NightElf\\Male\\NightElfMale.m2";
     // Stock helmet meshes retain the original race's crown convention even when the effective
     // player display points at its HD "Race2" body. Keep the accepted stock donor paths.
     const char* stockNames[] = {nullptr,"Human","Orc","Dwarf","NightElf","Scourge","Tauren","Gnome","Troll",nullptr,"BloodElf","Draenei"};
@@ -1053,6 +1122,13 @@ uint32_t RetailRaceHelmetMask(uint32_t race) {
     const uint32_t retail = RetailRaceId(race);
     const uint32_t donor = retail ? Retail::HelmetMaskRace(retail) : race;
     return donor && donor < 32 ? uint32_t{1} << donor : 0;
+}
+
+uint32_t RetailRaceHelmetRace(uint32_t race) { return Retail::HelmetModelRace(race); }
+
+bool RetailRaceHidesArmor(CCharacterComponent* character) {
+    return character && Retail::Ethereal::HidesArmor(character->m_data.m_preferences.m_raceID,
+        EffectiveForm(character, Retail::Ethereal::Profile));
 }
 
 bool RetailRaceActive(CCharacterComponent* character) {
@@ -1308,6 +1384,7 @@ bool RetailRaceModelPath(uint32_t race, uint32_t sex, char* path, size_t size, u
     if (!ok) return false;
     Retail::Source().RegisterCharacterModel(recipe.modelFileDataId);
     const auto name = retail == Retail::SlimeGiant::Profile ? Retail::SlimeGiant::Path(recipe.modelFileDataId)
+        : retail == Retail::Ethereal::Profile ? Retail::Ethereal::Path(recipe.modelFileDataId)
         : retail == Retail::Centaur::Profile ? Retail::Centaur::Path(recipe.modelFileDataId)
         : Retail::FileName(recipe.modelFileDataId, ".m2");
     std::snprintf(path, size, "%s", name.c_str());
@@ -1371,7 +1448,7 @@ bool RetailRaceGeometry(CCharacterComponent* character) {
     // Hair, eyes and other single-layer types are cached per look; the body also carries equipment.
     for (const auto& texture : look.composed) {
         if (texture.textureType == 1 || ((retail == Retail::SlimeGiant::Profile ||
-            retail == Retail::Centaur::Profile) && texture.textureType == 14)) continue;
+            retail == Retail::Centaur::Profile || retail == Retail::Ethereal::Profile) && texture.textureType == 14)) continue;
         CTexture*& bound = look.textures[texture.textureType];
         if (!bound) bound = MakeTexture("Retail\\Race\\" + key + "\\" + std::to_string(texture.textureType), texture.image);
         if (bound) {
@@ -1392,11 +1469,48 @@ void RetailRaceEquipment(CCharacterComponent* character) {
     Retail::SourceScope sourceScope(RaceSource(character->m_data.m_preferences.m_raceID));
     CM2Model* model = character->m_data.m_model;
     if (!RetailRaceActive(character)) return;
+    if (RetailRaceHidesArmor(character)) {
+        for (const auto socket : Retail::Ethereal::ArmorSockets)
+            CCharacterComponent::RemoveLinkpt(model, static_cast<GEOCOMPONENTLINKS>(socket));
+        if (character->m_itemSlotForAttachSlot[ATTACH_SHEATH_MAINHAND] == ITEMSLOT_11) {
+            CCharacterComponent::RemoveLinkpt(model, ATTACH_SHEATH_MAINHAND);
+            character->m_itemSlotForAttachSlot[ATTACH_SHEATH_MAINHAND] = -1;
+        }
+    } else if (Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID)) {
+        if (character->m_itemDisplayID[ITEMSLOT_HEAD] && !character->IsHelmModelCorrect())
+            character->AddItem(ITEMSLOT_HEAD, int32_t(character->m_itemDisplayID[ITEMSLOT_HEAD]), 0);
+        if (character->m_itemDisplayID[ITEMSLOT_SHOULDER] && !character->AreShoulderModelsCorrect())
+            character->AddItem(ITEMSLOT_SHOULDER, int32_t(character->m_itemDisplayID[ITEMSLOT_SHOULDER]), 0);
+        if (character->m_itemDisplayID[ITEMSLOT_11] && !character->IsQuiverModelCorrect())
+            character->AddItem(ITEMSLOT_11, int32_t(character->m_itemDisplayID[ITEMSLOT_11]), 0);
+    }
     Retail::ApplyRaceEyeGeometry(*model, RetailRaceEyeLightning(character));
     FitLegacyHelmet(character);
     FitCentaurShoulders(character);
     if (Retail::SlimeGiant::Race(character->m_data.m_preferences.m_raceID) ||
-        Retail::Centaur::Race(character->m_data.m_preferences.m_raceID)) FinishCollections(character, true);
+        Retail::Centaur::Race(character->m_data.m_preferences.m_raceID) ||
+        Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID)) FinishCollections(character, true);
+    if (Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID)) {
+        const auto choices = Choices(Retail::Ethereal::Profile, character);
+        app::Recipe recipe;
+        const uint32_t form = ActiveForm(character), sex = character->m_data.m_preferences.m_sexID;
+        if (Retail::Ethereal::Build(sex, choices.data(), uint32_t(choices.size()), recipe, form)) {
+            model->SetGeometryVisible(0, 65535, 0);
+            for (uint16_t geoset : recipe.geosets) model->SetGeometryVisible(geoset, geoset, 1);
+            if (form != app::FormDreadnaught && character->m_itemDisplayID[ITEMSLOT_BOOTS])
+            {
+                const uint32_t bandage = sex ? 6002 : 6006;
+                model->SetGeometryVisible(bandage,bandage,0);
+            }
+            const bool glow = Retail::Ethereal::Glow(choices.data(), uint32_t(choices.size()),
+                Retail::Ethereal::ModelForForm(sex, form));
+            model->SetEmittersEnabled(glow);
+            model->SetRibbonsEnabled(glow);
+            if (form == app::FormDreadnaught)
+                Retail::Ethereal::ApplyEffects(*model, choices.data(), uint32_t(choices.size()));
+        }
+        SyncEtherealHands(character);
+    }
 
     // Bare feet and closed shoes are separate Retail meshes. Wrath boot style zero is still a
     // shoe; shin style and robe coverage must not select bare toes under its painted texture.
@@ -1555,7 +1669,7 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
 
     // Two Forms preview. EA_FORM_COUNT is 0 for races without one; EA_FORM_GET/SET take index 0 (Wolf/Dragon) or 1 (Human/Visage).
     if (!std::strncmp(command, "EA_FORM_", 8)) {
-        static const char* const names[] = {"", "Wolf", "Human", "Dragon", "Visage"};
+        static const char* const names[] = {"", "Wolf", "Human", "Dragon", "Visage", "Darkweaver", "Dreadnaught"};
         const uint32_t current = ActiveForm(character) ? ActiveForm(character) : DefaultForm(retail);
         if (!std::strcmp(command, "EA_FORM_COUNT")) { lua_pushnumber(L, FormsRace(retail) ? 2 : 0); return 1; }
         if (!FormsRace(retail)) return -1;
@@ -1596,14 +1710,34 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
     }
 
     const std::vector<OptionInfo>& options = OptionsFor(retail, prefs.m_sexID, ActiveForm(character));
+    const bool ethereal = retail == Retail::Ethereal::Profile;
+    const uint32_t creatorModel = ethereal ? Retail::Ethereal::ModelForForm(prefs.m_sexID, ActiveForm(character)) : 0;
     std::vector<size_t> visibleOptions;
     for (size_t i = 0; i < options.size(); ++i)
         if (!options[i].creationIndices.empty()) visibleOptions.push_back(i);
+    if (ethereal) {
+        visibleOptions.clear();
+        for (uint32_t i = 0; i < Retail::Ethereal::CreatorCount(creatorModel); ++i)
+            visibleOptions.push_back(Retail::Ethereal::CreatorSlot(creatorModel,i));
+    }
+    const auto rawState = [&] {
+        std::vector<uint32_t> state;
+        for (size_t i = 0; i < options.size(); ++i) state.push_back(IndexOf(character,options,i));
+        return state;
+    };
+    const auto storeControl = [&](uint32_t control, uint32_t value) {
+        if (ethereal && creatorModel != Retail::Ethereal::Profile + 2 && control >= 2) {
+            auto state = rawState();
+            Retail::Ethereal::SetPreset(state,control-2,value);
+            for (size_t i = 0; i < options.size(); ++i)
+                if (state[i] != IndexOf(character,options,i)) StoreIndex(character,options,i,state[i]);
+        } else StoreIndex(character,options,visibleOptions[control],value);
+    };
     // A synthetic final option does not enter DB2 choice lists or the saved legacy codec.
     // Models without an authored lightning mesh do not offer an ineffective toggle.
     const auto* body = character->m_data.m_model;
     bool eyeOption = false;
-    if ((body->m_fFlags & 1) && body->m_shared->m_skinData) {
+    if (!ethereal && (body->m_fFlags & 1) && body->m_shared->m_skinData) {
         const auto& sections = body->m_shared->m_skinData->m_skinSections;
         for (uint32_t i = 0; i < sections.m_count; ++i)
             eyeOption = eyeOption || (sections[i].m_skinSectionId & 0xFFFF) == 1701;
@@ -1647,7 +1781,12 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
 
     if (!std::strcmp(command, "EA_RANDOM")) {
         static std::mt19937 random(GetTickCount());
-        for (const size_t i : visibleOptions) {
+        for (size_t control = 0; control < visibleOptions.size(); ++control) {
+            const size_t i = visibleOptions[control];
+            if (ethereal && creatorModel != Retail::Ethereal::Profile + 2 && control >= 2) {
+                storeControl(uint32_t(control),std::uniform_int_distribution<uint32_t>(0,2)(random));
+                continue;
+            }
             const auto& eligible = options[i].creationIndices;
             if (eligible.size() > 1) StoreIndex(character, options, i,
                 eligible[std::uniform_int_distribution<size_t>(0, eligible.size() - 1)(random)]);
@@ -1687,16 +1826,19 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
         return 0;
     }
     const size_t index = visibleOptions[size_t(requested) - 1];
+    const uint32_t control = uint32_t(requested) - 1;
+    const bool preset = ethereal && creatorModel != Retail::Ethereal::Profile + 2 && control >= 2;
     const OptionInfo& option = options[index];
     const auto& eligible = option.creationIndices;
     const auto selected = std::find(eligible.begin(), eligible.end(), IndexOf(character, options, index));
-    const uint32_t value = selected == eligible.end() ? 0 : uint32_t(selected - eligible.begin());
-    const uint32_t count = uint32_t(eligible.size());
+    const uint32_t value = preset ? Retail::Ethereal::PresetValue(rawState(),control-2)
+        : selected == eligible.end() ? 0 : uint32_t(selected - eligible.begin());
+    const uint32_t count = preset ? 3 : uint32_t(eligible.size());
 
     if (isGet) {
         lua_pushnumber(L, value);
         lua_pushnumber(L, count);
-        lua_pushstring(L, option.name.c_str());
+        lua_pushstring(L, ethereal ? Retail::Ethereal::CreatorName(creatorModel,control) : option.name.c_str());
         return 3;
     }
     if (!std::strcmp(command, "EA_CHOICES")) {
@@ -1709,6 +1851,10 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
         app::ChrChoice choice{};
         const double which = lua_isnumber(L, 3) ? lua_tonumber(L, 3) : -1;
         const bool valid = which >= 0 && which < count && which == std::floor(which);
+        if (preset) {
+            const std::string name = valid ? "Preset " + std::to_string(uint32_t(which) + 1) : "";
+            lua_pushstring(L,name.c_str()); return 1;
+        }
         const uint32_t raw = valid ? eligible[size_t(which)] : 0, authored = option.count - option.extra;
         const std::string name = !valid ? std::string() : raw >= authored ? ElfEarNames[raw - authored]
             : app::ChoiceAt(option.id, raw, choice) ? app::ChoiceName(choice.id) : std::string();
@@ -1724,7 +1870,7 @@ int RetailRaceCycleCommand(lua_State* L, CCharacterComponent* character, const c
             ? uint32_t(argument)
             : uint32_t((int64_t(value) + (argument < 0 ? -1 : 1) + count) % count);
         if (next >= count) return 0;
-        StoreIndex(character, options, index, eligible[next]);
+        storeControl(control,preset ? next : eligible[next]);
         Refresh(character);
         return 0;
     }
@@ -1943,6 +2089,8 @@ void RetailRaceSectionArguments(int32_t race, int32_t sex, int32_t* style, int32
 
 bool RetailRaceMapped(uint32_t) { return false; }
 uint32_t RetailRaceHelmetMask(uint32_t race) { return race && race < 32 ? uint32_t{1} << race : 0; }
+uint32_t RetailRaceHelmetRace(uint32_t race) { return race; }
+bool RetailRaceHidesArmor(CCharacterComponent*) { return false; }
 bool RetailRaceActive(CCharacterComponent*) { return false; }
 bool RetailRaceOwns(uint32_t, uint32_t) { return false; }
 bool RetailRaceModelPath(uint32_t, uint32_t, char*, size_t, uint32_t) { return false; }

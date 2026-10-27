@@ -15,6 +15,7 @@
 #include "Engine/Source/Retail/SlimeGiant.h"
 #include "Engine/Source/Retail/Centaur.h"
 #include "Engine/Source/Retail/CentaurAppearance.h"
+#include "Engine/Source/Retail/EtherealModel.h"
 #include "Engine/Source/Model2/M2Data.h"
 #include <chrono>
 #include <set>
@@ -107,7 +108,7 @@ static void TestLookWire() {
     }
     payload[2] = 1;          // version 2 without a form
     Check(!W::ReadPayload(payload, W::PayloadSize, out), "version 2 needs a form");
-    in.form = 4; W::WritePayload(payload, in); payload[2] = 0x51; // form 5
+    in.form = 6; W::WritePayload(payload, in); payload[2] = 0x71; // form 7
     Check(!W::ReadPayload(payload, W::PayloadSize, out), "form beyond MaxForm rejected");
     in.form = 0; W::WritePayload(payload, in); payload[2] = 0x11;   // a version 1 reader must not accept a form nibble as sex
     Check(!W::ReadPayload(payload, W::PayloadSize, out), "version 1 with a form nibble rejected");
@@ -115,8 +116,588 @@ static void TestLookWire() {
     Check(!W::ReadPayload(payload, W::PayloadSize, out), "unknown version rejected");
 }
 
+static void TestEthereal() {
+    namespace E = Retail::Ethereal;
+    namespace A = Retail::Db2::appearance;
+    Check(E::CreatorCount(E::Profile) == 6 && E::CreatorCount(E::Profile+1) == 6
+        && E::CreatorCount(E::Profile+2) == 3,"Ethereal creator exposes exactly six body and three Dreadnaught controls");
+    const char* bodyLabels[] = {"Cloth Color","Glow Color","Head","Arms","Chest","Legs"};
+    const char* mechLabels[] = {"Plating Color","Core Color","Lightning Color"};
+    for (uint32_t race = 0; race < 129; ++race)
+        for (uint32_t flags = 0; flags < 16; ++flags)
+            Check(Retail::BareFeet(race,flags) == (race != 77 && race != 78 && (flags & 2) != 0),
+                "only Ethereal bypasses the inherited bare-foot rule; Troll and other races retain their flags");
+    {
+        A::TextureSection section{1,0,256,256,256,0};
+        E::FitGloveSection(section);
+        Check(section.x == 0 && section.width == 256 && section.y == 384 && section.height == 128
+            && section.y+section.height == 512,"glove cuffs keep the source artwork aspect ratio and extend half way up the forearm");
+    }
+    Check(E::Count(E::Option(E::Profile,0)) == 19 && E::Count(E::Option(E::Profile+1,0)) == 17,
+        "ten shared cloth choices append after each gender's existing choices");
+    Check(E::Count(E::Option(E::Profile,3)) == 12 && E::Count(E::Option(E::Profile+1,3)) == 12
+        && E::Count(E::Option(E::Profile+2,0)) == 16 && E::Count(E::Option(E::Profile+2,1)) == 16
+        && E::Count(E::Option(E::Profile+2,7)) == 17,"all five creator color controls gain exactly ten choices");
+    Check(E::TexturePath(E::LocalTexture-1).empty() && E::TexturePath(E::LocalTexture+40).empty()
+        && E::TexturePath(E::LocalTexture+39) == "custom/ethereal/colors/39.blp",
+        "only the forty reserved Ethereal texture IDs resolve to local archive paths");
+    {
+        auto model = Body();
+        const auto before = model;
+        std::string error;
+        Check(E::PrepareArmorModel(model,error),"Ethereal body gains independent clothing and cloak texture slots");
+        Check(Get(model,0x50) == 3 && Get(model,Get(model,0x54)+16) == 14
+            && Get(model,Get(model,0x54)+32) == 2,"new material slots use the established armor/cape bindings");
+        Check(std::equal(before.begin()+Get(before,0x54),before.begin()+Get(before,0x54)+16,
+            model.begin()+Get(model,0x54)),"original texture record remains byte-identical");
+        for (size_t at : {0x2cu,0x30u,0x3cu,0x40u,0x48u,0x4cu,0xf0u,0xf4u,0x128u,0x12cu})
+            Check(Get(model,at) == Get(before,at),"armor adapter preserves anatomy, rig, animation, sockets and particles");
+        const auto once = model;
+        Check(!E::PrepareArmorModel(model,error) && model == once,"double armor adaptation fails without modifying input");
+        model.resize(24);
+        Check(!E::PrepareArmorModel(model,error),"malformed armor input fails closed");
+    }
+    const uint32_t originalMale[] = {6190261,6190257,6190260,6190262,6190263,6190264,6190900,6190902,6190903};
+    const uint32_t originalFemale[] = {6190902,6190261,6190900,6190901,6190903,6190904,6190905};
+    const uint32_t originalGlow[] = {6190256,6190255}, originalPlating[] = {6403197,6403194,6403195,6403196,6403198,6403199};
+    const uint32_t originalCore[] = {6435135,6435132,6435133,6435134,6435136,6435137};
+    Check(std::equal(std::begin(originalMale),std::end(originalMale),std::begin(E::MaleCloth))
+        && std::equal(std::begin(originalFemale),std::end(originalFemale),std::begin(E::FemaleCloth))
+        && std::equal(std::begin(originalGlow),std::end(originalGlow),std::begin(E::ExtraColors))
+        && std::equal(std::begin(originalPlating),std::end(originalPlating),std::begin(E::MechColors))
+        && std::equal(std::begin(originalCore),std::end(originalCore),std::begin(E::MechGlowColors)),
+        "existing saved color indexes retain exactly the same texture IDs");
+    struct ColorCase { uint32_t sex, form, slot, first, textureType, localOffset; };
+    const ColorCase colors[] = {
+        {0,A::FormDarkweaver,0,9,11,0}, {1,A::FormDarkweaver,0,7,11,0},
+        {0,A::FormDarkweaver,3,2,5,10}, {1,A::FormDarkweaver,3,2,5,10},
+        {0,A::FormDreadnaught,0,6,11,20}, {1,A::FormDreadnaught,0,6,11,20},
+        {0,A::FormDreadnaught,1,6,12,30}, {1,A::FormDreadnaught,1,6,12,30}
+    };
+    for (const auto& color : colors) {
+        const uint32_t model = E::ModelForForm(color.sex,color.form);
+        for (uint32_t custom = 0; custom < 10; ++custom) {
+            A::ChrChoice selected{};
+            Check(E::Choice(E::Option(model,color.slot),color.first+custom,selected),"new creator color can be selected");
+            A::Recipe recipe;
+            Check(E::Build(color.sex,&selected.id,1,recipe,color.form),"new color resolves for either gender and form");
+            const auto layer = std::find_if(recipe.layers.begin(),recipe.layers.end(),[&](const auto& candidate) {
+                return candidate.textureType == color.textureType;
+            });
+            Check(layer != recipe.layers.end() && layer->fileDataId == E::LocalTexture+color.localOffset+custom,
+                "new color binds its own intended material rather than a cloth, energy or plating neighbor");
+            Check(E::ChoiceName(selected.id) == E::CustomColorNames[custom],"new color exposes its authored theme name");
+            for (uint8_t race : {uint8_t(77),uint8_t(78)}) {
+                CharacterRetailLook::Look saved{}, loaded{};
+                saved.race=race; saved.sex=uint8_t(color.sex); saved.form=uint8_t(color.form);
+                saved.count=uint8_t(E::OptionCount(model)); saved.index[color.slot]=uint16_t(color.first+custom);
+                uint8_t payload[CharacterRetailLook::PayloadSize];
+                CharacterRetailLook::WritePayload(payload,saved);
+                Check(CharacterRetailLook::ReadPayload(payload,sizeof(payload),loaded)
+                    && loaded.index == saved.index && loaded.form == saved.form && loaded.sex == saved.sex,
+                    "new color indexes survive the unchanged faction/gender/form appearance wire format");
+            }
+        }
+        A::ChrChoice invalid{};
+        Check(!E::Choice(E::Option(model,color.slot),color.first+10,invalid),"one-past-last color is rejected");
+    }
+    {
+        struct Child { uint32_t m_attachmentId; Child* m_attachNext; };
+        struct Model { Child* m_attachList; };
+        struct Item { uint32_t m_inventoryType; };
+        struct Unit {
+            uint32_t m_sheatheState=1, m_animationState=0, transfers=0;
+            Child right{26,nullptr},left{28,nullptr};
+            Model model{&right}; Model* m_worldModel=&model;
+            Item items[2]={{13},{14}};
+            const Item* GetVirtualItem(uint32_t hand,bool) { return &items[hand]; }
+            void SheatheHandItem(uint32_t hand,int32_t sheathe) {
+                Check(sheathe == 0,"wield synchronization must never request a sheath transition");
+                (hand ? left : right).m_attachmentId = !hand ? 1 : items[hand].m_inventoryType == 14 ? 0 : 2;
+                ++transfers;
+            }
+        } unit;
+        unit.right.m_attachNext=&unit.left;
+        E::SyncWieldedHands(unit);
+        Check(unit.right.m_attachmentId == 1 && unit.left.m_attachmentId == 0 && unit.transfers == 2,
+            "weapon and shield transfer from sheath to wielded sockets without requiring combat");
+        E::SyncWieldedHands(unit);
+        Check(unit.transfers == 2 && (unit.m_animationState & 0x300000) == 0x300000,
+            "repeated drawn state is idempotent and retains both wielded hand flags");
+        unit.right.m_attachmentId=26; unit.left.m_attachmentId=28;
+        E::SyncWieldedHands(unit);
+        Check(unit.transfers == 4 && unit.right.m_attachmentId == 1 && unit.left.m_attachmentId == 0,
+            "combat/server resynchronization repairs stale sheath attachments even when logical state is already drawn");
+        unit.items[1].m_inventoryType=13; unit.left.m_attachmentId=27;
+        E::SyncWieldedHands(unit);
+        Check(unit.left.m_attachmentId == 2,"an offhand weapon uses the left hand rather than the shield attachment");
+        unit.m_sheatheState=0; const auto count=unit.transfers;
+        E::SyncWieldedHands(unit);
+        Check(unit.transfers == count,"sheathed state is not forced into hands");
+    }
+    for (uint32_t i = 0; i < 6; ++i) Check(!std::strcmp(E::CreatorName(E::Profile,i),bodyLabels[i]),"body creator label/order");
+    for (uint32_t i = 0; i < 3; ++i) Check(!std::strcmp(E::CreatorName(E::Profile+2,i),mechLabels[i]),"Dreadnaught creator label/order");
+    std::vector<uint32_t> state(38,0);
+    state[0]=4; state[3]=1; state[2]=5;
+    for (uint32_t group = 0; group < 4; ++group) for (uint32_t value = 0; value < 3; ++value) {
+        E::SetPreset(state,group,value);
+        Check(E::PresetValue(state,group) == value,"preset reads back from existing wire slots");
+        uint32_t enabled=0;
+        for (uint32_t slot : E::PresetSlots[group]) enabled += E::PresetOn(slot,state[slot]);
+        Check(enabled == 1 && state[32] == 1,"presets are exclusive and never select the legless geoset 501");
+        Check(state[0] == 4 && state[3] == 1 && state[2] == 5,"presets retain saved colors and hidden legacy values");
+    }
+    for (uint32_t sex : {0u,1u}) {
+        A::Recipe recipe;
+        Check(E::Build(sex,nullptr,0,recipe,A::FormDarkweaver),"fresh Ethereal creator look resolves");
+        for (uint16_t geoset : recipe.geosets)
+            Check(geoset < 6106 || geoset > 6117,"fresh creator does not restore the removed 301-312 costume meshes");
+        for (uint32_t style = 0; style < 12; ++style) {
+            const uint32_t slot = 17 + style;
+            const uint32_t selected = E::FirstChoice(E::Profile+sex,slot) + (style ? 1 : 0);
+            Check(E::Build(sex,&selected,1,recipe,A::FormDarkweaver),"legacy costume selection remains decodable");
+            Check(std::none_of(recipe.geosets.begin(),recipe.geosets.end(),[](uint16_t geo) {
+                return geo >= 6106 && geo <= 6117;
+            }),"removed baked collar/belt/boots cannot reappear from hidden saved costume values");
+        }
+    }
+    for (uint32_t race = 0; race < 129; ++race) {
+        Check(Retail::HelmetModelRace(race) == (race == 77 || race == 78 ? 4u : race),
+            "Ethereal aliases the installed anatomy helmet family without changing Nightborne or any other race");
+        for (uint32_t form = 0; form <= A::FormDreadnaught; ++form)
+            Check(E::HidesArmor(race, form) == ((race == 77 || race == 78) && form == A::FormDreadnaught),
+                "armor visibility is suppressed only for the Ethereal Dreadnaught form");
+    }
+    for (uint32_t socket : {0u,1u,2u,26u,27u,28u,30u,31u,32u,33u})
+        Check(std::find(std::begin(E::ArmorSockets), std::end(E::ArmorSockets), socket) == std::end(E::ArmorSockets),
+            "Dreadnaught armor removal cannot detach weapon/shield hand and sheath sockets");
+    Check(CharacterRetailLook::FirstFormForRace(77) == A::FormDarkweaver
+        && CharacterRetailLook::FirstFormForRace(78) == A::FormDarkweaver
+        && CharacterRetailLook::FirstFormForRace(76) == 0, "Ethereal form admission preserves neighboring races");
+    for (uint32_t sex : {0u, 1u}) for (uint32_t form : {uint32_t(A::FormDarkweaver), uint32_t(A::FormDreadnaught)}) {
+        A::Recipe recipe;
+        const uint32_t model = E::ModelForForm(sex, form);
+        Check(E::Build(sex, nullptr, 0, recipe, form), "both sexes resolve both native Ethereal forms");
+        Check(E::OptionCount(model) <= CharacterRetailLook::MaxOptions, "all Ethereal controls fit the saved full look");
+        Check(recipe.modelFileDataId == E::Bodies[model - E::Profile], "form model is the verified NPC body");
+        Check(recipe.textureLayoutId == (form == A::FormDarkweaver ? 141u : 0u),
+            "only the Ethereal body requests the armor atlas; Dreadnaught remains armor-free");
+        Check(recipe.geosets.size() == (form == A::FormDreadnaught ? 4u : 12u),
+            "defaults retain minimal wrapped anatomy and glow while ornate costumes remain optional");
+        for (uint32_t option = 0; option < E::OptionCount(model); ++option) {
+            const uint32_t id = E::Option(model, option);
+            Check(!E::OptionName(id).empty(), "every Ethereal control has a label");
+            for (uint32_t value = 0; value < E::Count(id); ++value) {
+                A::ChrChoice choice{};
+                Check(E::Choice(id, value, choice) && E::Allowed(model, choice.id), "every source choice is selectable");
+                Check(!E::ChoiceName(choice.id).empty() && E::Build(sex, &choice.id, 1, recipe, form),
+                    "every individual geometry and material choice resolves");
+            }
+        }
+        uint32_t duplicate[] = {E::FirstChoice(model, 0), E::FirstChoice(model, 0)};
+        Check(!E::Build(sex, duplicate, 2, recipe, form), "duplicate option selections are rejected");
+        const uint32_t other = E::FirstChoice(form == A::FormDarkweaver ? E::Profile + 2 : E::Profile, 0);
+        Check(!E::Build(sex, &other, 1, recipe, form), "form choices cannot overwrite the other form");
+    }
+    A::Recipe recipe;
+    struct ParticleModel {
+        std::vector<uint32_t> slots, colors, mids, ends;
+        void ReplaceParticleColor(uint32_t slot, CImVector start, CImVector mid, CImVector end) {
+            slots.push_back(slot);
+            colors.push_back(uint32_t(start.b) | uint32_t(start.g) << 8 | uint32_t(start.r) << 16 | uint32_t(start.a) << 24);
+            mids.push_back(uint32_t(mid.b) | uint32_t(mid.g) << 8 | uint32_t(mid.r) << 16 | uint32_t(mid.a) << 24);
+            ends.push_back(uint32_t(end.b) | uint32_t(end.g) << 8 | uint32_t(end.r) << 16 | uint32_t(end.a) << 24);
+        }
+    };
+    for (uint32_t palette = 0; palette < E::EffectCount(); ++palette) {
+        ParticleModel model;
+        const uint32_t choice = E::FirstChoice(E::Profile + 2, 7) + palette;
+        E::ApplyEffects(model, &choice, 1);
+        Check(model.slots == std::vector<uint32_t>({11,12,13}), "Dreadnaught effect palettes bind the three authored particle channels");
+        const auto& effect = E::Effect(palette);
+        Check(model.colors == std::vector<uint32_t>(effect.start.begin(), effect.start.end())
+            && model.mids == std::vector<uint32_t>(effect.mid.begin(), effect.mid.end())
+            && model.ends == std::vector<uint32_t>(effect.end.begin(), effect.end.end()),
+            "particle color bytes match the source table without channel swaps");
+    }
+    Check(!E::Build(2, nullptr, 0, recipe, A::FormDarkweaver)
+        && !E::Build(0, nullptr, 1, recipe, A::FormDarkweaver)
+        && !E::Build(0, nullptr, 0, recipe, A::FormWolf), "invalid Ethereal inputs fail closed");
+    std::vector<uint8_t> skin(48 + 7 * 48);
+    Put(skin, 0, 0x4e494b53); Put(skin, 28, 7); Put(skin, 32, 48);
+    skin[48 + 6 * 48] = 101;
+    const auto before = skin;
+    std::string error;
+    Check(E::PrepareSkin(skin, false, error), error.c_str());
+    Check(E::Motion::Half(skin, 48) == 6001 && E::Motion::Half(skin, 48 + 6 * 48) == 6100,
+        "shared geoset-zero layers and costumes receive independent private selectors");
+    const auto adapted = skin;
+    Check(!E::PrepareSkin(skin, false, error) && skin == adapted, "double adaptation fails without changing the input");
+    skin = before; skin.resize(skin.size() - 1);
+    Check(!E::PrepareSkin(skin, false, error), "truncated Ethereal section arrays are rejected");
+    auto body = Body();
+    const Retail::Ethereal::Motion::Reader noFiles = [](uint32_t, auto&, auto&) { return false; };
+    Check(E::Motion::Embed(body, {}, noFiles, true, false, error), "resident animation metadata is rebuilt independently");
+    Check(E::Motion::Word(body, 0x1c) == 1, "embedding preserves source sequence count");
+    {
+        auto shared = Body();
+        std::vector<uint8_t> sequences(shared.begin() + Get(shared, 0x20),
+            shared.begin() + Get(shared, 0x20) + 64);
+        const auto run = sequences;
+        sequences.insert(sequences.end(), run.begin(), run.end());
+        E::Motion::HalfPut(sequences, 64, 5); // Run selects slot one; the source color still has only shared slot zero.
+        Put(shared, 0x20, uint32_t(E::Motion::Append(shared, sequences))); Put(shared, 0x1c, 2);
+        const size_t color = E::Motion::Append(shared, std::vector<uint8_t>(40));
+        Put(shared, 0x48, 1); Put(shared, 0x4c, uint32_t(color));
+        E::Motion::HalfPut(shared, color + 2, 65535); E::Motion::HalfPut(shared, color + 22, 65535);
+        E::Motion::Keys tint;
+        tint.times.resize(4); tint.values.resize(12);
+        const float rgb[] = {.5f, .25f, 1.0f}; std::memcpy(tint.values.data(), rgb, 12);
+        E::Motion::StoreTrack(shared, color, 12, {tint});
+        Check(E::Motion::Embed(shared, {}, noFiles, true, false, error), "embed an idle/run model with one shared tint");
+        Check(Get(shared, color + 4) == 1, "shared material tint remains shared when the model gains animation slots");
+        E::Motion::Keys running;
+        const uint32_t runSlot = 1 < Get(shared, color + 4) ? 1 : 0;
+        Check(E::Motion::KeysAt(shared, color, 12, runSlot, running) && running.values == tint.values,
+            "the renderer sees the same nonblack tint during running as idle");
+    }
+}
+
 int main(int argc, char** argv) {
     TestLookWire();
+    TestEthereal();
+    if (argc == 4 && std::string(argv[1]) == "--ethereal-clothing")
+    {
+        const auto read = [](std::filesystem::path const& path) {
+            std::ifstream input(path,std::ios::binary);
+            Check(input.good(),"open staged clothing fixture");
+            return std::vector<uint8_t>((std::istreambuf_iterator<char>(input)),{});
+        };
+        for (uint32_t id : {5926159u,6152557u}) {
+            const std::filesystem::path assets(argv[2]), prepared(argv[3]);
+            const std::string stem = std::to_string(id);
+            const auto clothing = read(assets/(stem+"-clothing.m2"));
+            const auto skin = read(assets/(stem+"-clothing00.skin"));
+            const auto parent = read(prepared/(stem+".m2"));
+            std::string error;
+            Check(Retail::ValidateSkin(skin,clothing,error),error.c_str());
+            Check(Get(clothing,0x2c) == Get(parent,0x2c),"clothing retains every parent bone for exact pose sharing");
+            for (uint32_t i = 0; i < Get(parent,0x2c); ++i)
+                Check(!std::memcmp(clothing.data()+Get(clothing,0x30)+size_t(i)*88,
+                    parent.data()+Get(parent,0x30)+size_t(i)*88,16)
+                    && !std::memcmp(clothing.data()+Get(clothing,0x30)+size_t(i)*88+76,
+                    parent.data()+Get(parent,0x30)+size_t(i)*88+76,12),
+                    "clothing bone identity/hierarchy/flags/pivots satisfy native exact-rig binding");
+            Check(Get(clothing,0x3c) < 65536,"clothing vertices fit the renderer");
+            uint32_t uploaded = 0;
+            bool cape = false, arms = false, torso = false, legs = false, gloves = false, hips = false;
+            for (uint32_t i = 0; i < Get(skin,28); ++i) {
+                const size_t at = Get(skin,32)+size_t(i)*48;
+                const uint16_t geoset = Retail::Ethereal::Motion::Half(skin,at);
+                uploaded += Retail::Ethereal::Motion::Half(skin,at+10);
+                Check(Retail::Ethereal::Motion::Half(skin,at+12) <= 75,"each clothing section fits 75 GPU bones");
+                cape = cape || geoset == 1501;
+                arms = arms || geoset == 6103;
+                torso = torso || geoset == 6118;
+                legs = legs || geoset == 6122;
+                gloves = gloves || geoset == 6301;
+                hips = hips || geoset == 6302;
+            }
+            Check(uploaded == Get(skin,12),"sequential GPU uploads fit the actual index allocation");
+            Check(cape && arms && torso && legs,"clothing contains cloak and all default anatomy overlays");
+            std::set<std::string> parentPositions;
+            for (uint32_t i = 0; i < Get(parent,0x3c); ++i) {
+                const size_t at = Get(parent,0x40)+size_t(i)*48;
+                parentPositions.emplace(reinterpret_cast<char const*>(parent.data()+at),16);
+            }
+            for (uint32_t i = 0; i < Get(skin,28); ++i) {
+                const size_t at = Get(skin,32)+size_t(i)*48;
+                if (Retail::Ethereal::Motion::Half(skin,at)!=6301) continue;
+                const uint32_t first = uint32_t(Retail::Ethereal::Motion::Half(skin,at+2))<<16
+                    | Retail::Ethereal::Motion::Half(skin,at+8);
+                const uint32_t count = Retail::Ethereal::Motion::Half(skin,at+10);
+                for (uint32_t n = first; n < first+count; ++n) {
+                    const uint16_t lookup = Retail::Ethereal::Motion::Half(skin,Get(skin,16)+size_t(n)*2);
+                    const uint16_t vertex = Retail::Ethereal::Motion::Half(skin,Get(skin,8)+size_t(lookup)*2);
+                    const size_t position = Get(clothing,0x40)+size_t(vertex)*48;
+                    Check(parentPositions.count(std::string(reinterpret_cast<char const*>(clothing.data()+position),16)),
+                        "UV gloves must use exact original hand positions/weights rather than an inflated shell");
+                }
+            }
+            if (Get(clothing,0x70) == 2)
+            {
+                Check(gloves && !hips,"solid fingers are retained without an invented waist surface");
+                for (uint32_t batch = 0; batch < Get(skin,36); ++batch) {
+                    const size_t at = Get(skin,40)+size_t(batch)*24;
+                    const uint16_t section = Retail::Ethereal::Motion::Half(skin,at+4);
+                    if (Retail::Ethereal::Motion::Half(skin,Get(skin,32)+size_t(section)*48) == 6301)
+                        Check(Retail::Ethereal::Motion::Half(skin,at+10) == 1
+                            && Retail::Ethereal::Motion::Half(clothing,Get(clothing,0x74)+6) == 0,
+                            "solid finger coverage must not alpha-discard the glove texture's cutout pixels");
+                }
+            }
+        }
+        std::puts("Ethereal clothing native skin validation, parent rig identity and upload bounds passed.");
+        return 0;
+    }
+    if ((argc == 4 || argc == 5) && std::string(argv[1]) == "--ethereal-source") {
+        namespace E = Retail::Ethereal;
+        Retail::CascSource source;
+        std::string error;
+        const auto require = [&](bool pass) { Check(pass, error.c_str()); };
+        require(source.Configure(argv[2], error));
+        for (uint32_t id : E::Bodies) {
+            std::ifstream fixture(std::filesystem::path(argv[3]) / (std::to_string(id) + ".m2"), std::ios::binary);
+            const std::vector<uint8_t> original((std::istreambuf_iterator<char>(fixture)), {});
+            std::vector<uint8_t> fetched, player;
+            std::printf("Ethereal fixture %u\n", id); std::fflush(stdout);
+            require(!original.empty() && source.Inspect(Retail::FileName(id, ".m2").c_str(), fetched, error));
+            Check(fetched == original, "native source matches the immutable audited fixture");
+            require(source.Read(E::Path(id).c_str(), player, error));
+            if (argc == 5) {
+                const std::filesystem::path output(argv[4]);
+                std::filesystem::create_directories(output);
+                std::ofstream out(output / (std::to_string(id) + ".m2"), std::ios::binary);
+                Check(bool(out.write(reinterpret_cast<const char*>(player.data()), player.size())), "export prepared Ethereal pose fixture");
+                if (id != E::Bodies[2]) {
+                    const uint32_t donorId = 1814471, skeletonId = 1845581, parentId = 1839628;
+                    const auto originalFile = [&](uint32_t file, const char* extension) {
+                        std::ifstream input(std::filesystem::path(argv[3]) / (std::to_string(file) + extension), std::ios::binary);
+                        Check(input.good(), "open original Nightborne pose fixture");
+                        return std::vector<uint8_t>((std::istreambuf_iterator<char>(input)), {});
+                    };
+                    std::vector<uint8_t> skeleton, donor;
+                    Retail::ModelFiles graph;
+                    require(Retail::MergeSkeleton(originalFile(skeletonId, ".skel"), originalFile(parentId, ".skel"), skeleton, error));
+                    require(Retail::PrepareModel(originalFile(donorId, ".m2"), donor, graph, error, &skeleton, false));
+                    const E::Motion::Reader read = [&](uint32_t file, auto& bytes, auto&) {
+                        bytes = originalFile(file, ".anim"); return true;
+                    };
+                    require(E::Motion::Embed(donor, graph, read, false, false, error));
+                    const auto findBone = [](const auto& model, uint32_t key) {
+                        for (uint32_t i = 0; i < Get(model, 0x2c); ++i)
+                            if (Get(model, Get(model, 0x30) + size_t(i)*88) == key) return int32_t(i);
+                        return int32_t(-1);
+                    };
+                    for (uint16_t action : {13,69,84,96,97,98,119,120,209}) {
+                        const uint16_t targetSequence = E::Motion::Half(player, Get(player, 0x28) + size_t(action)*2);
+                        const uint16_t donorSequence = E::Motion::Half(donor, Get(donor, 0x28) + size_t(action)*2);
+                        Check(targetSequence < Get(player, 0x1c) && donorSequence < Get(donor, 0x1c),
+                            "each reported broken action resolves a real donor clip");
+                        for (uint32_t key = 0; key <= 18; ++key) {
+                            const int32_t a = findBone(player,key), b = findBone(donor,key);
+                            if (a < 0 || b < 0) continue;
+                            E::Motion::Keys actual, expected;
+                            Check(E::Motion::KeysAt(player, Get(player,0x30)+size_t(a)*88+36,8,targetSequence,actual)
+                                && E::Motion::KeysAt(donor, Get(donor,0x30)+size_t(b)*88+36,8,donorSequence,expected),
+                                "reported action joint rotations are readable");
+                            Check(actual.times == expected.times && actual.values == expected.values,
+                                "reported actions retain the Nightborne bind-axis rotations without caster-idle offsets");
+                        }
+                    }
+                    std::ofstream motion(output / (std::to_string(donorId) + ".m2"), std::ios::binary);
+                    Check(bool(motion.write(reinterpret_cast<const char*>(donor.data()), donor.size())), "export resident Nightborne pose fixture");
+                }
+            }
+            size_t body = 0;
+            for (size_t at = 0; at + 8 <= original.size(); at += Get(original, at + 4) + 8)
+                if (!std::memcmp(original.data() + at, "MD21", 4)) { body = at + 8; break; }
+            Check(body && Get(player, 0x128) == Get(original, body + 0x128), "all authored glow particle emitters survive");
+            for (uint32_t tag : {0x52485324u,0x4c485324u}) {
+                size_t event = 0;
+                for (uint32_t e = 0; e < Get(player,0x100); ++e) {
+                    const size_t record = Get(player,0x104)+size_t(e)*36;
+                    if (Get(player,record) == tag) { event = record; break; }
+                }
+                Check(event != 0,"both hand-transfer events exist without relying on combat refreshes");
+                if (id != E::Bodies[2]) {
+                    const uint16_t bone = E::Motion::Half(player,event+8);
+                    Check(bone < Get(player,0x2c),"draw/sheath event bone exists");
+                    uint32_t parent = E::Motion::Half(player,Get(player,0x30)+size_t(bone)*88+8);
+                    bool dispatched = false;
+                    for (uint32_t depth = 0; parent != 65535 && depth < Get(player,0x2c); ++depth) {
+                        Check(parent < Get(player,0x2c),"draw/sheath event ancestry is bounded");
+                        dispatched = dispatched || Get(player,Get(player,0x30)+size_t(parent)*88) ==
+                            (tag == 0x52485324 ? 3u : 2u);
+                        parent = E::Motion::Half(player,Get(player,0x30)+size_t(parent)*88+8);
+                    }
+                    Check(dispatched,"the real dispatcher parent walk reaches the animated arm root");
+                }
+                for (uint16_t action : {89,90}) {
+                    const uint16_t clip = E::Motion::Half(player,Get(player,0x28)+size_t(action)*2);
+                    E::Motion::Keys clock;
+                    Check(clip < Get(player,0x1c) && E::Motion::KeysAt(player,event+24,0,clip,clock)
+                        && !clock.times.empty(),"both hand-transfer events are scheduled during normal and back draw/sheath clips");
+                    const uint32_t duration = Get(player,Get(player,0x20)+size_t(clip)*64+4);
+                    for (size_t time = 0; time < clock.times.size(); time += 4)
+                        Check(Get(clock.times,time) <= duration,"hand item transfer occurs before the animation completes");
+                }
+            }
+            Check(Get(player, 0x2c) == Get(original, body + 0x2c), "source rig and extra cloth bones are retained");
+            if (id != E::Bodies[2]) {
+                const auto boneForKey = [&](uint32_t key) {
+                    for (uint32_t i = 0; i < Get(player, 0x2c); ++i)
+                        if (Get(player, Get(player, 0x30) + size_t(i) * 88) == key) return i;
+                    Check(false, "the Ethereal keeps both authored foot anchors"); return 0u;
+                };
+                const uint16_t backward = E::Motion::Half(player, Get(player, 0x28) + 13 * 2);
+                Check(backward < Get(player, 0x1c) && E::Motion::Half(player, Get(player, 0x20) + backward * 64) == 13,
+                    "backward walking resolves its own authored Nightborne action");
+                for (uint32_t foot : {59u,60u}) {
+                    uint32_t joint = E::Motion::Half(player, Get(player, 0x30) + size_t(boneForKey(foot)) * 88 + 8);
+                    for (uint32_t level = 0; level < 2; ++level) {
+                        Check(joint < Get(player, 0x2c), "both Ethereal leg chains contain a real thigh and knee");
+                        E::Motion::Keys keys;
+                        Check(E::Motion::KeysAt(player, Get(player, 0x30) + size_t(joint) * 88 + 36, 8, backward, keys),
+                            "backward leg rotation keys are resident and bounded");
+                        bool moving = false;
+                        for (size_t k = 8; k < keys.values.size(); k += 8)
+                            moving = moving || std::memcmp(keys.values.data(), keys.values.data() + k, 8) != 0;
+                        Check(moving, "backward walking animates each thigh and knee rather than leaving legs frozen");
+                        joint = E::Motion::Half(player, Get(player, 0x30) + size_t(joint) * 88 + 8);
+                    }
+                }
+                std::set<std::pair<uint16_t,uint16_t>> identities;
+                for (uint32_t i = 0; i < Get(player, 0x1c); ++i)
+                    Check(identities.emplace(E::Motion::Half(player, Get(player, 0x20) + size_t(i)*64),
+                        E::Motion::Half(player, Get(player, 0x20) + size_t(i)*64 + 2)).second,
+                        "replacing Point clips preserves unique action/variation identities");
+            }
+            const std::vector<uint8_t> rawBody(original.begin() + body,
+                original.begin() + body + Get(original, body - 4));
+            std::vector<E::Motion::TrackRef> sourceTracks, playerTracks;
+            Check(E::Motion::Tracks(rawBody, true, false, sourceTracks)
+                && E::Motion::Tracks(player, false, false, playerTracks), "enumerate source and prepared material/effect tracks");
+            for (auto* tracks : {&sourceTracks, &playerTracks})
+                tracks->erase(std::remove_if(tracks->begin(), tracks->end(), [](const auto& track) {
+                    return track.category != 0 || track.spline || track.event;
+                }), tracks->end());
+            Check(sourceTracks.size() == playerTracks.size(), "material/effect tracks retain their source identities");
+            uint32_t sharedEffects = 0;
+            for (size_t i = 0; i < sourceTracks.size(); ++i) {
+                const auto& from = sourceTracks[i]; const auto& to = playerTracks[i];
+                if (from.category == 1 || Get(rawBody, from.at + 4) != 1) continue;
+                E::Motion::Keys expected, actual;
+                // Shared values may live in an external animation file; source-resident constants are checked here.
+                if (!(Get(rawBody, Get(rawBody, 0x20) + 12) & 0x20)) continue;
+                Check(E::Motion::KeysAt(rawBody, from.at, from.key, 0, expected, from.spline),
+                    "source shared material/effect keys are readable");
+                Check(Get(player, to.at + 4) == 1, "single-span material/effect tracks cannot become sparse animation arrays");
+                const size_t particles = Get(rawBody, 0x12c);
+                const bool packedGravity = from.at >= particles && (from.at - particles) / 492 < Get(rawBody, 0x128)
+                    && (from.at - particles) % 492 == 0x84
+                    && (Get(rawBody, particles + ((from.at - particles) / 492) * 492 + 4) & 0x800000);
+                if (packedGravity) continue; // The native adapter converts compressed gravity vectors to scalar values.
+                for (uint32_t action = 0; action < Get(player, 0x1c); ++action) {
+                    const uint32_t slot = action < Get(player, to.at + 4) ? action : 0;
+                    Check(E::Motion::KeysAt(player, to.at, to.key, slot, actual, to.spline)
+                        && actual.times == expected.times && actual.values == expected.values,
+                        "shared tint, opacity, UV and glow settings survive every authored and borrowed animation");
+                }
+                ++sharedEffects;
+            }
+            Check(sharedEffects > 10, "real source fixtures exercise shared colors and particle settings");
+            std::set<uint16_t> actions;
+            for (uint32_t i = 0; i < Get(player, 0x1c); ++i)
+                actions.insert(E::Motion::Half(player, Get(player, 0x20) + size_t(i) * 64));
+            for (uint16_t action : {0,1,4,5,37,38,39,41,42,43,44,45,50,51,53,54,69,70,119,120,133,134})
+                Check(actions.count(action), "both forms retain movement, casting, combat, swim, stealth and fishing actions");
+            for (uint16_t action : {42,50,120,133,134}) {
+                const uint16_t sequence = E::Motion::Half(player, Get(player, 0x28) + size_t(action) * 2);
+                bool moving = false;
+                for (uint32_t bone = 0; bone < Get(player, 0x2c); ++bone) {
+                    const size_t at = Get(player, 0x30) + size_t(bone) * 88;
+                    const int32_t key = int32_t(Get(player, at));
+                    if (key < 0 || key > 18) continue;
+                    for (size_t offset : {16u,36u,56u}) {
+                        E::Motion::Keys keys;
+                        const size_t size = offset == 36 ? 8 : 12;
+                        Check(E::Motion::KeysAt(player, at + offset, size, sequence, keys), "action keyframes are resident and bounded");
+                        for (size_t i = size; i < keys.values.size(); i += size)
+                            moving = moving || std::memcmp(keys.values.data(), keys.values.data() + i, size) != 0;
+                    }
+                }
+                Check(moving, "swimming, looting, stealth and fishing contain moving core bones rather than idle aliases");
+            }
+            const auto sockets = Get(player, 0xfc);
+            for (uint16_t socket : {1,2,5,6,11,12})
+                Check(socket < Get(player, 0xf8) && E::Motion::Half(player, sockets + socket * 2) < Get(player, 0xf0),
+                    "weapon, shoulder, helmet and back sockets resolve in each form");
+            Retail::ModelFiles graph;
+            require(Retail::InspectModel(original, graph, error));
+            for (size_t lod = 0; lod < Get(player, 0x44); ++lod) {
+                char suffix[16]; std::snprintf(suffix, sizeof(suffix), "%02u.skin", unsigned(lod));
+                const auto path = E::Path(id);
+                std::vector<uint8_t> skin;
+                require(source.Read((path.substr(0, path.size() - 3) + suffix).c_str(), skin, error));
+                require(Retail::ValidateSkin(skin, player, error));
+                std::vector<uint8_t> originalSkin;
+                require(source.Inspect(Retail::FileName(graph.skins[lod], ".skin").c_str(), originalSkin, error));
+                for (uint32_t mesh = 0; mesh < Get(skin, 28); ++mesh) {
+                    Check(E::Motion::Half(skin, Get(skin, 32) + size_t(mesh) * 48) >= 6000,
+                        "all LOD geometry is independently controlled outside equipment groups");
+                    const size_t at = Get(skin, 32) + size_t(mesh) * 48;
+                    if (E::Motion::Half(skin,at) == E::BareHandGeoset)
+                    {
+                        const uint32_t first = uint32_t(E::Motion::Half(skin,at+2))<<16 | E::Motion::Half(skin,at+8);
+                        const uint32_t count = E::Motion::Half(skin,at+10);
+                        Check(count>0,"the isolated original hand surface exists in every advertised LOD");
+                        for (uint32_t index = first; index < first+count; ++index) {
+                            const uint16_t lookup = E::Motion::Half(skin,Get(skin,16)+size_t(index)*2);
+                            const uint16_t vertex = E::Motion::Half(skin,Get(skin,8)+size_t(lookup)*2);
+                            const size_t position = Get(player,0x40)+size_t(vertex)*48;
+                            float y,z; std::memcpy(&y,player.data()+position+4,4); std::memcpy(&z,player.data()+position+8,4);
+                            Check(std::abs(y)>.45f && z>.50f,"hand isolation must never remove feet or other anatomy");
+                        }
+                        continue;
+                    }
+                    const size_t old = Get(originalSkin, 32) + size_t(mesh) * 48;
+                    Check(E::Motion::Half(skin, at + 12) <= 75, "each selectable mesh fits the renderer's bone constants");
+                    const uint32_t first = E::Motion::Half(skin, at + 4), count = E::Motion::Half(skin, at + 6);
+                    for (uint32_t vertex = first; vertex < first + count; ++vertex) {
+                        const uint16_t index = E::Motion::Half(skin, Get(skin, 8) + size_t(vertex) * 2);
+                        for (size_t influence = 0; influence < 4; ++influence) {
+                            if (!player[Get(player, 0x40) + size_t(index) * 48 + 12 + influence]) continue;
+                            const uint8_t local = skin[Get(skin, 24) + size_t(vertex) * 4 + influence];
+                            const uint8_t previous = originalSkin[Get(originalSkin, 24) + size_t(vertex) * 4 + influence];
+                            const uint16_t actual = E::Motion::Half(player,
+                                Get(player, 0x7c) + 2 * (E::Motion::Half(skin, at + 14) + local));
+                            const uint16_t expected = E::Motion::Half(original,
+                                body + Get(original, body + 0x7c) + 2 * (E::Motion::Half(originalSkin, old + 14) + previous));
+                            Check(actual == expected, "palette compaction preserves every original weighted bone influence");
+                        }
+                    }
+                }
+                if (id != E::Bodies[2])
+                {
+                    std::multiset<std::array<uint16_t,3>> originalTriangles, isolatedTriangles;
+                    const auto collect = [&](std::vector<uint8_t> const& bytes, size_t row,
+                        std::multiset<std::array<uint16_t,3>>& triangles) {
+                        const uint32_t first = uint32_t(E::Motion::Half(bytes,row+2))<<16 | E::Motion::Half(bytes,row+8);
+                        const uint32_t count = E::Motion::Half(bytes,row+10);
+                        for (uint32_t at = first; at < first+count; at+=3) {
+                            std::array<uint16_t,3> tri{};
+                            for (size_t corner = 0; corner < 3; ++corner) {
+                                const uint16_t lookup = E::Motion::Half(bytes,Get(bytes,16)+size_t(at+corner)*2);
+                                tri[corner] = E::Motion::Half(bytes,Get(bytes,8)+size_t(lookup)*2);
+                            }
+                            triangles.insert(tri);
+                        }
+                    };
+                    collect(originalSkin,Get(originalSkin,32),originalTriangles);
+                    for (uint32_t row = 0; row < Get(skin,28); ++row) {
+                        const size_t at = Get(skin,32)+size_t(row)*48;
+                        const uint16_t geo = E::Motion::Half(skin,at);
+                        if (geo == 6001 || geo == E::BareHandGeoset) collect(skin,at,isolatedTriangles);
+                    }
+                    Check(originalTriangles == isolatedTriangles,
+                        "hand isolation partitions the original anatomy without losing or duplicating triangles");
+                }
+            }
+        }
+        std::puts("Ethereal immutable source, full motion, glow, sockets and every advertised skin profile passed.");
+        return 0;
+    }
     if ((argc == 3 || argc == 4) && std::string(argv[1]) == "--centaur-source") {
         Retail::CascSource source;
         std::string error;

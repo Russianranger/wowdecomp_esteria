@@ -72,6 +72,7 @@ namespace gxvk::vk::pipelines
         Desaturate    = 2,
         FixedFunctionTranslated = 3,
         Translated    = 4,
+        OutlineEdge   = 5,
         Count
     };
 

@@ -13,6 +13,7 @@
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "WoW/Common/ComponentCore/RetailRace.h"
+#include "Engine/Source/Retail/RacePolicy.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
 #include "Engine/Source/Base/Prop.h"
@@ -482,6 +483,7 @@ int32_t CCharacterComponent::ComposeHelmModelFilePath(const ChrRacesRec* raceRec
 
     *ext = '_';
     const uint32_t race = this->m_data.m_preferences.m_raceID;
+    if (const auto* donor = g_chrRacesDB.GetRecord(RetailRaceHelmetRace(race))) raceRec = donor;
     // Native fitting uses the Human helmet mesh; Ky/Ve have no Wrath equipment variants.
     strcpy(ext + 1, race == 75 || race == 76 ? "Hu" : raceRec->m_clientPrefix);
     strcat(path, s_fileDecorations[this->m_data.m_preferences.m_sexID]);
@@ -5634,7 +5636,7 @@ bool CCharacterComponent::Init(ComponentData* data, const char* debug) {
     }
 
     ChrRacesRec* raceRec = g_chrRacesDB.GetRecord(this->m_data.m_preferences.m_raceID);
-    this->m_flags = (this->m_flags & ~0x10) | (((raceRec->m_flags & 0x2) != 0) << 4);
+    this->m_flags = (this->m_flags & ~0x10) | (Retail::BareFeet(this->m_data.m_preferences.m_raceID, raceRec->m_flags) << 4);
 
     if (dataFlags & 0x1) {
         this->SkinNpc(debug);
@@ -5652,6 +5654,9 @@ bool CCharacterComponent::Init(ComponentData* data, const char* debug) {
 void CCharacterComponent::AddItem(ITEM_SLOT itemSlot, const ItemDisplayInfoRec* displayRec, int32_t itemVisual) {
     this->m_flags |= 0x4;
     this->m_itemDisplayID[itemSlot] = displayRec->m_id;
+
+    // Weapon/shield models use AddHandItem separately; keep all equipped item state for the other form.
+    if (RetailRaceHidesArmor(this)) return;
 
     switch (itemSlot) {
         case ITEMSLOT_HEAD:

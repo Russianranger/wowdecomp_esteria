@@ -20,6 +20,7 @@
 #include "Engine/Source/Tempest/C4Vector.h"
 #include "Engine/Source/Tempest/CMath.h"
 #include "Engine/Source/Tempest/CImVector.h"
+#include "Engine/Source/UnitOutline/UnitOutline.h"
 
 // STATIC: 0x00A45390
 const uint32_t s_fogModes[7] = { 1, 1, 1, 2, 2, 3, 4 };
@@ -483,6 +484,8 @@ void CM2SceneRender::DrawBatch() {
     if (CShaderEffect::s_enableShaders) {
         batch.m_minIndex = this->m_curSkinSection->m_vertexStart;
         batch.m_maxIndex = this->m_curSkinSection->m_vertexCount + this->m_curSkinSection->m_vertexStart - 1;
+        // Not in the original binary: the unit outline re-draws a recorded unit's batch into its mask first.
+        CUnitOutline::StampBatch(batch, this->m_curModel);
         g_theGxDevicePtr->Draw(&batch, 1);
     } else if (sharedVertices) {
         CGxMatrixStack& world = g_theGxDevicePtr->m_xforms[GxXform_World];
@@ -492,6 +495,8 @@ void CM2SceneRender::DrawBatch() {
 
         batch.m_minIndex = this->m_curSkinSection->m_vertexStart;
         batch.m_maxIndex = this->m_curSkinSection->m_vertexCount + this->m_curSkinSection->m_vertexStart - 1;
+        // Not in the original binary: the unit outline re-draws a recorded unit's batch into its mask first.
+        CUnitOutline::StampBatch(batch, this->m_curModel);
         g_theGxDevicePtr->Draw(&batch, 1);
 
         CGxMatrixStack& restore = g_theGxDevicePtr->m_xforms[GxXform_World];
@@ -501,6 +506,8 @@ void CM2SceneRender::DrawBatch() {
     } else {
         batch.m_minIndex = 0;
         batch.m_maxIndex = this->m_curSkinSection->m_vertexCount - 1;
+        // Not in the original binary: the unit outline re-draws a recorded unit's batch into its mask first.
+        CUnitOutline::StampBatch(batch, this->m_curModel);
         g_theGxDevicePtr->Draw(&batch, 1);
     }
 }
@@ -666,6 +673,7 @@ void CM2SceneRender::DrawBatchDoodad(M2Element* elements, uint32_t* indices) {
 
             batch.m_count = instances * this->m_curSkinSection->m_indexCount;
             batch.m_maxIndex = static_cast<uint16_t>(instances * this->m_curShared->m_skinData->m_vertices.m_count - 1);
+            CUnitOutline::StampBatch(batch, this->m_curModel);
             g_theGxDevicePtr->Draw(&batch, 1);
         }
     } else {
@@ -703,6 +711,7 @@ void CM2SceneRender::DrawBatchDoodad(M2Element* elements, uint32_t* indices) {
 
             batch.m_count = instances * this->m_curSkinSection->m_indexCount;
             batch.m_maxIndex = static_cast<uint16_t>(instances * this->m_curSkinSection->m_vertexCount - 1);
+            CUnitOutline::StampBatch(batch, this->m_curModel);
             g_theGxDevicePtr->Draw(&batch, 1);
         }
     }

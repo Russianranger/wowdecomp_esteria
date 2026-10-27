@@ -30,7 +30,8 @@ namespace Retail::Db2::appearance
     /// Which of a race's two Two Forms models to use. FormDefault keeps the single model the race
     /// has always resolved to (Dracthyr stays Visage); the others are only meaningful for the
     /// Worgen (Retail 22) and Dracthyr (Retail 52/70) rows named here and fall back to default otherwise.
-    enum Form : uint32_t { FormDefault = 0, FormWolf, FormHuman, FormDragon, FormVisage };
+    enum Form : uint32_t { FormDefault = 0, FormWolf, FormHuman, FormDragon, FormVisage,
+                           FormDarkweaver, FormDreadnaught };
 
     struct Recipe
     {

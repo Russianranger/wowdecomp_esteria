@@ -1,6 +1,9 @@
 #include "Engine/Source/Retail/BodyShape.h"
 #include "Extensions/ASECM3/client/UnitWorldBinding.h"
 #include "WoW/Common/ComponentCore/RetailRace.h"
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+#include "Engine/Source/Retail/Ethereal.h"
+#endif
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "Unit_C.h"
 #include <cmath>
@@ -13868,9 +13871,22 @@ void CGUnit_C::OnAuraUpdate(CDataStore* msg, bool updateAll) {
     Script_SendUniqueSignal(this->m_obj->m_guid, SCRIPT_EVENT_UNIT_AURA);
 }
 
+static bool UsesEtherealSheatheSync(const CGUnit_C* unit) {
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    return (unit->m_obj->m_type & TYPEMASK_PLAYER)
+        && Retail::Ethereal::Race(unit->m_unit->m_unitFieldBytes0[0])
+        && unit->m_characterComponent && unit->m_worldModel
+        && unit->m_worldModel == unit->m_characterComponent->m_data.m_model
+        && RetailRaceActive(unit->m_characterComponent);
+#else
+    return false;
+#endif
+}
+
 // VERIFY: 80b6ec9d manual
 // OFFSET: 0x00736D30
 void CGUnit_C::SetSheatheState(uint32_t showWeapons, int32_t instant, int32_t noSend) {
+    const bool syncAttachments = UsesEtherealSheatheSync(this);
     if (this->IsPlayingWeaponAnim()) {
         showWeapons = CGUnit_C::ResolveSheathState(showWeapons, this->GetVirtualItem(0, false), this->GetVirtualItem(1, false));
     }
@@ -13884,6 +13900,10 @@ void CGUnit_C::SetSheatheState(uint32_t showWeapons, int32_t instant, int32_t no
     }
 
     if (showWeapons == this->m_sheatheState) {
+        // A repeated combat/server state update must repair a missed draw, rather than preserve a stale back socket.
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+        if (syncAttachments) Retail::Ethereal::SyncWieldedHands(*this);
+#endif
         return;
     }
 
@@ -13920,6 +13940,8 @@ void CGUnit_C::SetSheatheState(uint32_t showWeapons, int32_t instant, int32_t no
         this->SetSheatheStateInstant();
     } else {
         this->SetSheatheStateAnimate();
+        // Keep the animation, but synchronize the NPC-derived body's item links independently of model callbacks.
+        if (syncAttachments) this->SetSheatheStateInstant();
     }
 }
 
@@ -15137,7 +15159,11 @@ void CGUnit_C::ExchangeSheathedWeapon(const C3Vector* position, uint32_t hand, u
     uint32_t state;
     bool sheathe;
 
-    if ((flag & this->m_animationState) && (state = this->m_sheatheState) != 0) {
+    // An old callback must not reverse a completed Ethereal draw after its transient animation flags change.
+    if (UsesEtherealSheatheSync(this) && this->m_sheatheState <= 1) {
+        state = this->m_sheatheState;
+        sheathe = state == 0;
+    } else if ((flag & this->m_animationState) && (state = this->m_sheatheState) != 0) {
         sheathe = false;
     } else {
         state = this->m_previousSheatheState;
