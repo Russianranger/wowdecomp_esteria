@@ -98,7 +98,8 @@ static int32_t Script_GetCharacterInfo(lua_State* L) {
         lua_pushnil(L);
         lua_pushnil(L);
         lua_pushnil(L);
-        return 10;
+        lua_pushnil(L);
+        return 11;
     }
 
     CharacterSelectionDisplay* display = &CCharacterSelection::s_characterList[index];
@@ -126,7 +127,8 @@ static int32_t Script_GetCharacterInfo(lua_State* L) {
     lua_pushboolean(L, display->m_characterInfo.m_customizeFlags & 0x1);
     lua_pushboolean(L, display->m_characterInfo.m_customizeFlags & 0x100000);
     lua_pushboolean(L, display->m_characterInfo.m_customizeFlags & 0x10000);
-    return 10;
+    lua_pushboolean(L, display->m_characterInfo.m_flags & 0x4000); // fork: pending rename
+    return 11;
 }
 
 // Fork addition: what the server's character enumeration says beyond GetCharacterInfo.
