@@ -49,6 +49,19 @@ inline void FitGloveSection(Db2::appearance::TextureSection& section) {
     section.y += section.height - height;
     section.height = height;
 }
+template <class Image>
+inline bool RepeatEquipmentAtlas(Image& image) {
+    if (!image.width || !image.height || image.width>8192 || image.height>8192 || image.width%4
+        || image.rgba.size()!=size_t(image.width)*image.height*4) return false;
+    const size_t quarter = image.width/4;
+    // The first unused right-hand quarter is a wrap gutter; original equipment pixels stay untouched.
+    for (uint32_t y = 0; y < image.height; ++y) {
+        const size_t first = (size_t(y)*image.width+quarter)*4;
+        const size_t next = (size_t(y)*image.width+quarter*2)*4;
+        std::copy_n(image.rgba.begin()+first,quarter*4,image.rgba.begin()+next);
+    }
+    return true;
+}
 inline constexpr uint32_t ArmorSockets[] = {5,6,11};
 template <class Unit>
 inline void SyncWieldedHands(Unit& unit) {

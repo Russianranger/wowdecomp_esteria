@@ -123,6 +123,22 @@ static void TestEthereal() {
         && E::CreatorCount(E::Profile+2) == 3,"Ethereal creator exposes exactly six body and three Dreadnaught controls");
     const char* bodyLabels[] = {"Cloth Color","Glow Color","Head","Arms","Chest","Legs"};
     const char* mechLabels[] = {"Plating Color","Core Color","Lightning Color"};
+    {
+        Retail::Image image{16,4,std::vector<uint8_t>(16*4*4,0)};
+        for (uint32_t y = 0; y < 4; ++y) for (uint32_t x = 0; x < 8; ++x)
+            for (uint32_t channel = 0; channel < 4; ++channel)
+                image.rgba[(y*16+x)*4+channel]=uint8_t(y*33+x*3+channel);
+        const auto original=image.rgba;
+        Check(E::RepeatEquipmentAtlas(image),"equipment atlas can repeat its body tile without rescaling artwork");
+        for (uint32_t y = 0; y < 4; ++y) for (uint32_t x = 0; x < 16; ++x)
+            for (uint32_t channel = 0; channel < 4; ++channel) {
+                const uint32_t expected=x>=8 && x<12 ? x-4 : x;
+                Check(image.rgba[(y*16+x)*4+channel]==original[(y*16+expected)*4+channel],
+                    "repeat gutter preserves every original image pixel and only fills its reserved neighbor");
+            }
+        Retail::Image malformed{16,4,{0}};
+        Check(!E::RepeatEquipmentAtlas(malformed),"malformed gutter input fails closed");
+    }
     for (uint32_t race = 0; race < 129; ++race)
         for (uint32_t flags = 0; flags < 16; ++flags)
             Check(Retail::BareFeet(race,flags) == (race != 77 && race != 78 && (flags & 2) != 0),

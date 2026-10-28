@@ -481,12 +481,14 @@ void BindCollectionTextures(CM2Model* parent) {
     }
 }
 
-void SyncEtherealHands(CCharacterComponent* character) {
-    if (!Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID)) return;
+void SyncEtherealHandsAndFeet(CCharacterComponent* character) {
+    if (!Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID) || RetailRaceHidesArmor(character)) return;
     CM2Model* parent = character->m_data.m_model;
     if (!parent || !(parent->m_fFlags & 1)) return;
     const bool gloved = character->m_itemDisplayID[ITEMSLOT_GLOVES]
         && (character->m_section[2].m_layerMask & 1) && !RetailRaceNaked(character);
+    const bool booted = character->m_itemDisplayID[ITEMSLOT_BOOTS]
+        && (character->m_section[7].m_layerMask & 1) && !RetailRaceNaked(character);
     bool bareEnabled = true;
     const auto state = g_collections.find(character);
     if (state != g_collections.end())
@@ -498,6 +500,7 @@ void SyncEtherealHands(CCharacterComponent* character) {
                     Retail::Ethereal::BareHandGeoset) != part.second.end();
     }
     bool replaced = false;
+    bool feetReplaced = false;
     for (CM2Model* child = parent->m_attachList; child; child = child->m_attachNext) {
         if (child->m_attachmentId != CollectionSocket || !(child->m_fFlags & 1) || !child->HasSkinParent(parent)) continue;
         if (CollectionName(child).find("custom/ethereal/") != 0) continue;
@@ -508,9 +511,13 @@ void SyncEtherealHands(CCharacterComponent* character) {
         const bool useGloves = gloved && textured;
         child->SetGeometryVisible(6301,6301,useGloves ? 1 : 0);
         replaced = replaced || useGloves;
+        const bool useBoots = booted && textured;
+        child->SetGeometryVisible(2002,2002,useBoots ? 1 : 0);
+        feetReplaced = feetReplaced || useBoots;
     }
     parent->SetGeometryVisible(Retail::Ethereal::BareHandGeoset,Retail::Ethereal::BareHandGeoset,
         !replaced && bareEnabled ? 1 : 0);
+    parent->SetGeometryVisible(6001,6001,!feetReplaced && bareEnabled ? 1 : 0);
 }
 
 void FinishCollections(CCharacterComponent* character, bool refresh = false) {
@@ -565,7 +572,7 @@ void FinishCollections(CCharacterComponent* character, bool refresh = false) {
             BindCollectionTextures(parent);
         }
     }
-    SyncEtherealHands(character);
+    SyncEtherealHandsAndFeet(character);
 }
 
 // Whether the equipped helmet hides HelmetGeosetVisData slot `slot` (0 hair, 1..3 facial, 4 ears, 5..6 other) for
@@ -976,6 +983,8 @@ void BindBody(CCharacterComponent* character, CM2Model* model, const Look& look,
                 }
             }
         }
+        if (Retail::Ethereal::Race(character->m_data.m_preferences.m_raceID)
+            && !Retail::Ethereal::RepeatEquipmentAtlas(sheet)) return;
         CTexture* texture = MakeTexture(name, sheet);
         Log("body %s: %zu item layers, texture %p, %lu ms, model flags %u", name.c_str(), layers.size(),
             static_cast<void*>(texture), GetTickCount() - start, unsigned(model->m_fFlags));
@@ -1509,7 +1518,7 @@ void RetailRaceEquipment(CCharacterComponent* character) {
             if (form == app::FormDreadnaught)
                 Retail::Ethereal::ApplyEffects(*model, choices.data(), uint32_t(choices.size()));
         }
-        SyncEtherealHands(character);
+        SyncEtherealHandsAndFeet(character);
     }
 
     // Bare feet and closed shoes are separate Retail meshes. Wrath boot style zero is still a
