@@ -9,6 +9,7 @@
 #include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Base/Handle.h"
 #include "Engine/Source/Frame/CSimpleTexture.h"
+#include "Engine/Source/Frame/ModelSnapshot.h"
 #include "Engine/Source/Frame/CSimpleTop.h"
 #include "Engine/Source/Frame/CRenderBatch.h"
 #include "Engine/Source/Frame/CSimpleEmbeddedTexture.h"
@@ -2387,7 +2388,16 @@ int32_t CSimpleTexture::SetTexture(const char* fileName, int32_t wrapU, int32_t 
 
     CTexture* texture = nullptr;
 
-    if (fileName && *fileName) {
+    if (fileName && !strncmp(fileName, ModelSnapshot::kPrefix, ModelSnapshot::kPrefixLength)) {
+        // NOT IN BINARY: a model picture from the snapshot cache, not a file
+        texture = ModelSnapshot::Acquire(fileName + ModelSnapshot::kPrefixLength);
+
+        if (!texture) {
+            return 0;
+        }
+
+        this->m_shader = CSimpleTexture::GetImageModePixelShader(mode);
+    } else if (fileName && *fileName) {
         CStatus status;
         texture = TextureCreate(fileName, CGxTexFlags(filter, wrapU, wrapV, 0, 0, 0, 1), &status, 0x17);
 

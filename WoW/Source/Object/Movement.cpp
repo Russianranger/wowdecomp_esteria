@@ -5207,7 +5207,6 @@ void CMovement_C::ApplyMovement(uint32_t time, uint32_t elapsed) {
 
         uint32_t step = elapsed - consumed;
         C3Vector move;
-        int32_t plotted = 0;
         this->m_anchorElapsedMs += step;
 
         if (this->IsOnSpline()) {
@@ -5223,20 +5222,7 @@ void CMovement_C::ApplyMovement(uint32_t time, uint32_t elapsed) {
                 return;
             }
 
-            // Esteria: an extension (Skyriding) may move the local player itself; the anchors are reset after the
-            // step like an interpolated one, so the next plot starts from where the collision left the player.
-            if (this->m_unit->m_obj->m_guid == CGUnit_C::s_activeMover) {
-                C3Vector fromPosition(this->m_anchorPos.x + move.x - this->m_position.x, this->m_anchorPos.y + move.y - this->m_position.y, this->m_anchorPos.z + move.z - this->m_position.z);
-
-                if (sExtensionMgr->OnUnitPlotLocalMove(this->m_unit, time - step, step, &fromPosition)) {
-                    plotted = 1;
-                    move.x = this->m_position.x + fromPosition.x - this->m_anchorPos.x;
-                    move.y = this->m_position.y + fromPosition.y - this->m_anchorPos.y;
-                    move.z = this->m_position.z + fromPosition.z - this->m_anchorPos.z;
-                }
-            }
-
-            if (!plotted && this->m_flags2 & (MOVEMENTFLAG2_INTERPOLATED_MOVEMENT | MOVEMENTFLAG2_INTERPOLATED_TURNING | MOVEMENTFLAG2_INTERPOLATED_PITCHING)) {
+            if (this->m_flags2 & (MOVEMENTFLAG2_INTERPOLATED_MOVEMENT | MOVEMENTFLAG2_INTERPOLATED_TURNING | MOVEMENTFLAG2_INTERPOLATED_PITCHING)) {
                 C3Vector target(this->m_anchorPos.x + move.x, this->m_anchorPos.y + move.y, this->m_anchorPos.z + move.z);
 
                 if (this->Interpolate(time - step, step, &target, &this->m_facing, &this->m_pitch)) {
@@ -5250,7 +5236,7 @@ void CMovement_C::ApplyMovement(uint32_t time, uint32_t elapsed) {
 
         consumed += this->RequestMove(time - step, step, move);
 
-        if (interpolated || plotted) {
+        if (interpolated) {
             this->UpdateAnchors(0);
         }
 

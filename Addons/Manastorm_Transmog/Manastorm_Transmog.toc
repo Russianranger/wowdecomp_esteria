@@ -1,0 +1,7 @@
+## Interface: 30300
+## Title: Manastorm Transmog
+## Notes: Transmogrification window with a 3D preview of your character. Needs mod-transmog on the server.
+## Author: Manastorm
+## Version: 1.0
+
+Manastorm_Transmog.lua

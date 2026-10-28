@@ -27,6 +27,7 @@ class CGChatBubbleFrame;
 class CGGameObject_C;
 class CGNamePlateFrame;
 class CM2Model;
+class M2Data;
 class CMovementShared;
 class CCharacterComponent;
 class CEffect;
@@ -898,6 +899,7 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     void UpdateChannelEffects();
     void CreateOrDestroyObjectEffectManager();
     void UpdateBaseAnimation(uint32_t animFlags, int32_t mask);
+    /* ---- */ uint32_t ChooseMountFlightAnim(const M2Data* data, uint32_t riderAnim);
     void UpdatePartyMemberPetState();
     void ExecuteClientControlUpdate(WOWGUID guid, uint8_t state);
     UNIT_REACTION UnitReaction(const CGUnit_C* unit) const;
@@ -1027,6 +1029,43 @@ class CGUnit_C : public CGObject_C, public CGUnit {
     void TrackingSetTurn(uint32_t time, float facing);
     bool HandleTrackingPitch(float targetZ, float z, float pitch, float maxStep, uint32_t time, bool* overshoot);
     bool HandleTrackingFacing(float facing, float maxTurn, uint32_t time);
+    // ---- NOT IN BINARY: flight state ------------------------------------------------------------
+    // Kept at the END of the class on purpose. These are added members and must not shift the
+    // documented offsets of the reversed layout above.
+    // NOT IN BINARY. Flight state for the mount air animation: the state being held toward, when it
+    // started being held, and the state/id actually applied last. Used only while flying.
+    /* ---- */ uint32_t m_flgtPendingState = 0xFFFFFFFF;
+    /* ---- */ uint32_t m_flgtPendingSinceMs = 0;
+    /* ---- */ uint32_t m_flgtAppliedState = 0xFFFFFFFF;
+    /* ---- */ uint32_t m_flgtAppliedId = 0;
+    // The id each flight state resolved to on the current mount, for the diagnostic log.
+    /* ---- */ uint32_t m_flgtRoles[8] = {};
+    // Takeoff: the clip held while the launch plays, the time it expires, and whether this period of flight
+    // has already launched. Cleared only when the unit is genuinely on the ground.
+    /* ---- */ uint32_t m_flgtLaunched = 0;
+    /* ---- */ uint32_t m_flgtLaunchId = 0;
+    /* ---- */ uint32_t m_flgtLaunchUntilMs = 0;
+    /* ---- */ uint8_t  m_flgtAirborne = 0;
+    // Wingbeat over a level glide: the clip, when the current beat ends, when the next one starts, and the
+    // xorshift state that spaces them irregularly.
+    /* ---- */ uint32_t m_flgtBeatUntilMs = 0;
+    /* ---- */ uint32_t m_flgtBeatNextMs = 0;
+    /* ---- */ uint32_t m_flgtBeatRng = 0;
+    // When a boost press was requested. A TIMESTAMP, not a bool: if the applier cannot run that frame (the
+    // mount is not loaded yet, or the unit is in a state that excludes flight animation) a latch stayed set
+    // and fired the boost clip minutes later, which is the "boost animation plays on its own" bug. A request
+    // older than kBoostRequestMs is simply dropped.
+    /* ---- */ uint32_t m_flgtBoostRequestMs = 0;
+    // When the boost clip ends. 0 = not boosting.
+    /* ---- */ uint32_t m_flgtBoostUntilMs = 0;
+    // Set by ChooseMountFlightAnim when the boost clip must be re-pushed from its start even though the
+    // model is already on that exact id. The apply site normally skips a no-op id change; a boost must
+    // not be skipped, or a chained burst inherits the previous burst's pose instead of flapping again.
+    /* ---- */ uint8_t  m_flgtForceApply = 0;
+    // Esteria: which one-shot m_flgtBoostRequestMs asks for (EFlgtOneShot): the boost flap, or a skyriding
+    // ability's clip. Set together with the request.
+    /* ---- */ uint8_t  m_flgtOneShot = 0;
+
 };
 
 void CreatureQueryCallback(int32_t id, const WOWGUID& guid, void* param, bool success);

@@ -241,6 +241,8 @@ CSimpleModel::CSimpleModel(CSimpleFrame* parent) : CSimpleFrame(parent) {
     this->m_pendingCameraIndex = 0;
     this->m_pendingCameraId = 0;
     this->m_facing = 0.0f;
+    this->m_pitch = 0.0f;
+    this->m_roll = 0.0f;
     this->m_flags = 0;
     this->m_modelScale = 1.0f;
     this->m_fogNear = 0.0f;
@@ -406,13 +408,35 @@ void CSimpleModel::UpdateModel() {
     position.z = layoutScale * this->m_position.z;
 
     this->m_model->SetWorldTransform(position, this->m_facing, this->m_modelScale * this->m_layoutScale * height);
+
+    if (this->m_pitch != 0.0f || this->m_roll != 0.0f) {
+        // the turns about Y and X come after the one about Z, about the model's own origin; the position stays where it was
+        C44Matrix matrix = this->m_model->m_worldTransform;
+        matrix.d0 = 0.0f;
+        matrix.d1 = 0.0f;
+        matrix.d2 = 0.0f;
+        matrix.RotateAroundY(this->m_pitch);
+        matrix.RotateAroundX(this->m_roll);
+        matrix.d0 = position.x;
+        matrix.d1 = position.y;
+        matrix.d2 = position.z;
+        this->m_model->SetWorldTransform(matrix);
+    }
 }
 
 // VERIFY: 722f8373 manual
 // OFFSET: 0x0095FC30
 void CSimpleModel::RenderModel(void* arg) {
-    CSimpleModel* simpleModel = static_cast<CSimpleModel*>(arg);
+    RenderModelImpl(static_cast<CSimpleModel*>(arg), false);
+}
 
+// NOT IN BINARY. Draws the model into the render target that is bound, over all of it, framed exactly as the frame's
+// own rectangle would be on screen. The caller owns the target, the clear and the restore.
+void CSimpleModel::RenderModelOffscreen(CSimpleModel* simpleModel) {
+    RenderModelImpl(simpleModel, true);
+}
+
+void CSimpleModel::RenderModelImpl(CSimpleModel* simpleModel, bool offscreen) {
     if (!simpleModel->m_model) {
         return;
     }
@@ -452,22 +476,27 @@ void CSimpleModel::RenderModel(void* arg) {
         CameraSetupScreenProjection(rect, offset, 0.0f, 1);
     }
 
-    DDCToNDC(rect.minX, rect.minY, &rect.minX, &rect.minY);
-    DDCToNDC(rect.maxX, rect.maxY, &rect.maxX, &rect.maxY);
+    if (offscreen) {
+        // the projection above already spans the rectangle, so the whole target is the picture
+        GxXformSetViewport(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+    } else {
+        DDCToNDC(rect.minX, rect.minY, &rect.minX, &rect.minY);
+        DDCToNDC(rect.maxX, rect.maxY, &rect.maxX, &rect.maxY);
 
-    rect.minX = rect.minX >= 1.0f ? 1.0f : (rect.minX <= 0.0f ? 0.0f : rect.minX);
-    rect.maxX = rect.maxX >= 1.0f ? 1.0f : (rect.maxX <= 0.0f ? 0.0f : rect.maxX);
-    rect.minY = rect.minY >= 1.0f ? 1.0f : (rect.minY <= 0.0f ? 0.0f : rect.minY);
-    rect.maxY = rect.maxY >= 1.0f ? 1.0f : (rect.maxY <= 0.0f ? 0.0f : rect.maxY);
+        rect.minX = rect.minX >= 1.0f ? 1.0f : (rect.minX <= 0.0f ? 0.0f : rect.minX);
+        rect.maxX = rect.maxX >= 1.0f ? 1.0f : (rect.maxX <= 0.0f ? 0.0f : rect.maxX);
+        rect.minY = rect.minY >= 1.0f ? 1.0f : (rect.minY <= 0.0f ? 0.0f : rect.minY);
+        rect.maxY = rect.maxY >= 1.0f ? 1.0f : (rect.maxY <= 0.0f ? 0.0f : rect.maxY);
 
-    if (fabs(rect.minX - rect.maxX) < 0.00000023841858f || fabs(rect.minY - rect.maxY) < 0.00000023841858f) {
-        g_theGxDevicePtr->XformSetProjection(projection);
-        g_theGxDevicePtr->XformSetView(view);
-        GxXformSetViewport(minX, maxX, minY, maxY, minZ, maxZ);
-        return;
+        if (fabs(rect.minX - rect.maxX) < 0.00000023841858f || fabs(rect.minY - rect.maxY) < 0.00000023841858f) {
+            g_theGxDevicePtr->XformSetProjection(projection);
+            g_theGxDevicePtr->XformSetView(view);
+            GxXformSetViewport(minX, maxX, minY, maxY, minZ, maxZ);
+            return;
+        }
+
+        GxXformSetViewport(rect.minX * maxX, rect.maxX * maxX, rect.minY * maxY, rect.maxY * maxY, 0.0f, 1.0f);
     }
-
-    GxXformSetViewport(rect.minX * maxX, rect.maxX * maxX, rect.minY * maxY, rect.maxY * maxY, 0.0f, 1.0f);
 
     CImVector clearColor;
     clearColor.b = 0x00;

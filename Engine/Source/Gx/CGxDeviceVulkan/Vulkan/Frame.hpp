@@ -114,6 +114,12 @@ namespace gxvk::vk::frame
     bool ReadScene(const VkRect2D& rect, uint8_t* out);
 
     /**
+     * ReadScene for any image in its resting SHADER_READ_ONLY_OPTIMAL layout (a render target once its
+     * pass has ended), one array layer, bytes as they lie in the image's format.
+     */
+    bool ReadImage(const texture::Image& img, uint32_t layer, const VkRect2D& rect, uint8_t* out);
+
+    /**
      * Begins an occlusion query on the current pass (opened if need be). One query at a time. A
      * query cannot span two render pass instances, so while it is active Outside() hands out the
      * pre-pass buffer instead of ending the pass, and if the pass has to end anyway (a target

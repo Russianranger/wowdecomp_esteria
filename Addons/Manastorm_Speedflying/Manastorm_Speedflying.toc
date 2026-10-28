@@ -1,0 +1,11 @@
+## Interface: 30300
+## Title: Manastorm Speedflying
+## Notes: Flight HUD and talent panel for the mana-speedflying server module. The client publishes the values (WoW/Source/Ui/SpeedFlying.cpp); this addon only paints them.
+## Author: WarcraftXL
+## Version: 0.1.0
+
+Link.lua
+Listener.lua
+Talents.lua
+Hud.lua
+Skyriding.lua

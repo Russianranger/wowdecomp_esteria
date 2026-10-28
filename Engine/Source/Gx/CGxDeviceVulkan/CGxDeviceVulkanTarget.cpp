@@ -230,3 +230,21 @@ void CGxDeviceVulkan::DeviceReadPixels(CiRect& rect, TSGrowableArray<CImVector>&
 
     frame::ReadScene(area, reinterpret_cast<uint8_t*>(pixels.Ptr()));
 }
+
+// Not in the original binary (ModelSnapshot): a whole ARGB8888 texture -- a render target, or a picture
+// already uploaded -- read back as D3DFMT_A8R8G8B8 rows, which are Vulkan's B8G8R8A8 bytes as they lie.
+bool CGxDeviceVulkan::DeviceReadTexture(CGxTex* texture, uint32_t width, uint32_t height, uint32_t* out) {
+    if (!this->m_context || !texture || !out || texture->m_format != GxTex_Argb8888) {
+        return false;
+    }
+
+    texture::Image* image = this->ITexImage(texture);
+
+    if (!image || image->extent.width != width || image->extent.height != height) {
+        return false;
+    }
+
+    VkRect2D area = {};
+    area.extent = image->extent;
+    return frame::ReadImage(*image, 0, area, reinterpret_cast<uint8_t*>(out));
+}

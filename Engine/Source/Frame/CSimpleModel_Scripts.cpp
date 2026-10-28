@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <cstdint>
+#include "Engine/Source/Base/Coordinate.h"
 #include "Engine/Source/Frame/CSimpleModel.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
 #include "Engine/Source/FrameScript/FrameScript_Object.h"
@@ -142,6 +143,37 @@ static int32_t Script_SetFacing(lua_State* L) {
     const char* name = model->GetName();
     luaL_error(L, "Usage: %s:SetFacing(facing)", name ? name : "<unnamed>");
     return 0;
+}
+
+// Custom (not in the stock client): SetTilt(pitch, roll) turns the model about the Y and X axes, in radians
+// (SetFacing / SetRotation is the turn about Z).
+static int32_t Script_SetTilt(lua_State* L) {
+    CSimpleModel* model = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
+
+    if (lua_isnumber(L, 2) && lua_isnumber(L, 3)) {
+        model->m_pitch = static_cast<float>(lua_tonumber(L, 2));
+        model->m_roll = static_cast<float>(lua_tonumber(L, 3));
+        return 0;
+    }
+
+    const char* name = model->GetName();
+    luaL_error(L, "Usage: %s:SetTilt(pitch, roll)", name ? name : "<unnamed>");
+    return 0;
+}
+
+// Custom (not in the stock client): the loaded model's height in SetPosition units, 0 until it is
+// resident. Lets an addon pivot a zoom on the model's middle whatever the race or sex.
+static int32_t Script_GetModelHeight(lua_State* L) {
+    CSimpleModel* model = static_cast<CSimpleModel*>(FrameScript_GetObjectThis(L, CSimpleModel::GetObjectType()));
+    float height = 0.0f;
+
+    if (model->m_model && model->m_model->IsLoaded(0, 0)) {
+        CAaBox box = model->m_model->GetBoundingBox();
+        height = (box.t.z - box.b.z) * NDCToDDCHeight(1.0f) * 1.6666666f;
+    }
+
+    lua_pushnumber(L, height);
+    return 1;
 }
 
 // VERIFY: 6e31f619 auto
@@ -537,7 +569,9 @@ static FrameScript_Method s_ScriptMethods[] = {
     { "ClearModel", &Script_ClearModel },
     { "SetPosition", &Script_SetPosition },
     { "SetFacing", &Script_SetFacing },
+    { "SetTilt", &Script_SetTilt },
     { "SetModelScale", &Script_SetModelScale },
+    { "GetModelHeight", &Script_GetModelHeight },
     { "SetSequence", &Script_SetSequence },
     { "SetSequenceTime", &Script_SetSequenceTime },
     { "SetCamera", &Script_SetCamera },

@@ -34,6 +34,8 @@ class CSimpleModel : public CSimpleFrame {
     static void ModelLoaded(CM2Model* model, void* arg);
     static void RegisterScriptMethods(lua_State* L);
     static void RenderModel(void* arg);
+    static void RenderModelImpl(CSimpleModel* simpleModel, bool offscreen);
+    static void RenderModelOffscreen(CSimpleModel* simpleModel);
     static int32_t SetLightHelper(lua_State* L, int32_t index, CM2Light* light);
 
     /* 029C */ CM2Scene* m_scene;
@@ -52,6 +54,9 @@ class CSimpleModel : public CSimpleFrame {
     /* 0340 */ CAaBox m_bounds;
     /* 0358 */ FrameScript_Object::ScriptIx m_onUpdateModel;
     /* 0360 */ FrameScript_Object::ScriptIx m_onAnimFinished;
+    // NOT IN BINARY: the model's turns about the other two axes (m_facing is the one about Z), set by SetTilt
+    float m_pitch;
+    float m_roll;
 
     virtual ~CSimpleModel();
     virtual int32_t GetScriptMetaTable();

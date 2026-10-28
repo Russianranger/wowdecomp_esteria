@@ -79,11 +79,17 @@ namespace gxvk::vk::frame
 
     bool ReadScene(const VkRect2D& rect, uint8_t* out)
     {
+        return ReadImage(s.scene, 0, rect, out);
+    }
+
+    bool ReadImage(const texture::Image& img, uint32_t layer, const VkRect2D& rect, uint8_t* out)
+    {
         if (!out || rect.extent.width == 0 || rect.extent.height == 0) return false;
+        // Outside() first: it ends a pass drawing into img, which leaves img in its resting layout.
         VkCommandBuffer cmd = Outside();
-        if (!cmd || s.scene.handle == VK_NULL_HANDLE || s.scene.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) return false;
-        if (rect.offset.x < 0 || rect.offset.y < 0 || rect.offset.x + rect.extent.width > s.scene.extent.width
-            || rect.offset.y + rect.extent.height > s.scene.extent.height)
+        if (!cmd || img.handle == VK_NULL_HANDLE || img.layout != VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL || layer >= img.layers) return false;
+        if (rect.offset.x < 0 || rect.offset.y < 0 || rect.offset.x + rect.extent.width > img.extent.width
+            || rect.offset.y + rect.extent.height > img.extent.height)
             return false;
 
         const VkDeviceSize bytes = static_cast<VkDeviceSize>(rect.extent.width) * rect.extent.height * 4;
@@ -94,16 +100,17 @@ namespace gxvk::vk::frame
             return false;
         }
 
-        Transition(cmd, s.scene, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        Transition(cmd, img, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | kReaders, VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT);
         VkBufferImageCopy copy = {};
-        copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copy.imageSubresource.layerCount = 1;
-        copy.imageOffset                 = VkOffset3D{ rect.offset.x, rect.offset.y, 0 };
-        copy.imageExtent                 = VkExtent3D{ rect.extent.width, rect.extent.height, 1 };
-        s.dapi->CmdCopyImageToBuffer(cmd, s.scene.handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, host.handle, 1, &copy);
-        Transition(cmd, s.scene, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        copy.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
+        copy.imageSubresource.baseArrayLayer = layer;
+        copy.imageSubresource.layerCount     = 1;
+        copy.imageOffset                     = VkOffset3D{ rect.offset.x, rect.offset.y, 0 };
+        copy.imageExtent                     = VkExtent3D{ rect.extent.width, rect.extent.height, 1 };
+        s.dapi->CmdCopyImageToBuffer(cmd, img.handle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, host.handle, 1, &copy);
+        Transition(cmd, img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
                    kReaders | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
         // The copy's write made visible to the host before the fence is waited.

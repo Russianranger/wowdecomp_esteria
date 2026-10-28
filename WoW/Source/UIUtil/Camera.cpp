@@ -36,6 +36,7 @@
 #include "WoW/Source/SoundInterface/SoundInterface2.h"
 #include "WoW/Source/Ui/BarberShop.h"
 #include "WoW/Source/Ui/GameUI.h"
+#include "WoW/Source/Ui/SpeedFlying.h"
 #include "WoW/Source/Ui/WorldFrame.h"
 #include "WoW/Source/UIUtil/InputControl.h"
 #include "WoW/Source/WorldClient/FrameTime.h"
@@ -131,7 +132,7 @@ static float WrapAngle0To2Pi(float angle) {
 // VERIFY: 0904e9a9 auto
 // OFFSET: 0x005FF500
 float CGCamera::FOV() const {
-    float fov = this->m_targetFov + this->m_fov;
+    float fov = this->m_targetFov + this->m_fov + SpeedFlying::CameraFovBoost();
     return 0.0f > fov ? 0.0f : (3.1241393f <= fov ? 3.1241393f : fov);
 }
 
@@ -2659,6 +2660,57 @@ void CGCamera::CalcTargetCamera(CGObject_C* target, uint32_t time) {
     this->m_wasFlying = flying;
 }
 
+// The dive shake of the speedflying module: the view direction is jolted about the camera's own right and up
+// axes by two incommensurate sines, so the wobble never settles into a rhythm. It is applied to the basis the
+// frame is drawn from, after the camera maths has finished, and the clean basis is kept so UpdateCallback can
+// restore it before the next frame's maths (the shake must never feed back into the camera).
+static C33Matrix s_shakeClean;
+static CGCamera* s_shakeCamera = nullptr;
+static bool s_shakeApplied = false;
+
+// Rotates v about the unit axis n by the angle whose sine and cosine are s and c (Rodrigues). The same rotation
+// on forward, right and up keeps the basis orthonormal exactly.
+static void RotateAbout(float& vx, float& vy, float& vz, const C3Vector& n, float s, float c) {
+    const float dot = n.x * vx + n.y * vy + n.z * vz;
+    const float x = n.y * vz - n.z * vy;
+    const float y = n.z * vx - n.x * vz;
+    const float z = n.x * vy - n.y * vx;
+    const float k = dot * (1.0f - c);
+    vx = vx * c + x * s + n.x * k;
+    vy = vy * c + y * s + n.y * k;
+    vz = vz * c + z * s + n.z * k;
+}
+
+static void ApplyDiveShake(CGCamera* camera, uint32_t time) {
+    const float amp = SpeedFlying::CameraShake();
+
+    if (amp <= 0.0f) {
+        return;
+    }
+
+    C33Matrix& f = camera->m_facing;
+    s_shakeClean = f;
+    s_shakeCamera = camera;
+    s_shakeApplied = true;
+
+    const C3Vector right(f.b0, f.b1, f.b2);
+    const C3Vector up(f.c0, f.c1, f.c2);
+    const float t = static_cast<float>(time) * 0.001f;
+    const float ax = sinf(t * 27.7f) * amp;
+    const float ay = sinf(t * 36.1f + 1.7f) * amp;
+    const float csx = cosf(ax);
+    const float snx = sinf(ax);
+    const float csy = cosf(ay);
+    const float sny = sinf(ay);
+
+    RotateAbout(f.a0, f.a1, f.a2, right, snx, csx);
+    RotateAbout(f.b0, f.b1, f.b2, right, snx, csx);
+    RotateAbout(f.c0, f.c1, f.c2, right, snx, csx);
+    RotateAbout(f.a0, f.a1, f.a2, up, sny, csy);
+    RotateAbout(f.b0, f.b1, f.b2, up, sny, csy);
+    RotateAbout(f.c0, f.c1, f.c2, up, sny, csy);
+}
+
 // VERIFY: 4dd64323 manual
 // OFFSET: 0x00607B00
 int32_t CGCamera::UpdateCallback(const void* data, void* param) {
@@ -2666,6 +2718,15 @@ int32_t CGCamera::UpdateCallback(const void* data, void* param) {
 
     if (!camera) {
         return 1;
+    }
+
+    // Take back last frame's shake first, so the basis the camera maths starts from is never a shaken one.
+    if (s_shakeApplied) {
+        if (s_shakeCamera == camera) {
+            camera->m_facing = s_shakeClean;
+        }
+
+        s_shakeApplied = false;
     }
 
     uint32_t time = OsGetAsyncTimeMs();
@@ -2683,6 +2744,7 @@ int32_t CGCamera::UpdateCallback(const void* data, void* param) {
     if (target) {
         camera->CalcTargetCamera(target, time);
         camera->CheckUnderwater();
+        ApplyDiveShake(camera, time);
         return 1;
     }
 

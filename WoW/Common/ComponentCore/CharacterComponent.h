@@ -61,8 +61,11 @@ class CComponentRequest {
     /* 0038 */ void* m_layerTextures [40];
     /* 00D8 */ uint8_t m_layerSections [40];
     /* 0100 */ TSLink<CComponentRequest> m_link;
+    uint8_t m_layerVariation [40]; // NOT IN BINARY: 1 for a layer of the bare body (face, hair, underwear)
+    bool m_bodyless; // NOT IN BINARY: no face, hair or underwear layers (an item-preview silhouette)
+    float m_skinDim; // NOT IN BINARY: how much of its light the bare body keeps
 
-    void AddLayer(uint8_t section, void* texture);
+    void AddLayer(uint8_t section, void* texture, bool variation = false);
     void DestroyCachedTextures();
 };
 
@@ -123,6 +126,7 @@ class CCharacterComponent {
     static void PasteOpaque(void* texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset);
     static void PasteOpaqueScale(void* texture, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo);
     static void PasteFromSkin(COMPONENT_SECTIONS section, void* texture, MipBits* dstMips);
+    static void PasteFromSkinBase(COMPONENT_SECTIONS section, void* texture, MipBits* dstMips);
     static void PasteScale(void* texture, MipBits* dstMips, const C2iVector& dstPos, const C2iVector& srcPos, const C2iVector& srcSize, TCTEXTUREINFO& srcInfo);
     static void PasteToSection(COMPONENT_SECTIONS section, void* texture, MipBits* dstMips);
     static void PasteTransparent1Bit(void* texture, const BlpPalPixel* pal, MipBits* dstMips, C2iVector& dstPos, uint32_t dstStride, C2iVector& srcPos, C2iVector& srcSize, TCTEXTUREINFO& srcInfo, uint32_t srcMipLevel, int32_t dstMipOffset);
@@ -157,6 +161,8 @@ class CCharacterComponent {
     /* 0458 */ uint32_t m_handItemDisplayID [3];
     /* 0464 */ int32_t m_itemSlotForAttachSlot [50];
     /* 052C */ CComponentRequest* m_request;
+    // NOT IN BINARY: the body draws as a dark silhouette (no skin, face, hair or underwear), items still show
+    uint8_t m_silhouette;
 
     CCharacterComponent();
     ~CCharacterComponent();
@@ -247,6 +253,9 @@ class CCharacterComponent {
     bool SetRandomSkin(COMPONENT_CONTEXT context);
     void SetSkinColor(int32_t skinID, bool loadHair, bool renderAll, const char* debug);
     void SetTexturesDirty();
+    void* SkinBase();
+    float SkinDim();
+    void SetSilhouette(bool on);
     bool SkinNpc(const char* debug);
     void TurnOffGuildTabardPurchase();
     void UpdateItem(ITEM_SLOT itemSlot, COMPONENT_SECTIONS section, const ItemDisplayInfoRec* displayRec, bool apply);

@@ -14,7 +14,6 @@ static const struct {
 } s_builtinAddOns[] = {
     { "WowDecompBodyShape", "WowDecompBodyShapeDB" },
     { "EsteriaInventory", "EsteriaInventoryDB" },
-    { "EsteriaSkyriding", "EsteriaSkyridingDB" },
 };
 
 static const EmbeddedBlob* FindLua(const char* name) {

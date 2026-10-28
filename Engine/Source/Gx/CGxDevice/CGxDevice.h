@@ -4,6 +4,7 @@
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include "Engine/Source/Gx/CGxBuf.h"
 #include "Engine/Source/Gx/CGxDevice/CGxShader.h"
 #include "Engine/Source/Gx/CGxDevice/EmergencyMem.h"
@@ -182,6 +183,12 @@ class CGxDevice {
     virtual void DeviceReadScreenShot(uint32_t& width, uint32_t& height, const CImVector*& pixels);
     virtual void DeviceReadPixels(CiRect& rect, TSGrowableArray<CImVector>& pixels) = 0;
     virtual void DeviceReadDepths(CiRect& rect, TSGrowableArray<float>& depths) = 0;
+    // NOT IN BINARY: copies a width*height ARGB render-target texture into out (ModelSnapshot); false when this
+    // device cannot.
+    virtual bool DeviceReadTexture(CGxTex* texture, uint32_t width, uint32_t height, uint32_t* out) { return false; }
+    // NOT IN BINARY: ModelSnapshot diagnostics only. The API's state as text, and the current target's pixels.
+    virtual void DeviceDumpState(char* out, size_t size) { if (size) out[0] = 0; }
+    virtual bool DeviceCaptureTarget(std::vector<uint32_t>& out, uint32_t& width, uint32_t& height) { return false; }
     virtual int32_t DeviceWM(EGxWM wm, uintptr_t param1, uintptr_t param2) = 0;
     virtual void DeviceSetRenderTarget(EGxBuffer buffer, CGxTex* texture, uint32_t plane);
     virtual void DeviceSaveDepthSurface();

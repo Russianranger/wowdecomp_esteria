@@ -9,7 +9,15 @@
 #include "Engine/Source/Model2/M2Model.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "Engine/Source/Frame/CSimpleModel.h"
+#include "Engine/Source/Frame/ModelSnapshot.h"
+#include "Engine/Source/Gx/CGxDevice/CGxDevice.h"
+#include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Tempest/C44Matrix.h"
+#include "Engine/Source/Tempest/CImVector.h"
 #include "Engine/Source/Model2/M2Scene.h"
+#include "Engine/Source/Services/Texture.h"
+#include "Engine/Source/Services/Camera.h"
+#include "Engine/Source/Base/Handle.h"
 #include "WoW/Source/DB/DBClient/DBClient.h"
 #include "WoW/Source/DB/DBClient/DBCacheInstances.h"
 #include "WoW/Source/DB/DBClient/CreatureStats_C.h"
@@ -69,6 +77,22 @@ CSimpleFrame* CGDressUpModelFrame::Create(CSimpleFrame* parent) {
 // OFFSET: 0x00597B50
 CGDressUpModelFrame::CGDressUpModelFrame(CSimpleFrame* parent) : CGCharacterModelBase(parent) {
     this->m_component = nullptr;
+    this->m_sheathed = 0;
+    this->m_bodyHidden = 0;
+    this->m_silhouette = 0;
+    this->m_previewSex = 0;
+    this->m_previewHair = 0;
+    this->m_snapshotOnly = 0;
+    this->m_snapshotPending = 0;
+    this->m_ready = 0;
+    this->m_readyFrames = 0;
+    this->m_drawnFrames = 0;
+    this->m_minFrames = 0;
+    this->m_needAttach = 0;
+    this->m_force = 0;
+    this->m_commitNext = 0;
+    this->m_snapshotKey[0] = '\0';
+    this->m_refKey[0] = '\0';
 }
 
 // VERIFY: cc335fc2 auto
@@ -102,6 +126,29 @@ bool CGDressUpModelFrame::IsA(const char* typeName) {
     return !SStrCmpI(typeName, CGDressUpModelFrame::s_objectTypeName, STORM_MAX_STR) || CGCharacterModelBase::IsA(typeName);
 }
 
+// NOT IN BINARY. Whether the model and everything attached to it (shoulders, weapons) has its textures loaded; a
+// texture still loading draws black. CM2Model::IsDrawable asks the same but remembers a yes, which a re-dressed model
+// must not.
+static bool TexturesLoaded(CM2Model* model) {
+    if (!model->IsLoaded(0, 0)) {
+        return false;
+    }
+
+    for (uint32_t i = 0; i < model->m_shared->m_data->m_textures.m_count; i++) {
+        if (model->m_textures[i] && !TextureGetGxTex(model->m_textures[i], 0, nullptr)) {
+            return false;
+        }
+    }
+
+    for (CM2Model* attached = model->m_attachList; attached; attached = attached->m_attachNext) {
+        if (!TexturesLoaded(attached)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // VERIFY: 79d529ac manual
 // OFFSET: 0x00597F40
 void CGDressUpModelFrame::UpdateModel() {
@@ -111,8 +158,17 @@ void CGDressUpModelFrame::UpdateModel() {
         return;
     }
 
+    this->m_component->SetSilhouette(this->m_silhouette != 0);
+
     uint32_t ready = this->m_component->RenderPrep(0) & 1;
     CM2Model* model = this->m_component->m_data.m_model;
+
+    if (this->m_bodyHidden && ready) {
+        model->SetGeometryVisible(0, 0xFFFF, 0);
+    }
+
+    // a snapshot is only taken once the model and its textures have held still for a few frames
+    this->m_ready = ready && this->m_model && TexturesLoaded(this->m_model) && !this->m_component->m_dirtySections;
 
     if (model->m_attachParent) {
         model->m_fFlags = (model->m_fFlags & ~0x80u) | (ready << 7);
@@ -120,6 +176,122 @@ void CGDressUpModelFrame::UpdateModel() {
     } else {
         model->m_fFlags = (model->m_fFlags & ~0x8u) | (ready << 3);
         model->m_fFlags = (model->m_fFlags & ~0x10000u) | (ready << 16);
+    }
+}
+
+// NOT IN BINARY. A snapshot-only frame draws nothing on screen; asked for a snapshot it queues the offscreen render.
+void CGDressUpModelFrame::OnFrameRender(CRenderBatch* batch, uint32_t layer) {
+    if (!this->m_snapshotOnly) {
+        CGCharacterModelBase::OnFrameRender(batch, layer);
+        return;
+    }
+
+    this->CSimpleFrame::OnFrameRender(batch, layer);
+
+    // always queued: the batch is only rebuilt when the frame is marked changed, which a request is not, so a
+    // callback queued only while one is pending would never be there; RenderSnapshot returns when nothing is
+    if (this->m_model && layer == 2) {
+        batch->QueueCallback(&CGDressUpModelFrame::RenderSnapshot, this);
+    }
+}
+
+
+// NOT IN BINARY. Draws the model into the snapshot cache entry named by m_snapshotKey. Binding and restoring the
+// targets follows SkyCapture::Update.
+void CGDressUpModelFrame::RenderSnapshot(void* arg) {
+    constexpr uint8_t kReadyFrames = 6;
+    CGDressUpModelFrame* frame = static_cast<CGDressUpModelFrame*>(arg);
+
+    if (!frame->m_snapshotPending || !frame->m_model || !g_theGxDevicePtr) {
+        return;
+    }
+
+    CGxTex* target = ModelSnapshot::Scratch(frame);
+
+    if (!target) {
+        frame->m_snapshotPending = 0;
+        frame->m_commitNext = 0;
+        return;
+    }
+
+    // The last draw was queued a frame ago and is only finished now: a read back in the frame that drew it finds
+    // the target as it was before (blank). Nothing draws into the target in between, so it is read first thing.
+    if (frame->m_commitNext) {
+        frame->m_commitNext = 0;
+        frame->m_snapshotPending = 0;
+        ModelSnapshot::Commit(frame->m_snapshotKey, target, frame->m_force, frame->m_refKey);
+        return;
+    }
+
+    // The framing camera: the card framing is tuned against the plain sphere-fitted camera (the one ConfigureCamera
+    // makes when the model has no paperdoll camera), but OnModelLoaded picks the model's own paperdoll camera when it
+    // has one, which frames a far-away full figure. Snapshots always use the plain one, made again every frame
+    // because the model's load callback can swap it back at any time.
+    if (!frame->m_model->IsLoaded(0, 0)) {
+        return;
+    }
+
+    CAaSphere sphere = frame->m_model->GetBoundingSphere();
+    CCamera* camera = CameraCreate();
+    CameraSetFloat(camera, 4, 0.5f);
+    CameraSetCoord(camera, 8, sphere.c, 0);
+    CameraSetCoord(camera, 7, C3Vector(5.5555558f, 0.0f, 2.4166667f), 0);
+    CameraSetFloat(camera, 3, 0.027777778f);
+    frame->SetCamera(camera);
+    HandleClose(reinterpret_cast<HOBJECT>(camera));
+
+    frame->UpdateModel();
+    frame->m_readyFrames =frame->m_ready ? (frame->m_readyFrames < 255 ? frame->m_readyFrames + 1 : 255) : 0;
+
+    // Drawn every frame while it waits: a character only builds its skin and loads its textures while it is being
+    // drawn, so waiting to draw until it is ready would wait for ever. The picture only counts from the frame it is ready.
+    if (frame->m_drawnFrames < 0xFFFF) {
+        frame->m_drawnFrames++;
+    }
+
+    // An attached item's model is made after the character reports ready, so a picture taken at once has no helm.
+    // It is waited for; an item that never gets one is photographed anyway after three times the minimum.
+    const bool attached = !frame->m_needAttach || frame->m_model->m_attachList || frame->m_drawnFrames >= 3 * frame->m_minFrames;
+    const bool done = frame->m_readyFrames >= kReadyFrames && frame->m_drawnFrames >= frame->m_minFrames && attached;
+
+    float oldMinX, oldMaxX, oldMinY, oldMaxY, oldMinZ, oldMaxZ;
+    GxXformViewport(oldMinX, oldMaxX, oldMinY, oldMaxY, oldMinZ, oldMaxZ);
+
+    C44Matrix oldView;
+    GxXformView(oldView);
+    C44Matrix oldProjection = g_theGxDevicePtr->m_projection;
+
+    CGxTex* oldColour = nullptr;
+    CGxTex* oldDepth = nullptr;
+    g_theGxDevicePtr->DeviceGetRenderTarget(GxBuffers_Color, oldColour);
+    g_theGxDevicePtr->DeviceGetRenderTarget(GxBuffers_Depth, oldDepth);
+
+    GxRenderTargetSet(GxBuffers_Color, nullptr, 0);
+    GxRenderTargetSet(GxBuffers_Depth, nullptr, 0);
+    GxRenderTargetSet(GxBuffers_Color, target, 0);
+
+    g_theGxDevicePtr->RsPush();
+    GxXformSetViewport(0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f);
+    g_theGxDevicePtr->SceneClear(GxBufferBit_Color | GxBufferBit_Depth, CImVector(0, 0, 0, 255));
+    CSimpleModel::RenderModelOffscreen(frame);
+    g_theGxDevicePtr->RsPop();
+
+    // colour out first (a null depth asked for under a bound colour texture dereferences it), then back in last
+    GxRenderTargetSet(GxBuffers_Color, nullptr, 0);
+    GxRenderTargetSet(GxBuffers_Depth, oldDepth, 0);
+
+    if (oldColour) {
+        GxRenderTargetSet(GxBuffers_Color, oldColour, 0);
+    }
+
+    g_theGxDevicePtr->XformSetProjection(oldProjection);
+    g_theGxDevicePtr->XformSetView(oldView);
+    GxXformSetViewport(oldMinX, oldMaxX, oldMinY, oldMaxY, oldMinZ, oldMaxZ);
+
+    if (done) {
+        // read back, checked and stored next frame; a picture that is empty or cannot be stored is not marked done,
+        // so the script sees no picture and makes the job again
+        frame->m_commitNext = 1;
     }
 }
 
@@ -470,7 +642,7 @@ offHand:
             ItemDisplayInfoRec display;
 
             if (g_itemDisplayInfoDB.GetRecord(stats->m_displayId, &display)) {
-                CCharacterComponent::AddHandItem(this->m_model, &display, static_cast<INVENTORY_SLOTS>(hand), static_cast<SHEATHE_TYPE>(stats->m_sheatheType), false, stats->m_inventoryType == 14, stats->m_inventoryType == 26, visual);
+                CCharacterComponent::AddHandItem(this->m_model, &display, static_cast<INVENTORY_SLOTS>(hand), static_cast<SHEATHE_TYPE>(stats->m_sheatheType), this->m_sheathed != 0, stats->m_inventoryType == 14, stats->m_inventoryType == 26, visual);
             }
 
             return;
@@ -507,6 +679,31 @@ void CGDressUpModelFrame::SetModel(CM2Model* model) {
     }
 
     if (!model) {
+        return;
+    }
+
+    if (this->m_previewSex) {
+        // NOT IN BINARY: a plain human, whoever the unit is; the cards only show a silhouette wearing the item
+        this->m_component = CCharacterComponent::AllocComponent();
+        model->m_refCount++;
+        ComponentData data;
+        data.m_preferences.m_raceID = 1;
+        data.m_preferences.m_sexID = this->m_previewSex - 1;
+        data.m_preferences.m_classId = 1;
+        data.m_preferences.m_skinID = 0;
+        data.m_preferences.m_faceId = 0;
+        data.m_preferences.m_hairStyleId = this->m_previewHair;
+        data.m_preferences.m_hairColorId = 0;
+        data.m_preferences.m_facialHairId = 0;
+        data.m_model = model;
+        CCharacterComponent::ValidateComponentData(&data, COMPONENT_CONTEXT_2);
+        this->m_component->Init(&data, nullptr);
+        s_mainHandItemId = 0;
+        s_offHandItemId = 0;
+        s_nextHand = 15;
+        memset(&this->m_mainHand, 0, sizeof(this->m_mainHand));
+        memset(&this->m_offHand, 0, sizeof(this->m_offHand));
+        this->m_isNativeDisplay = 0;
         return;
     }
 

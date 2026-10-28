@@ -718,6 +718,18 @@ void CM2Shared::SubstituteSimpleShaders() {
                 batch->m_shader |= 0x4000;
             }
         } else {
+            // NOT IN BINARY. Converted retail doodads (patch-L, Patch-X/Y/W) carry two-layer leaf batches whose second
+            // layer reads UV set 1, which the converter leaves on an arbitrary texel -- often a black corner, so the
+            // modulated leaves render black. The batch is alpha-keyed and the layer is either the same texture again or
+            // uses combiner op 6; stock models only use those on opaque or blend-4 batches. Draw them as one layer.
+            const M2Array<uint16_t>& lookup = this->m_data->m_textureCombos;
+            uint32_t first = batch->m_textureComboIndex;
+            bool sameTexture = first + 1 < lookup.m_count && lookup[first] == lookup[first + 1];
+
+            if (batch->m_textureCount == 2 && material->m_blendMode == 1 && coordCombo(batch->m_textureCoordComboIndex + 1) == 1 && (sameTexture || combinerCombo(batch->m_shader + 1) == 6)) {
+                batch->m_textureCount = 1;
+            }
+
             uint16_t combiner = batch->m_shader;
             uint32_t ops[2] = { 0, 0 };
             batch->m_shader = 0;

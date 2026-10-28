@@ -34,26 +34,6 @@ void ExtensionMgr::OnUnitMovementMessage(CGUnit_C* unit, uint32_t msgId, CDataSt
     CALL_HOOKS(UnitScript, script->OnUnitMovementMessage(*unit, msgId, *msg));
 }
 
-bool ExtensionMgr::OnUnitPlotLocalMove(CGUnit_C* unit, uint32_t time, uint32_t elapsed, C3Vector* move) {
-    for (UnitScript* script : ScriptRegistry<UnitScript>::ScriptPointerList) {
-        if (script->OnUnitPlotLocalMove(*unit, time, elapsed, *move)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-bool ExtensionMgr::OnUnitMountSequence(CGUnit_C* unit, uint32_t* sequenceId) {
-    for (UnitScript* script : ScriptRegistry<UnitScript>::ScriptPointerList) {
-        if (script->OnUnitMountSequence(*unit, *sequenceId)) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 UnitScript::UnitScript(const char* name) : ScriptObject(name) {
     ScriptRegistry<UnitScript>::AddScript(this);
     sExtensionMgr->Log("Extensions: registered UnitScript %s", name);

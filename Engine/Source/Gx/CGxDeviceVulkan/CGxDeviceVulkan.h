@@ -75,6 +75,7 @@ class CGxDeviceVulkan : public CGxDevice {
     virtual void* DeviceWindow();
     virtual void DeviceReadPixels(CiRect& rect, TSGrowableArray<CImVector>& pixels);
     virtual void DeviceReadDepths(CiRect& rect, TSGrowableArray<float>& depths);
+    virtual bool DeviceReadTexture(CGxTex* texture, uint32_t width, uint32_t height, uint32_t* out);
     virtual int32_t DeviceWM(EGxWM wm, uintptr_t param1, uintptr_t param2);
     virtual void DeviceSetRenderTarget(EGxBuffer buffer, CGxTex* texture, uint32_t plane);
     virtual void DeviceOverride(EGxOverride override, uint32_t value);
