@@ -10,7 +10,7 @@ adds on top is described below, and none of it is in the original binary.
 
 x64 is the main target. Win32 still builds and is used to check struct layouts against the 32-bit original.
 
-Join the upstream discord for other clients and to show off what you build: https://discord.gg/DsZMGUD8aT
+Join the upstream discord for other clients and to show off what you build: https://discord.gg/W5YSWcM8PB
 
 ## What this fork adds
 
