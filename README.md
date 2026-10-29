@@ -21,7 +21,8 @@ the client never modifies your original MPQs.
 
 | Feature | What it does |
 |---|---|
-| Vulkan backend | Experimental renderer selected with `-vulkan` or the `gxApi` CVar. Uses retail assets by default, with a larger texture table and offline shader translation ([instructions](Tools/VulkanShaders/README.md)). D3D11 stays available with `-d3d11` |
+| Vulkan backend | Experimental renderer selected with `-vulkan` or the `gxApi` CVar. Uses retail assets by default, with a larger texture table and offline shader translation ([instructions](Tools/VulkanShaders/README.md)). D3D11 stays available with `-d3d11`. Offers the stock shadow qualities up to Very High (cascaded shadow maps), with per-frame descriptor and uniform budgets sized for them, and has the post-pass layer Lumenveil draws through (`GxEffects`, below) |
+| [Lumenveil](#lumenveil-vulkan) | Volumetric fog and light shafts, night lights, water, wet surfaces and shadows for the Vulkan client, ported from the Lumenveil mod and set up from pages in the Video options. See [below](#lumenveil-vulkan) |
 | Native M3 models | The [ASECM3](Extensions/ASECM3/README.md) extension loads and animates M3 models in-process: materials, skinning, particles, ribbons, cloth and rigid-body physics. Still in progress |
 | Retail model adapter | Loads supported Retail M2 models (mounts, creatures such as Darkfallen and the Writhing Brood) straight from Blizzard's CDN, with no export step and no generated MPQ |
 
@@ -35,6 +36,8 @@ the client never modifies your original MPQs.
 | Body sliders | A Body page in the creator, saved per character and synced to nearby players ([plan](docs/body-sliders-creator-plan.md)) |
 | Eye lightning toggle | Per-character toggle for glowing eyes |
 | Two forms | Worgen/Gilnean and Dracthyr/Visage, with both looks saved on the server ([design](TWOFORMS.md), [server](docs/two-forms-server.md), [test plan](docs/two-forms-e2e-test.md)). Work in progress |
+| Ethereal | Ethereal character support: custom body, hand and foot geosets that swap under gloves and boots (skipped for armor-hiding forms such as the Dreadnaught), and equipment atlases that repeat their body tile into the wrap gutter |
+| Character select | `GetCharacterInfo` returns a pending-rename flag as an 11th value, for a rename service icon beside the re-customize, race change and faction change ones |
 
 Retail looks travel to the server and to other players in a 132-byte `RLK1` footer and the `0x524` opcode, so these
 features need the matching Esteria server.
@@ -43,9 +46,12 @@ features need the matching Esteria server.
 
 | Feature | What it does |
 |---|---|
-| DigitalInventory | Searchable five-column carried inventory with a server-side item index, via the [DigitalInventory](Extensions/DigitalInventory/README.md) extension and the `EsteriaInventory` addon in `Addons/` |
+| DigitalInventory | Searchable five-column carried inventory with a server-side item index, via the [DigitalInventory](Extensions/DigitalInventory/README.md) extension and the `EsteriaInventory` addon in `Addons/`. With auto sort off, items stay where you put them in a saved free layout; the stock bags are held back until the realm answers, so they never flash before the replacement opens |
 | Extended limits | Optional 1000-quest and 254-class layouts and larger containers ([details](docs/uncaps.md)) |
-| Video and cursor options | Extra video controls and a native cursor selector, see [Running](#running) |
+| Video and cursor options | Extra video controls and a native cursor selector, see [Running](#running). The Video options also hold the Esteria pages (view distance, horizon, distance fog and field of view; unit outline; loot beam; performance overlay) and, on Vulkan, [Lumenveil's settings](#lumenveil-vulkan). Each control is a CVar, so Okay, Cancel and Defaults treat the pages like any stock panel |
+| Unit outline and loot beam | A coloured outline on your target, pet target, mouseover, quest givers and interactive objects (with a Vulkan outline pass), and a beam of light over lootable corpses tinted by the best item. Both are markers only and send nothing to the server |
+| Performance overlay | A small movable overlay with frame rate, frame time, draw calls, triangles and CPU use (`showPerformance`) |
+| Manastorm speedflying and transmog | The Manastorm speedflying controller, HUD, talent panel and flight camera effects, and the transmog addon with Vulkan-backed model snapshots (`Addons/Manastorm_Speedflying`, `Addons/Manastorm_Transmog`; [integration notes](docs/MANASTORM_INTEGRATION.md)). Replaces the earlier retail-style Skyriding, whose documents are archived in `docs/archive/` |
 | Bundled addons | `WowDecompBodyShape` and `WowDecompViewDistance` in `Addons/` |
 
 ### Retail content (optional)
@@ -54,6 +60,47 @@ Off by default. `WOWDECOMP_RETAIL_ASSETS` enables local CASC/CDN access and the 
 decoded caches and background downloads. See [support boundaries and setup](docs/retail-casc.md),
 [CDN downloads](docs/cdn-downloads.md) and [native Retail imports](docs/retail-native-importer.md). Support is
 partial: not every Retail creature or item works yet.
+
+- **Packed originals.** Decoded Retail files can also be read from an MPQ (`EsteriaRetail\<product>-<build>\<locale>\<id>.bin`)
+  before the client goes to the CDN or the cache, and the log says whether it is reading local files or the CDN.
+- **Mount replacement.** An `EsteriaMounts\mounts.csv` in an MPQ replaces the model, scale and skins of a mount's *mounted*
+  appearance with the Retail original (NPCs on the same display keep their own records). The
+  [Mount Studio](Tools/MountStudio/README.md) desktop tool (Rust/Tauri) builds that catalog: it scans your client read-only,
+  protects custom additions, downloads the original dependencies with checkpoints and validates them with the client's own loader
+  in offline mode. No retroporting, resampling or conversion.
+- **Tooling.** `RetailAssetProbe` can extract Retail `.db2` tables (`--extract-table`) and reports its capabilities
+  (`--capabilities`); the server helper takes the database container's name.
+
+### Lumenveil (Vulkan)
+
+A port of [Lumenveil](https://github.com/lumenveil/Lumenveil) 0.1.1, a Direct3D 9 `version.dll` mod for the stock client (itself
+a modified [CoAVolFog](https://github.com/jealous-sound/coa-vfog)), running natively in this client's Vulkan backend. It draws
+through `GxEffects`, a small backend-neutral layer for full-screen and point passes over the world's target (`Engine/Source/Gx/GxEffects.h`;
+Vulkan implements it, other backends have none and Lumenveil stays off). The code is in `Engine/Source/Lumenveil/`; the port's design,
+the shader translation, what differs from the mod and what is left are in [LUMENVEIL_PORT.md](LUMENVEIL_PORT.md).
+
+| Part | What it does |
+|---|---|
+| Fog | Volumetric fog marched per pixel: zone-light layers, drifting ground banks, morning mist, evening haze, dust and humid haze by climate, cloud shadows, a temporal filter and a per-zone colour grade with darker nights |
+| Light shafts | Sun and moon shafts, including from a light outside the picture (a shadow map from the light that remembers what the camera has seen), glare and a light glow |
+| Night lights | Lamps, torches, braziers and lit windows from `lampdata.bin`, the belt lantern, corpse lights and spell lights (found by comparing the scene before and after the client's glowing effects), as light on surfaces with screen-space shadows and as halos in the fog |
+| Shadows | Terrain height-map shadows and cloud shadows, lamp shadows (thin things such as lamp-post crossbars cast none), and a screen-space sun and moon shadow of objects that stands down when the client's own shadows (MED-HIGH and above) already cover them |
+| Water | The liquid pass writes depth, so fog sees the surface. Depth-based colour, a wave field of about 140 waves in three layers, screen-space and remembered reflections, sun glitter, rain rings, ripples around the player and lamps mirrored on the water. Lava and slime are left as the client draws them |
+| Wet surfaces | Sheen toward the sun or moon, wetness and puddles from rain or snow, and reflections on the ground |
+| Settings | CoAVolFog.ini and CoAVolFog-regions.ini beside the executable, reloaded within a second of a save (regions override any setting per zone, hour and weather). In game, **Esc → Video** has Lumenveil pages (Fog, Light, Colour, Weather, Water, Advanced) with every setting, labelled from the mod's own settings window; Okay writes the changed keys back to the ini and keeps its comments |
+
+Not ported yet: relief (parallax) and terrain materials (both ship off in the mod and need a new design for the translated Vulkan
+shaders), the mod's hotkeys, its region panel and the weather override.
+
+Using it: build with the Vulkan backend, copy `CoAVolFog.ini` and `CoAVolFog-regions.ini` from the mod's `package` folder next to the
+executable, and make `lampdata.bin` (and `liquiddata.bin` if wanted) with the mod's `lamp_extract` setup tool against your own client's
+`Data` folder (see the port notes). `/console lumenveil 0` switches it off to compare with the plain game; `lumenveilTime HH:MM` holds the
+time of day on your screen. Logs are in `Logs\Lumenveil.log`. The shaders are compiled offline (`Engine/Source/Lumenveil/Shaders/Compile.py`,
+needs glslang) and the compiled modules are committed, so a build does not need it.
+
+**Licence.** `Engine/Source/Lumenveil/Core/` is Lumenveil's own code under the **GNU General Public License, version 2** (see
+`Core/LICENSE` and `Core/README.md`). A client built with it is a work based on it: whoever receives that binary must be able to get its
+source under the same licence.
 
 ### Stability and fixes
 
@@ -178,8 +225,11 @@ rendering or gameplay correctness.
 | `ThirdParty/` | Libraries linked from their upstream sources |
 | `Tools/WowClient/` | The `WowClient` executable target |
 | `Extensions/` | Optional client extensions: ASECM3, DigitalInventory, BodyShapeSync, RetailPreview, HelloWorld |
-| `Addons/` | Bundled Lua addons and the native cursor converter |
+| `Addons/` | Bundled Lua addons (EsteriaInventory, Manastorm speedflying and transmog, body shape, view distance) and the native cursor converter |
+| `Engine/Source/Lumenveil/` | Lumenveil for the Vulkan client: the controller, renderer, the options pages, the shaders and `Core/` (the mod's own GPL-2.0 files) |
 | `Tools/RetailAssets/` | Retail asset, race and glue-screen tooling |
+| `Tools/MountStudio/` | Desktop tool that builds the mount replacement catalog from Retail originals |
+| `Tools/LumenveilOptions/` | Generator for the options table the Lumenveil pages are built from |
 | `Tools/XvidDecoder/` | x64 movie decoder that replaces the original 32-bit `DivxDecoder.dll` |
 
 ## Special thanks
