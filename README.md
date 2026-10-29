@@ -36,11 +36,10 @@ the client never modifies your original MPQs.
 | Body sliders | A Body page in the creator, saved per character and synced to nearby players ([plan](docs/body-sliders-creator-plan.md)) |
 | Eye lightning toggle | Per-character toggle for glowing eyes |
 | Two forms | Worgen/Gilnean and Dracthyr/Visage, with both looks saved on the server ([design](TWOFORMS.md), [server](docs/two-forms-server.md), [test plan](docs/two-forms-e2e-test.md)). Work in progress |
-| Ethereal | Ethereal character support: custom body, hand and foot geosets that swap under gloves and boots (skipped for armor-hiding forms such as the Dreadnaught), and equipment atlases that repeat their body tile into the wrap gutter |
 | Character select | `GetCharacterInfo` returns a pending-rename flag as an 11th value, for a rename service icon beside the re-customize, race change and faction change ones |
 
 Retail looks travel to the server and to other players in a 132-byte `RLK1` footer and the `0x524` opcode, so these
-features need the matching Esteria server.
+features need the matching Esteria server. Every custom race, with its IDs and what it offers, is listed under [Races](#races).
 
 ### Interface and gameplay
 
@@ -108,6 +107,74 @@ source under the same licence.
 - A crash logger in the `WowClient` target that writes `WowClient_crash.log`
 - Extension hook system ([upstream PR #10](https://github.com/SatyPardus/wowdecomp/pull/10)) so features such as the
   ones above stay out of core files
+
+## Races
+
+The stock 3.3.5a client has ten playable races. This fork adds many more, in three families that differ in where their models and looks
+come from. All of them use the creator, character select and in-world rendering described under
+[Retail races and character creation](#retail-races-and-character-creation); their looks travel to the server and other players in the
+`RLK1` footer, so they need the matching Esteria server (race IDs are the client's effective `ChrRaces` IDs, and the server's race,
+class, start and language rows have to agree). Armor, helmets, emotes and animations of every race below work through the same
+native pipeline, and helmet fitting follows the anatomy of the stock race named in each row.
+
+### Races on Retail models
+
+Their bodies, geosets and textures are the Retail originals, read from your installed Retail client or Blizzard's CDN and composed in
+process (see [Retail content](#retail-content-optional)). They map onto race slots already present in the client's effective
+`ChrRaces` table; the mapping is `Tools/RetailAssets/RetailRaces.csv` (target race ID, then the Retail `ChrRaces` ID) and, at run
+time, the `WOW_RETAIL_RACES` variable. The stock race slots 1 to 11 can be mapped onto their Retail bodies the same way; Human and
+Dwarf are the ones verified in game.
+
+| Race | Target ID | Retail ID | Helmets follow | Notes |
+|---|---:|---:|---|---|
+| Worgen | 12 | 22 | its own | [Two forms](#retail-races-and-character-creation): Wolf and Human, each with its own saved look |
+| Nightborne | 17 | 27 | Night Elf | Extra faces beside the Retail ones (`custom\nightborne\faces`) |
+| Pandaren | 18 | 25 | its own | Alliance source; Retail's registry-only slot 26 has no models and is left out |
+| Void Elf | 19 | 29 | Blood Elf | |
+| Vulpera | 20 | 35 | Goblin | Extra textures from `EsteriaVulperaTextures.bin` |
+| Lightforged Draenei | 21 | 30 | Draenei | |
+| Zandalari Troll | 22 | 31 | Troll | |
+| Dark Iron Dwarf | 23 | 34 | Dwarf | |
+| Dracthyr | 28 | 70 | Blood Elf (Visage) | Two forms: Dragon (the race's native model) and Visage, each with its own saved look; the rig can exceed 256 bones |
+| Kul Tiran | 29 | 32 | Human | |
+| Mag'har Orc | 45 | 36 | Orc | |
+| Highmountain Tauren | 46 | 28 | Tauren | Extra textures from the Esteria catalog |
+| Mechagnome | 47 | 37 | Gnome | Inherited emotes work through recursive skeleton parents |
+| Earthen (Alliance, Horde) | 48, 49 | 84, 85 | Dwarf | Both factions enabled; extra choices from the Esteria catalog |
+| Haranir (Alliance, Horde) | 50, 51 | 86, 91 | Night Elf | Both factions enabled; extra textures from `EsteriaHaranirTextures.bin` |
+| Skyborne (Alliance, Horde) | 52, 53 | Forever 95, 96 | Blood Elf | From the separate Forever source (`ForeverCasc.ini`); 10 faces and 9 skin palettes; adds no classes or spells |
+
+Customization choices are the Retail ones (faces, skins, hair, tattoos, markings, eye colours), filtered per race, with Retail's
+character-texture compositing (copy, multiply, overlay, screen and alpha layers), plus extra choices cloned from
+`Esteria\RetailExtras.txt` and an optional Eye Lightning toggle on models that have the effect mesh.
+
+### Esteria's own races
+
+These are not Blizzard races. Some are built from Retail models with an Esteria profile in the client; the rest use appearance
+catalogs the client reads from its own folder.
+
+| Race | Race IDs | Looks | What it offers |
+|---|---|---|---|
+| Ethereal | 77, 78 | Retail bodies, Esteria profile | Two forms: the Darkweaver body and the mechanical Dreadnaught, which hides armor. Three bodies, six energy colours plus more custom ones (ten named, from Sunforged to Chartreuse), seven lightning palettes (Shadowguard, Violet, Amber, Teal, Lavender, Shifting, Crimson) with custom ones, and mech colours with matching glow. Its own hand and foot geosets swap under gloves and boots, equipment atlases repeat their body tile into the wrap gutter, and it has complete shoe surfaces despite the NPC barefoot flag. Equipment follows the Nightborne and Night Elf helmet family |
+| Slime Giant | 71, 72 | Retail SlimeSkeleton body | One authored male body for both factions. Slime Color (Green, Amber, Mauve, Red, Gold, plus 30 more) and Slime Drip (off or on). Keeps the original 208-bone rig and animations; clothing is a skinned collection on Kul Tiran HD UVs. Helmets use the Human mask ([notes](docs/slime-giant.md)) |
+| Centaur | 73, 74 | Retail Centaur bodies | Male and female, 16 skins each, head and beard options and a belt layer. Legacy helmets use the fitted Draenei family |
+| Kyrian | 75 | Retail looks through an Esteria catalog (`EsteriaKyrian.bin`) | Male and female; five appearance fields saved in the character's extra bytes |
+| Venthyr | 76 | Retail looks through an Esteria catalog (`EsteriaVenthyr.bin`) | Male and female, with extra skins beside the Retail ones |
+| Darkfallen | 43, 44 | Retail model adapter | Male and female; five appearance fields |
+| Naga | 54 | Esteria catalog | Male and female |
+| Tuskarr | 55 | Esteria catalog | Male and female |
+| Vrykul | 56, 57 | Esteria catalog | Male and female; the female uses the stock player Vrykul materials; authored at full size, shown at 0.55 in the creator |
+| Forgotten | 58, 59 | Esteria catalog (thin human) | Male only |
+| Sethrak | 62 | Esteria catalog | Male and female |
+| Gnoll | 63 | Esteria catalog | Male only, with fifteen controls |
+| Saberon | 64 | Esteria catalog | Male only |
+| Drakkin (Alliance, Horde) | 66, 67 | Esteria catalog | Male and female; the Alliance female and both Horde bodies use stock materials |
+| Drakonid (Alliance, Horde) | 69, 70 | Esteria catalog | Male only |
+
+The catalog races are a port of the original Esteria client DLL (`EsteriaAppearance.dll`): their looks are packed bytes, five per
+character, whose choices come from per-race tables (`WoW/Common/ComponentCore/CreatureAppearance.h`) and catalog files beside the
+executable. The creator's art table also names Ogre (60, 61), Jinyu (65), Arakkoa (68) and Illidari (30, 31), but this client has no
+appearance data for them.
 
 ## About the upstream decompilation
 
