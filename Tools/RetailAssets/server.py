@@ -1,16 +1,19 @@
 """Scoped access to Esteria's Docker-hosted world database; credentials stay in Docker."""
 import json
+import re
 import subprocess
 
 
-def query(sql, *, database="acore_world"):
+def query(sql, *, database="acore_world", container="ac-database", timeout=None):
     if database not in {"acore_world", "acore_characters"}:
         raise ValueError("Unsupported database")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", container):
+        raise ValueError("Invalid database container name")
     result = subprocess.run(
-        ["docker", "exec", "-i", "ac-database", "sh", "-c",
+        ["docker", "exec", "-i", container, "sh", "-c",
          'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql -uroot --batch --skip-column-names '
          '--default-character-set=utf8mb4 ' + database],
-        input=sql, text=True, encoding="utf-8", capture_output=True, check=True)
+        input=sql, text=True, encoding="utf-8", capture_output=True, check=True, timeout=timeout)
     return result.stdout.strip()
 
 

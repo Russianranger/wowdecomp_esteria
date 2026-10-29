@@ -2,6 +2,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <cstdlib>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -95,6 +96,9 @@ void Run() {
 }
 
 BusyNotice::BusyNotice(const char* text, int priority) {
+    // Desktop workers report progress through their parent GUI instead of a second topmost window.
+    if (auto const* enabled = std::getenv("WOW_RETAIL_BUSY_NOTICE"); enabled && std::string(enabled) == "0")
+        return;
     std::lock_guard<std::mutex> lock(g_mutex);
     const DWORD now = GetTickCount();
     if (g_notices.empty()) g_firstBegin = now;
@@ -107,6 +111,8 @@ BusyNotice::BusyNotice(const char* text, int priority) {
 }
 
 BusyNotice::~BusyNotice() {
+    if (!m_id)
+        return;
     std::lock_guard<std::mutex> lock(g_mutex);
     g_notices.erase(m_id);
     g_lastEnd = GetTickCount();

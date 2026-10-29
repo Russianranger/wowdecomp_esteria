@@ -9,6 +9,7 @@
 #include "Engine/Source/Retail/EtherealModel.h"
 #include <CascLib.h>
 #include <algorithm>
+#include <atomic>
 #include <charconv>
 #include <cstdio>
 #include <cstdlib>
@@ -22,6 +23,7 @@
 
 namespace Retail {
 namespace {
+std::atomic<PackedAssetReader> packedAssetReader{nullptr};
 std::string Normalize(std::string name) {
     for (auto& c : name) {
         if (c == '\\') c = '/';
@@ -170,6 +172,22 @@ struct CascSource::Impl {
     }
 
     bool Fetch(const Reference& ref, const std::string& internal, std::vector<uint8_t>& bytes, std::string& error, bool lenient = false) {
+        if (configured && ref.id && !build.empty() && !lenient)
+        {
+            if (auto reader = packedAssetReader.load())
+            {
+                const auto name = "EsteriaRetail\\" + product + "-" + build + "\\" + std::to_string(locale)
+                    + "\\" + std::to_string(ref.id) + ".bin";
+                const int packed = reader(name.c_str(), bytes, error, nullptr);
+                if (packed < 0)
+                    return false;
+                if (packed > 0)
+                {
+                    ++stats.reused;
+                    return true;
+                }
+            }
+        }
         if (files) {
             if (!configured || !ref.id) return Failure(error, "Offline Retail packs require configured FileDataID references");
             std::ifstream input(std::filesystem::path(path) / (std::to_string(ref.id) + ".bin"), std::ios::binary | std::ios::ate);
@@ -188,7 +206,10 @@ struct CascSource::Impl {
         if (!cached.empty() && ReadDecodedCache(cached, bytes)) { ++stats.reused; return true; }
         // CascLib may satisfy a miss from its encoded disk cache or a local installation.
         // Do not claim every read is a network download.
-        BusyNotice busy(kind == SourceKind::Forever ? "Forever: acquiring missing data" : "Retail: acquiring missing data", 1);
+        auto const* notice = online
+            ? (kind == SourceKind::Forever ? "Forever: accessing CDN/cache" : "Retail: accessing CDN/cache")
+            : (kind == SourceKind::Forever ? "Forever: reading local files" : "Retail: reading local files");
+        BusyNotice busy(notice, 1);
         File file;
         if (!OpenFile(ref, internal, file, error, lenient)) return false;
         ULONGLONG size = 0;
@@ -496,6 +517,16 @@ bool CascSource::Exists(const char* name, std::string& error) {
     std::string internal;
     File file;
     if (!m_impl->Resolve(Normalize(name ? name : ""), ref, internal, error)) return false;
+    if (auto reader = packedAssetReader.load(); reader && ref.id && !m_impl->build.empty())
+    {
+        const auto path = "EsteriaRetail\\" + m_impl->product + "-" + m_impl->build + "\\"
+            + std::to_string(m_impl->locale) + "\\" + std::to_string(ref.id) + ".bin";
+        std::vector<uint8_t> original;
+        uint32_t size = 0;
+        const int found = reader(path.c_str(), original, error, &size);
+        if (found)
+            return found > 0;
+    }
     if (m_impl->files) return ref.id && std::filesystem::is_regular_file(std::filesystem::path(m_impl->path) / (std::to_string(ref.id) + ".bin"));
     std::vector<uint8_t> cached;
     const auto path = m_impl->CachePath(ref, internal, false);
@@ -642,6 +673,15 @@ bool CascSource::CachedOriginalSize(const char* name, uint32_t& size) {
     Reference ref;
     std::string internal, error;
     if (!m_impl->Resolve(key, ref, internal, error)) return false;
+    if (auto reader = packedAssetReader.load(); reader && ref.id && !m_impl->build.empty())
+    {
+        const auto packed = "EsteriaRetail\\" + m_impl->product + "-" + m_impl->build + "\\"
+            + std::to_string(m_impl->locale) + "\\" + std::to_string(ref.id) + ".bin";
+        std::vector<uint8_t> original;
+        const int found = reader(packed.c_str(), original, error, &size);
+        if (found)
+            return found > 0;
+    }
     if (m_impl->files) {
         std::error_code ec;
         const auto length = std::filesystem::file_size(std::filesystem::path(m_impl->path) / (std::to_string(ref.id) + ".bin"), ec);
@@ -701,6 +741,17 @@ CascSource& Source() {
     });
     return source;
 }
+bool CascSource::MatchesBuild(const std::string& product, const std::string& build, uint32_t locale)
+{
+    std::lock_guard<std::mutex> lock(m_impl->mutex);
+    return m_impl->configured && m_impl->product == product && m_impl->build == build && m_impl->locale == locale;
+}
+
+void SetPackedAssetReader(PackedAssetReader reader)
+{
+    packedAssetReader.store(reader);
+}
+
 CascSource& SourceForPath(const char* name) {
     const auto key = Normalize(name ? name : "");
     SourceScope scope(key.compare(0, 8, "forever/") == 0 ? SourceKind::Forever : SourceKind::Retail);

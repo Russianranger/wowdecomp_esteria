@@ -46,6 +46,7 @@ public:
         std::vector<uint8_t>& merged, std::string& error);
     struct Statistics { uint64_t reused = 0, acquired = 0; };
     Statistics Stats();
+    bool MatchesBuild(const std::string& product, const std::string& build, uint32_t locale);
 
 private:
     struct Impl;
@@ -56,6 +57,10 @@ private:
 // working directory. Initialization does no network IO until a Retail reference is read.
 CascSource& Source();
 CascSource& SourceForPath(const char* name);
+
+// Installed by SFile. Non-null size requests metadata only. 0 absent, 1 found, -1 corrupt/unreadable.
+using PackedAssetReader = int (*)(const char*, std::vector<uint8_t>&, std::string&, uint32_t* size);
+void SetPackedAssetReader(PackedAssetReader reader);
 
 }
 #endif

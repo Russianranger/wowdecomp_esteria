@@ -23,6 +23,40 @@
 #include "WoW/Source/Extension/ExtensionMgr.h"
 #if defined(WOWDECOMP_RETAIL_ASSETS)
 #include "Engine/Source/Retail/CascSource.h"
+
+static int ReadPackedRetailOriginal(const char* name, std::vector<uint8_t>& bytes,
+    std::string& error, uint32_t* sizeOnly)
+{
+    // Bypass SFile's Retail dispatch: CascSource holds its mutex while requesting originals.
+    IOMpqUnit* file = nullptr;
+    if (!Blizzard::Mopaq::SFileOpenFileEx(nullptr, name, 0, &file))
+        return 0;
+    uint32_t high = 0;
+    const uint32_t size = Blizzard::Mopaq::SFileGetFileSize(file, &high);
+    if (high || size > 128 * 1024 * 1024)
+    {
+        Blizzard::Mopaq::SFileCloseFile(file);
+        error = "Invalid packed Retail asset size";
+        return -1;
+    }
+    if (sizeOnly)
+    {
+        *sizeOnly = size;
+        Blizzard::Mopaq::SFileCloseFile(file);
+        return 1;
+    }
+    bytes.resize(size);
+    uint32_t read = 0;
+    const bool success = Blizzard::Mopaq::SFileReadFile(file, bytes.data(), size, &read) && read == size;
+    Blizzard::Mopaq::SFileCloseFile(file);
+    if (!success)
+    {
+        bytes.clear();
+        error = "Cannot read packed Retail asset";
+        return -1;
+    }
+    return 1;
+}
 #endif
 
 // STATIC: 0x00B32038
@@ -122,12 +156,18 @@ static void BlizzardAssertCallback(const char* expression, const char* message, 
 // VERIFY: 8bc79d04 auto
 // OFFSET: 0x00421700
 int32_t SFile::Initialize() {
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    Retail::SetPackedAssetReader(ReadPackedRetailOriginal);
+#endif
     Blizzard::Mopaq::SFileSetThreadingMode(2);
     Blizzard::Debug::SetAssertHandler(BlizzardAssertCallback);
     return 1;
 }
 
 void SFile::Destroy() {
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+    Retail::SetPackedAssetReader(nullptr);
+#endif
 }
 
 // VERIFY: bd1bd823 auto

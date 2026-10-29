@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Esteria Mount Studio</title>
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header>
+    <svg class="brand-icon" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+      <path d="M6 25 25 6M10 21 7 13l8 3M15 16l-1-9 7 3M20 11l5-5-1 10-5 5-8 3"/>
+    </svg>
+    <div class="brand"><h1>Esteria Mount Studio</h1><span>Retail originals. Ready for your client.</span></div>
+    <button id="theme-toggle" aria-label="Switch to light mode" aria-pressed="true">Light mode</button>
+    <button id="workspace-tab" class="view-button" aria-current="page">Mounts</button>
+    <button id="settings-toggle" class="view-button" aria-controls="settings">Settings</button>
+  </header>
+  <main>
+    <section id="settings" aria-label="Application settings" hidden>
+      <div class="settings-heading"><div><h2>Settings</h2>
+        <p class="muted">Source files stay untouched. Downloads and MPQs go into your own working folders.</p></div>
+        <button id="settings-save" class="primary">Save settings</button></div>
+      <section class="settings-section"><h3>Project</h3><div class="fields">
+        <label>Target 3.3.5 client directory<div class="path-field"><input id="client" spellcheck="false" required>
+          <button data-browse="client" aria-label="Choose target client directory">Browse</button></div></label>
+        <label>Project / cache directory<div class="path-field"><input id="work" spellcheck="false" required>
+          <button data-browse="work" aria-label="Choose project directory">Browse</button></div></label>
+        <label>Target client locale<select id="locale"><option>enUS</option><option>enGB</option><option>deDE</option>
+          <option>frFR</option><option>esES</option><option>esMX</option><option>ruRU</option>
+          <option>koKR</option><option>zhCN</option><option>zhTW</option></select></label>
+        <label>Client native config override (optional)<input id="client_config" spellcheck="false"
+          placeholder="Automatically use the target client's Data/Retail/RetailCasc.ini"></label>
+      </div></section>
+      <section class="settings-section"><h3>Retail source</h3><div class="fields">
+        <label>Read assets from<select id="source_mode"><option value="local">Installed Retail client</option>
+          <option value="cdn">Blizzard CDN</option></select></label>
+        <label>Retail data language<select id="source_locale"><option value="2">English (US)</option>
+          <option value="200">English (GB)</option><option value="20">German</option><option value="10">French</option>
+          <option value="80">Spanish (Spain)</option><option value="1000">Spanish (Mexico)</option>
+          <option value="100">Russian</option><option value="4">Korean</option>
+          <option value="40">Chinese (Simplified)</option><option value="400">Chinese (Traditional)</option>
+          </select></label>
+        <label data-source="local" class="full-field">Retail installation<div class="path-field">
+          <input id="retail_root" spellcheck="false" placeholder="World of Warcraft folder, or its _retail_ folder">
+          <button data-browse="retail_root" aria-label="Choose installed Retail directory">Browse</button></div></label>
+        <label data-source="cdn">CDN build configuration key<input id="cdn_build" spellcheck="false"
+          pattern="[a-fA-F0-9]{32}" maxlength="32"></label>
+        <label data-source="cdn">CDN region<select id="cdn_region"><option value="us">US</option>
+          <option value="eu">Europe</option><option value="kr">Korea</option><option value="tw">Taiwan</option>
+          <option value="cn">China</option></select></label>
+        <label class="full-field">Encryption key file (optional)<input id="keys_file" spellcheck="false"
+          placeholder="Path to your CascLib keys file, if required by selected assets"></label>
+      </div><p class="muted">Local mode reads installed files only. Missing files are reported without a CDN fallback.
+        Projects keep one build and language; use another project directory when changing builds.</p></section>
+      <section class="settings-section"><h3>MPQ export</h3><div class="fields">
+        <label>Output directory<div class="path-field"><input id="export_dir" spellcheck="false"
+          placeholder="Default: exports inside the project directory">
+          <button data-browse="export_dir" aria-label="Choose MPQ output directory">Browse</button></div></label>
+        <label>Maximum MPQ size (MiB)<input id="archive_limit_mb" type="number" min="128" max="1800" step="1"></label>
+        <label class="check-field"><input id="auto_open_export" type="checkbox" checked>
+          Open the exported MPQ folder when finished</label>
+      </div></section>
+      <section class="settings-section"><h3>Appearance &amp; jobs</h3><div class="fields">
+        <label>Theme<select id="theme-setting"><option value="dark">Dark</option><option value="light">Light</option>
+          </select></label>
+        <label>Default mount filter<select id="default_mount_type"><option value="flying">Flying</option>
+          <option value="ground">Ground</option><option value="water">Water</option><option value="all">All</option>
+          </select></label>
+        <label>Per-file timeout (seconds)<input id="download_timeout" type="number" min="30" max="3600" step="1">
+          </label>
+        <label class="check-field"><input id="animations" type="checkbox" checked>Enable interface animations</label>
+      </div></section>
+      <section class="settings-section"><h3>Mount display mappings</h3><div class="fields">
+        <label>Mapping source<select id="mapping_mode"><option value="bundled">Bundled Esteria snapshot</option>
+          <option value="live">Live world database (Docker)</option><option value="file">Custom JSON file</option>
+          </select></label>
+        <label data-mapping="live">Database container<input id="database_container" spellcheck="false"></label>
+        <label data-mapping="file">Creature-to-display JSON<input id="mapping_file" spellcheck="false"></label>
+      </div><p class="muted">The snapshot works offline. Use live mappings or an updated JSON export for server changes.
+        Database access is read-only.</p></section>
+      <section class="settings-section"><h3>Included components</h3>
+        <p class="muted">Python, StormLib, RetailAssetProbe, DB2 reader source, schemas
+          and CDN defaults ship together.</p>
+        <details><summary>Show component locations</summary><dl id="components"></dl></details>
+        <button data-action="doctor">Check setup</button><p id="settings-message" role="status"></p>
+      </section>
+    </section>
+    <div id="workspace">
+    <p id="source-location" class="muted"></p>
+    <nav aria-label="Workflow">
+      <button data-action="load">Open project</button>
+      <button data-action="scan"><span class="step">1</span> Scan client</button>
+      <button data-action="catalog"><span class="step">2</span> Retail catalog</button>
+      <button data-action="download" class="primary"><span class="step">3</span> Acquire / resume</button>
+      <button data-action="export" id="export"><span class="step">4</span> Export MPQ</button>
+      <button id="pause" disabled>Pause after current file</button>
+    </nav>
+    <section class="inventory" aria-label="Mount inventory">
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search mounts, spell IDs, or models" aria-label="Search mounts">
+        <select id="mount-type" aria-label="Mount type">
+          <option value="flying" selected>Flying mounts</option><option value="ground">Ground mounts</option>
+          <option value="water">Water mounts</option><option value="all">All mount types</option>
+        </select>
+        <select id="filter" aria-label="Filter mounts">
+          <option value="all">All statuses</option><option value="selected">Selected</option>
+          <option value="unmatched">Needs matching</option><option value="protected">Protected custom mounts</option>
+          <option value="failed">Failed</option><option value="validated">Validated</option>
+        </select>
+        <button id="select-matched">Select only filtered</button><button id="clear">Clear filtered</button>
+        <button data-action="save">Save choices</button>
+      </div>
+      <p id="counts">Scan a client to list its mount spells and appearances.</p>
+      <div class="split">
+        <div class="table-area">
+          <table>
+            <thead><tr><th scope="col">Use</th><th scope="col">Mount / summon spell</th>
+              <th scope="col">Type</th><th scope="col">Retail model</th>
+              <th scope="col">Status</th><th scope="col">AdvFly</th></tr></thead>
+            <tbody id="mounts"></tbody>
+          </table>
+          <p id="empty">No mounts loaded. The client is inspected read-only; output goes into your work directory.</p>
+        </div>
+        <aside id="details" aria-label="Selected mount details"><p>Select a mount to review its replacement.</p></aside>
+      </div>
+      <div class="pager"><button id="previous">Previous</button><span id="page">Page 1</span>
+        <button id="next">Next</button><span id="source-pin">No retail build pinned</span></div>
+    </section>
+    <section class="jobs" aria-label="Job progress">
+      <div class="job-header"><h2>Activity</h2><span id="state" role="status">Ready</span></div>
+      <progress id="progress" value="0" max="1" aria-label="Selected mounts validated"></progress>
+      <p id="message" aria-live="polite">No job running.</p>
+      <pre id="log" aria-label="Job log" tabindex="0"></pre>
+      <p id="export-path"></p>
+      <button id="open-output" hidden>Open exported MPQ folder</button>
+    </section>
+    </div>
+  </main>
+  <dialog id="export-dialog" aria-labelledby="export-title">
+    <div class="dialog-heading"><h2 id="export-title">Export completed mounts</h2>
+      <button id="export-cancel" aria-label="Close export dialog">×</button></div>
+    <p id="export-summary"></p>
+    <p class="muted">Completed mounts can be packaged now.
+      Your remaining selections and downloads stay saved for resume.</p>
+    <div class="dialog-actions"><button id="export-resume">Resume downloads</button>
+      <button id="export-ready" class="primary">Export completed mounts</button></div>
+  </dialog>
+  <footer>Original model, texture, skeleton and animation bytes are preserved. Export does not install files.</footer>
+</body>
+</html>

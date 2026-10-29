@@ -1,0 +1,15 @@
+{
+  "name": "esteria-mount-studio",
+  "version": "0.2.1",
+  "private": true,
+  "scripts": {
+    "predev": "python prepare_release.py",
+    "dev": "tauri dev",
+    "prebuild": "python prepare_release.py",
+    "build": "tauri build",
+    "test": "python -m unittest discover -s tests -v"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.8"
+  }
+}

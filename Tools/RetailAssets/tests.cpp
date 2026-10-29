@@ -1,4 +1,5 @@
 #include "Engine/Source/Retail/CascSource.h"
+#include "Engine/Source/Retail/MountOverrides.h"
 #include "Engine/Source/Retail/RetailModel.h"
 #include "Engine/Source/Retail/ClientTables.h"
 #include "Engine/Source/Retail/RetailShader.h"
@@ -1564,6 +1565,19 @@ int main(int argc, char** argv) {
     Check(!Retail::ValidateSkin(bad, prepared, error), "reject invalid vertex bone palette index");
 
     // Exercise config and routing without a network request or a WoW installation.
+    {
+        std::map<uint32_t, Retail::MountOverride> overrides;
+        const std::string row = "20;wow;0123456789abcdef0123456789abcdef;2;42;43;0;44;1.25\n";
+        Check(Retail::ParseMountOverrides(row, overrides) && overrides.size() == 1
+            && overrides.at(20).model == "retail\\42.m2" && overrides.at(20).textures[2] == "44.blp"
+            && overrides.at(20).scale == 1.25f, "packed mount identity, palette and scale");
+        Check(!Retail::ParseMountOverrides(row + row, overrides) && overrides.size() == 1,
+            "duplicate mount display rejected without replacing previous parsed output");
+        Check(!Retail::ParseMountOverrides("20;wow;bad;2;42;43;0;44;1\n", overrides),
+            "mount mapping requires a real build pin");
+        Check(!Retail::ParseMountOverrides("20;wow;0123456789abcdef0123456789abcdef;2;42;0;0;0;nan\n", overrides),
+            "mount mapping rejects non-finite scale");
+    }
     auto temp = std::filesystem::temp_directory_path() / ("wow-retail-tests-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::filesystem::create_directories(temp);
     std::ofstream(temp / "aliases.csv") << "42;Creature/Test/Test.m2\n";
@@ -1599,6 +1613,39 @@ int main(int argc, char** argv) {
     Check(offline.Configure((temp / "offline.ini").string().c_str(), error), "configure offline originals without network");
     Check(offline.Inspect("retail/42.m2", prepared, error) && prepared == valid, "offline source preserves original bytes");
     Check(!offline.Inspect("retail/43.m2", prepared, error), "offline source fails on missing dependency");
+    {
+        // A test reader stands in for SFile's mounted MPQ callback; the CASC/loose file remains absent.
+        Retail::SetPackedAssetReader([](const char* name, std::vector<uint8_t>& out,
+            std::string& error, uint32_t* size) -> int
+        {
+            const std::string key(name);
+            if (key == "EsteriaRetail\\wow-0123456789abcdef0123456789abcdef\\2\\99.bin")
+            {
+                if (size)
+                    *size = 3;
+                else
+                    out = {7, 8, 9};
+                return 1;
+            }
+            if (key == "EsteriaRetail\\wow-0123456789abcdef0123456789abcdef\\2\\100.bin")
+            {
+                error = "Damaged MPQ";
+                return -1;
+            }
+            return 0;
+        });
+        Check(offline.Inspect("retail/99.blp", prepared, error) && prepared == std::vector<uint8_t>({7, 8, 9}),
+            "packed original bypasses missing loose/CASC storage");
+        uint32_t size = 0;
+        Check(offline.CachedOriginalSize("retail/99.blp", size) && size == 3
+            && offline.Exists("retail/99.blp", error), "packed originals are local before preparation");
+        Check(!offline.Inspect("retail/100.blp", prepared, error) && error == "Damaged MPQ",
+            "damaged packed original fails without silently falling back to network");
+        Check(offline.MatchesBuild("wow", "0123456789abcdef0123456789abcdef", 2)
+            && !offline.MatchesBuild("wow", "1123456789abcdef0123456789abcdef", 2),
+            "mount mapping cannot bind an original from another build");
+        Retail::SetPackedAssetReader(nullptr);
+    }
     {
         // A real source restart with an absent CASC installation: only the durable cache can satisfy it.
         const std::string build = "0123456789abcdef0123456789abcdef";

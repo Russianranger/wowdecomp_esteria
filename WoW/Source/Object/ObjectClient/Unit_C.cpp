@@ -33,6 +33,11 @@
 #include "WoW/Source/DB/Rec/ChrRacesRec.h"
 #include "WoW/Source/DB/Rec/CreatureDisplayInfoRec.h"
 #include "WoW/Source/DB/Rec/CreatureModelDataRec.h"
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+#include "Engine/Source/Retail/CascSource.h"
+#include "Engine/Source/Retail/MountOverrides.h"
+#include "Engine/Source/BlizzardCore/Source/System/Log/Log.h"
+#endif
 #include "WoW/Source/DB/Rec/CreatureMovementInfoRec.h"
 #include "WoW/Source/DB/Rec/CreatureSoundDataRec.h"
 #include "WoW/Source/DB/Rec/EmotesRec.h"
@@ -22351,6 +22356,31 @@ void CGUnit_C::DestroyUnitMount(int32_t a2) {
 
 // VERIFY: 842ee456 manual
 // OFFSET: 0x0073D5D0
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+static const Retail::MountOverride* PackedMountOverride(uint32_t display)
+{
+    static const auto entries = []
+    {
+        std::map<uint32_t, Retail::MountOverride> result;
+        void* bytes = nullptr;
+        uint32_t size = 0;
+        if (SFile::LoadFile("EsteriaMounts\\mounts.csv", &bytes, &size, 0, nullptr))
+        {
+            if (size > 4 * 1024 * 1024 || !Retail::ParseMountOverrides(
+                std::string(static_cast<const char*>(bytes), size), result))
+                Blizzard::Log::Printf(1, "Logs/RetailAssets.log", "Invalid MountStudio replacement catalog\n");
+            SFileUnloadFile(bytes);
+        }
+        return result;
+    }();
+    const auto found = entries.find(display);
+    if (found == entries.end() || !Retail::Source().MatchesBuild(
+        found->second.product, found->second.build, found->second.locale))
+        return nullptr;
+    return &found->second;
+}
+#endif
+
 void CGUnit_C::CreateUnitMount(int32_t a2, int32_t a3) {
     this->m_wheelMask = 0;
 
@@ -22367,6 +22397,24 @@ void CGUnit_C::CreateUnitMount(int32_t a2, int32_t a3) {
             return;
         }
 
+        // Only the mounted appearance changes; NPCs using the same display keep their original records.
+#if defined(WOWDECOMP_RETAIL_ASSETS)
+        CreatureDisplayInfoRec packedDisplay;
+        CreatureModelDataRec packedModel;
+        if (const auto* replacement = PackedMountOverride(this->m_mountDisplayId))
+        {
+            packedDisplay = *displayInfo;
+            packedModel = *modelData;
+            packedModel.m_modelName = replacement->model.c_str();
+            packedDisplay.m_creatureModelScale = replacement->scale;
+            packedDisplay.m_extendedDisplayInfoID = 0;
+            packedDisplay.m_creatureGeosetData = 0;
+            for (size_t i = 0; i < replacement->textures.size(); ++i)
+                packedDisplay.m_textureVariation[i] = replacement->textures[i].c_str();
+            displayInfo = &packedDisplay;
+            modelData = &packedModel;
+        }
+#endif
         this->m_mountScale = displayInfo->m_creatureModelScale;
         CM2Model* mount = World::s_m2Scene->CreateModel(modelData->m_modelName, 0);
         mount->SetSequenceCallback(reinterpret_cast<void*>(&CGUnit_C::MountAnimEndCallback), this->m_obj->m_guid.m_guid);

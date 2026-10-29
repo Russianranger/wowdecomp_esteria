@@ -11,16 +11,22 @@
 #include <cmath>
 
 int main(int argc, char** argv) {
+    if (argc == 2 && std::string(argv[1]) == "--capabilities")
+    {
+        std::puts("{\"original_extract\":true,\"table_extract\":true,\"native_validation\":true}");
+        return 0;
+    }
     const bool character = argc > 3 && std::string(argv[3]) == "--character";
     if (character) {
         for (int i = 3; i + 1 < argc; ++i) argv[i] = argv[i + 1];
         --argc;
     }
     if (argc != 3 && argc != 4 && argc != 5) {
-        std::fprintf(stderr, "Usage: RetailAssetProbe <RetailCasc.ini> <retail/ID.m2|alias> [--inspect|--extract new-file|--helmet-donor legacy.m2|--animation ID[:variation]]\n");
+        std::fprintf(stderr, "Usage: RetailAssetProbe <RetailCasc.ini> <retail/ID.m2|alias> [--inspect|--extract new-file|--extract-table new-file|--helmet-donor legacy.m2|--animation ID[:variation]]\n");
         return 2;
     }
-    const bool extract = argc == 5 && std::string(argv[3]) == "--extract";
+    const bool tableExtract = argc == 5 && std::string(argv[3]) == "--extract-table";
+    const bool extract = tableExtract || (argc == 5 && std::string(argv[3]) == "--extract");
     const bool helmet = argc == 5 && std::string(argv[3]) == "--helmet-donor";
     const bool emotes = argc == 4 && std::string(argv[3]) == "--emotes";
     const bool animation = emotes || (argc == 5 && std::string(argv[3]) == "--animation");
@@ -34,7 +40,12 @@ int main(int argc, char** argv) {
         source.RegisterCharacterModel(uint32_t(std::strtoul(argv[2] + std::strlen(Retail::SourcePrefix()), nullptr, 10)));
     std::vector<uint8_t> bytes;
     std::string error;
-    if (!source.Configure(argv[1], error) || !(inspect ? source.Inspect(argv[2], bytes, error) : source.Read(argv[2], bytes, error))) {
+    const std::string requestedName = argv[2];
+    if (tableExtract && (requestedName.size() < 4
+        || requestedName.compare(requestedName.size() - 4, 4, ".db2") != 0))
+        return 2;
+    if (!source.Configure(argv[1], error) || !(tableExtract ? source.ReadTable(argv[2], bytes, error)
+        : inspect ? source.Inspect(argv[2], bytes, error) : source.Read(argv[2], bytes, error))) {
         std::fprintf(stderr, "%s: %s\n", argv[2], error.c_str());
         return 1;
     }
