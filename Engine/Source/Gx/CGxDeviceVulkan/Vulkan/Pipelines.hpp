@@ -189,6 +189,13 @@ namespace gxvk::vk::pipelines
      */
     bool Record(VkCommandBuffer cmd, VkRenderPass pass, uint32_t passGeneration, uint64_t serial, uint32_t slot, const Draw& draw);
 
+    /**
+     * Forgets what Record() believes is bound on the command buffer (pipeline, descriptor sets, vertex buffers, viewport, scissor,
+     * push constants), so the next draw binds all of it again. Whoever records into the same command buffer behind Record()'s back
+     * (the post passes of GxEffects) must call this after, or the engine's next draw skips a bind that no longer holds.
+     */
+    void ForgetBound();
+
     struct Stats
     {
         uint64_t drawn          = 0;

@@ -102,6 +102,23 @@ namespace gxvk::vk::frame
      */
     bool CopyFromScene(texture::Image& dst, uint32_t layer, uint32_t level, const VkRect2D& src, const VkRect2D& dstRect, bool linear);
 
+    /// CopyFromScene() from the current target (the scene, or the render-target texture the draws
+    /// land on), level 0 and layer 0 of `dst`.
+    bool CopyFromTarget(texture::Image& dst, const VkRect2D& src, const VkRect2D& dstRect, bool linear);
+
+    /// CopyFromScene() from any colour image resting in SHADER_READ_ONLY_OPTIMAL.
+    bool CopyFromImage(const texture::Image& source, texture::Image& dst, uint32_t layer, uint32_t level, const VkRect2D& src, const VkRect2D& dstRect, bool linear);
+
+    /**
+     * Copies the depth (not the stencil) of the depth buffer the current target's draws test
+     * against -- the one of its size -- into `dst`, outside the pass: an image of DepthFormat() and
+     * the target's extent, made with TRANSFER_DST | SAMPLED, resting in SHADER_READ_ONLY_OPTIMAL,
+     * where it is left. What a post pass samples the world's depth from.
+     *
+     * @return bool ok : false when no draw has written that depth buffer yet
+     */
+    bool CopyTargetDepth(VkImage dst);
+
     /**
      * Reads a rectangle of the scene back to the host, as B, G, R, A bytes per pixel: submits the
      * frame's work so far, waits for it, copies. The frame is closed afterwards; the next Present()
@@ -118,6 +135,27 @@ namespace gxvk::vk::frame
      * pass has ended), one array layer, bytes as they lie in the image's format.
      */
     bool ReadImage(const texture::Image& img, uint32_t layer, const VkRect2D& rect, uint8_t* out);
+
+    /// A readback in flight (BeginImageRead): the host buffer the GPU fills and the frame that fills it.
+    struct AsyncRead
+    {
+        memory::Buffer host;
+        uint64_t       serial = 0;
+        VkDeviceSize   bytes  = 0;
+    };
+
+    /**
+     * ReadImage without the wait: records the copy of a rectangle (texelBytes a texel) into a host
+     * buffer in the open frame and returns at once. PollImageRead() collects it once that frame has
+     * completed on the GPU, a frame or two later.
+     */
+    bool BeginImageRead(const texture::Image& img, const VkRect2D& rect, uint32_t texelBytes, AsyncRead& out);
+
+    /// Copies the bytes out and frees the buffer when the frame has completed (true); false while it has not.
+    bool PollImageRead(AsyncRead& read, void* out);
+
+    /// Gives up a read in flight; the buffer goes once its frame has completed.
+    void CancelImageRead(AsyncRead& read);
 
     /**
      * Begins an occlusion query on the current pass (opened if need be). One query at a time. A
@@ -182,6 +220,10 @@ namespace gxvk::vk::frame
 
     /// As RetireBuffer(), for an image (texture::DestroyIdle once its frame has completed).
     void RetireImage(texture::Image& image, uint64_t lastUsed);
+
+    /// As RetireBuffer(), for objects made outside the texture module: a framebuffer, an image view,
+    /// an image with its block. Any of them may be null.
+    void RetireRaw(VkFramebuffer framebuffer, VkImageView view, VkImage image, const memory::Block& block, uint64_t lastUsed);
 
     /**
      * Ends the frame: with `visible`, the scene gets its pass if nothing opened one (so the clear

@@ -54,6 +54,7 @@ target_link_libraries(Wow
         ShaderEffect
         Tempest
         UnitOutline
+        Lumenveil
         SoundEngine
         SteelseriesMouse
         Storm

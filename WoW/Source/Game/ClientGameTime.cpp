@@ -32,6 +32,12 @@ static void UpdateTime() {
     ConsoleWrite(text, DEFAULT_COLOR);
 }
 
+// Not in the original binary: the client clock's change notice, for Lumenveil's clock override (WoW/Source/Ui/LumenveilInputs.cpp),
+// which sets the time as SMSG_LOGIN_SETTIMESPEED does and then has the day/night and the clock callbacks follow.
+void ClientGameTimeChanged() {
+    UpdateTime();
+}
+
 // VERIFY: 981ba009 auto
 // OFFSET: 0x007E2840
 static int32_t Packet_SMSG_GAMESPEED_SET(void* param, NETMESSAGE msgId, uint32_t time, CDataStore* msg) {

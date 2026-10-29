@@ -22,6 +22,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/ConsoleDevice/ConsoleDevice.h"
 #include "WoW/Source/Hardware.h"
+#include "Engine/Source/Lumenveil/Lumenveil.h"
 #include "WoW/Source/UIUtil/Cursor.h"
 #include "WoW/Source/Ui/LootBeam.h"
 #include "WoW/Source/Ui/OptionCVars.h"
@@ -676,6 +677,8 @@ void ClientRegisterConsoleCommands() {
         OptionCVars::Register(option.name, option.help, option.value);
     }
     CUnitOutlineGather::RegisterCVars();
+    // Lumenveil's cvars, log and settings files (CoAVolFog.ini beside the executable).
+    Lumenveil::Startup();
 
     g_showPerformanceCVar = CVar::Register("showPerformance", "Show the performance overlay (fps, draw calls, cpu)", 1, "0", ShowPerformanceCallback, CATEGORY_GRAPHICS, false, nullptr, false);
 

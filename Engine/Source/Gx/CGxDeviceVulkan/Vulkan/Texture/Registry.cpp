@@ -35,6 +35,7 @@ namespace gxvk::vk::texture::detail
             case VK_FORMAT_A2R10G10B10_UNORM_PACK32: return { 4,  false, "A2R10G10B10_UNORM_PACK32" };
             case VK_FORMAT_R16G16_SFLOAT:            return { 4,  false, "R16G16_SFLOAT" };
             case VK_FORMAT_R32_SFLOAT:               return { 4,  false, "R32_SFLOAT" };
+            case VK_FORMAT_R32G32_SFLOAT:            return { 8,  false, "R32G32_SFLOAT" };
             case VK_FORMAT_R16G16B16A16_SFLOAT:      return { 8,  false, "R16G16B16A16_SFLOAT" };
             case VK_FORMAT_R32G32B32A32_SFLOAT:      return { 16, false, "R32G32B32A32_SFLOAT" };
             case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:     return { 8,  true,  "BC1_RGBA_UNORM_BLOCK" };

@@ -1,5 +1,6 @@
 #include "Cursor.h"
 #include "Engine/Source/FrameScript/FrameScript.h"
+#include "Engine/Source/Lumenveil/OptionsPages.h"
 
 // Runs as built-in FrameXML after the signed UI loads, on login and /reload.
 // Adds an "Esteria" category to the Video options with the horizon and fog controls. It uses the stock
@@ -474,4 +475,7 @@ end
     FrameScript_Execute(pagesScript, "NativeEsteriaPageHelpers", nullptr);
     FrameScript_Execute(pagesScript2, "NativeEsteriaPages", nullptr);
     FrameScript_Execute(overlayScript, "NativeEsteriaOverlay", nullptr);
+    // Lumenveil's pages, built from its settings window (Engine/Source/Lumenveil/OptionsPages.cpp).
+    const std::string lumenveilScript = LumenveilOptions::BuildScript();
+    FrameScript_Execute(lumenveilScript.c_str(), "NativeLumenveilPages", nullptr);
 }

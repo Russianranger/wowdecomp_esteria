@@ -87,6 +87,7 @@
 #include "WoW/Source/WorldClient/MapWeather.h"
 #include "WoW/Source/WorldClient/World.h"
 #include "Engine/Source/UnitOutline/UnitOutline.h"
+#include "Engine/Source/Lumenveil/Lumenveil.h"
 #include "WoW/Source/Ui/LootBeam.h"
 #include "WoW/Source/Ui/UnitOutlineGather.h"
 #include <cfloat>
@@ -1754,7 +1755,10 @@ void CGWorldFrame::OnWorldRender() {
 
     scene->SetFloat18(-CWorld::s_unk_CD7758);
     scene->m_passMask = CWorld::m_M2PassMask;
+    // Not in the original binary: Lumenveil takes the world's camera and viewport as the opaque models leave them.
+    Lumenveil::OpaqueBegin();
     scene->Draw(M2PASS_0);
+    Lumenveil::OpaqueDone();
 
     if (s_spellShadowStyle < 2) {
         DrawSpellCursorShadow(0x200122);
@@ -1768,11 +1772,15 @@ void CGWorldFrame::OnWorldRender() {
         CWorldScene::RenderBarriers(this->m_elapsedSec);
         scene->Draw(M2PASS_1);
         CWorldScene::RenderWeather();
+        Lumenveil::LiquidBegin();
         CWorldScene::RenderLiquidPass();
+        Lumenveil::LiquidEnd();
         scene->Draw(M2PASS_2);
     } else {
         scene->Draw(M2PASS_2);
+        Lumenveil::LiquidBegin();
         CWorldScene::RenderLiquidPass();
+        Lumenveil::LiquidEnd();
         CWorldScene::RenderWeather();
         CWorldScene::RenderBarriers(this->m_elapsedSec);
         scene->Draw(M2PASS_1);
@@ -1805,6 +1813,9 @@ void CGWorldFrame::OnWorldRender() {
     SmartScreenRectClearGrid(1);
     CGChatBubbleFrame::OnWorldRender(this);
     GxXformSetViewport(minX, maxX, minY, maxY, minZ, maxZ);
+    // Not in the original binary: Lumenveil's passes go onto the finished world, before the full-screen effects,
+    // where the stock-client mod hooked the call to FFX::Finish.
+    Lumenveil::WorldDone();
     FFX::Finish();
     CVehiclePassenger_C::PostRenderUpdateAll();
 }
@@ -2118,7 +2129,11 @@ void CGWorldFrame::RenderWorld(void* param) {
 
     worldFrame->OnWorldUpdate();
     PlayerNameUpdateWorldText();
+    // Not in the original binary: Lumenveil brackets the world draw (it moves the stock fog out of the way while
+    // its own fog stands in for it).
+    Lumenveil::FrameBegin();
     worldFrame->OnWorldRender();
+    Lumenveil::FrameEnd();
     WorldTextRenderBatch();
 
     // Not in the original: the world is drawn and the device still holds the world camera.

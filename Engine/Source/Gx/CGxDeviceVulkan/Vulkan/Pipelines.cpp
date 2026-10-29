@@ -140,6 +140,11 @@ namespace gxvk::vk::pipelines
         s = State();
     }
 
+    void ForgetBound()
+    {
+        s.bound = Bound();
+    }
+
     bool Record(VkCommandBuffer cmd, VkRenderPass pass, uint32_t passGeneration, uint64_t serial, uint32_t slot, const Draw& draw)
     {
         if (!s.ready || !cmd || pass == VK_NULL_HANDLE)

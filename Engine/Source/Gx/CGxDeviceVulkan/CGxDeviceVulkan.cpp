@@ -13,6 +13,7 @@
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Manifest.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Memory.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Pipelines.hpp"
+#include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Effects.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Present.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Queries.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Shaders.hpp"
@@ -23,6 +24,7 @@
 #include "Engine/Source/Storm/H/storm.h"
 
 namespace context   = gxvk::vk::context;
+namespace effects   = gxvk::vk::effects;
 namespace frame     = gxvk::vk::frame;
 namespace manifest  = gxvk::vk::manifest;
 namespace memory    = gxvk::vk::memory;
@@ -289,6 +291,7 @@ void CGxDeviceVulkan::IReleaseVulkanWindow() {
 void CGxDeviceVulkan::IDestroyVulkan() {
     this->ICursorDestroy();
     frame::ReleaseSwapchain();
+    effects::Shutdown();
     this->IReleasePools();
     this->IReleaseTextures();
     frame::Destroy();

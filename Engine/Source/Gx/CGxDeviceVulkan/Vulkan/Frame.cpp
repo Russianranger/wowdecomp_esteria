@@ -441,6 +441,16 @@ namespace gxvk::vk::frame
         image = texture::Image();
     }
 
+    void RetireRaw(VkFramebuffer framebuffer, VkImageView view, VkImage image, const memory::Block& block, uint64_t lastUsed)
+    {
+        Retired e;
+        e.framebuffer = framebuffer;
+        e.view        = view;
+        e.rawImage    = image;
+        e.rawBlock    = block;
+        Retire(e, lastUsed);
+    }
+
     bool Present(bool visible)
     {
         if (s.failed) return false;

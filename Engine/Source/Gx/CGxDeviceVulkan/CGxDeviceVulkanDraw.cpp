@@ -9,6 +9,7 @@
 #include "Engine/Source/Gx/CGxDeviceVulkan/CGxDeviceVulkan.h"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Frame.hpp"
 #include "Engine/Source/Gx/Gx.h"
+#include "Engine/Source/Gx/GxEffects.h"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Pipelines.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Log.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Manifest.hpp"
@@ -323,7 +324,8 @@ void CGxDeviceVulkan::IRenderStates(pipelines::Draw& d) {
 
     d.depthTest = (master & (1 << GxMasterEnable_DepthTest)) && this->m_appRenderStates[GxRs_DepthTest].m_value.m_data.i[0];
     d.depthFunc = static_cast<uint32_t>(this->m_appRenderStates[GxRs_DepthFunc].m_value.m_data.i[0]);
-    d.depthWrite = (master & (1 << GxMasterEnable_DepthWrite)) && this->m_appRenderStates[GxRs_DepthWrite].m_value.m_data.i[0];
+    d.depthWrite = GxEffects::DepthWriteForced()
+        || ((master & (1 << GxMasterEnable_DepthWrite)) && this->m_appRenderStates[GxRs_DepthWrite].m_value.m_data.i[0]);
     d.colourMask = (master & (1 << GxMasterEnable_ColorWrite)) ? this->m_appRenderStates[GxRs_ColorWrite].m_value.m_data.u[0] : 0u;
     d.wireframe = !(master & (1 << GxMasterEnable_PolygonFill));
 
