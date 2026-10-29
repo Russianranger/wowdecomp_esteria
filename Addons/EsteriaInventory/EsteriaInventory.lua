@@ -19,7 +19,8 @@ local dialog = { bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
     insets = { left = 11, right = 12, top = 12, bottom = 11 } }
 local DEFAULTS = { replaceBags = true, tileScale = 1, gap = 6, maxTiles = MAX_PAGE, scale = 1, alpha = 1,
     lockPosition = false, lockSize = false, showNames = false, qualityBorders = true, sounds = true,
-    hints = true, remember = true, showGold = true, contextMenu = false, bagButton = true, showBankTab = true, guildBank = true }
+    hints = true, remember = true, showGold = true, contextMenu = false, bagButton = true, showBankTab = true, guildBank = true,
+    autoSort = true }
 local ART = "Interface\\EsteriaInventory\\"
 local tileBorder = { edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 10,
     insets = { left = 2, right = 2, top = 2, bottom = 2 } }
@@ -31,6 +32,7 @@ local function db()
     for key, value in pairs(DEFAULTS) do if d[key] == nil then d[key] = value end end
     d.hiddenCategories, d.hiddenSorts = d.hiddenCategories or {}, d.hiddenSorts or {}
     d.currencies = d.currencies or {}
+    d.layouts = d.layouts or {}
     return d
 end
 
@@ -58,6 +60,25 @@ end
 local function enabled()
     local carried = Windows[0]
     return carried and carried.active and EsteriaInventoryDB and EsteriaInventoryDB.replaceBags ~= false
+end
+
+-- Bags stay blocked while the realm handshake is outstanding (gateUntil), so stock bags never flash before takeover.
+-- A realm that never answers is released after the gate, and the stock bags work as before.
+local function pending()
+    local carried = Windows[0]
+    return EsteriaInventory_Request and carried and not carried.active and carried.gateUntil
+        and GetTime() < carried.gateUntil and EsteriaInventoryDB and EsteriaInventoryDB.replaceBags ~= false
+end
+
+local function hideStockBags()
+    for i = 1, 13 do
+        local f = _G["ContainerFrame" .. i]
+        if f and f:IsShown() and f:GetID() <= 4 then f:Hide() end
+    end
+    for i = 1, 4 do
+        local f = _G["DragonUI_BagsterFrame" .. i]
+        if f and f:IsShown() then f:Hide() end
+    end
 end
 
 local function sound(name)
@@ -121,6 +142,8 @@ function Inv:Request(action, row, count, offset, text, scope)
         return
     end
     scope = scope or self.view
+    -- Free placement needs every item at once; the client pages and positions them.
+    if action == ACTION.browse and self:ManualActive() then offset, count = 0, MAX_PAGE end
     local snap = self.snaps[scope]
     local vendor = action == ACTION.sell and UnitGUID("npc") or nil
     -- Browse carries the wanted tile count; the server answers with at most that many rows.
@@ -137,9 +160,116 @@ function Inv:Refresh()
     if self.active and not self.pending then self:Request(ACTION.browse) end
 end
 
+-- True when items sit where the user put them (auto sort off, no filter): positions live in the saved layout.
+function Inv:ManualActive()
+    return self.scope ~= 2 and not db().autoSort and self.category == 0 and self.search == ""
+end
+
+function Inv:Offset()
+    return self:ManualActive() and (self.manualOffset or 0) or (self.snapshot.offset or 0)
+end
+
+function Inv:Total()
+    return self:ManualActive() and (self.arrangedTotal or 0) or (self.snapshot.total or 0)
+end
+
 function Inv:Page(offset)
-    self.targetOffset = offset
+    self.targetOffset, self.manualOffset = offset, offset
+    if self:ManualActive() then self:Render() end
     self:Request(ACTION.browse, nil, nil, offset)
+end
+
+local function rowKey(row)
+    return row.digital and ("d" .. row.guid) or ("p" .. row.bag .. ":" .. row.slot)
+end
+
+function Inv:LayoutStore()
+    local layouts, name = db().layouts, self.view == 1 and "bank" or (UnitName("player") or "?")
+    layouts[name] = layouts[name] or {}
+    return layouts[name]
+end
+
+-- Maps absolute position -> row. Saved positions win; new items take the first free position in server order.
+-- shortcut: the server sends at most MAX_PAGE rows, so free placement covers the first 255 items; revisit if banks grow.
+function Inv:Arrange()
+    local store, rows = self:LayoutStore(), self.snapshot.rows
+    local placed, loose, live, top = {}, {}, {}, 0
+    for _, row in ipairs(rows) do
+        local key = rowKey(row)
+        live[key] = true
+        local at = store[key]
+        if at and not placed[at] then placed[at] = row; top = math.max(top, at) else loose[#loose + 1] = row end
+    end
+    local at = 1
+    for _, row in ipairs(loose) do
+        while placed[at] do at = at + 1 end
+        placed[at] = row; store[rowKey(row)] = at; top = math.max(top, at)
+    end
+    if #rows >= (self.snapshot.total or 0) then
+        for key in pairs(store) do if not live[key] then store[key] = nil end end
+    end
+    self.arranged, self.arrangedTotal = placed, math.max(top, self.snapshot.capacity or 0)
+end
+
+-- Cursor-following icon for stored items being rearranged (they have no real cursor item).
+local holder
+function Inv:HoldIcon(tile)
+    if not holder then
+        holder = CreateFrame("Frame", nil, UIParent)
+        holder:SetSize(37, 37); holder:SetFrameStrata("TOOLTIP"); holder:Hide()
+        holder.icon = holder:CreateTexture(nil, "OVERLAY"); holder.icon:SetAllPoints()
+        holder:SetScript("OnUpdate", function(f)
+            local x, y = GetCursorPosition()
+            local scale = UIParent:GetEffectiveScale()
+            f:ClearAllPoints(); f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / scale, y / scale)
+        end)
+    end
+    local art = _G[tile:GetName() .. "IconTexture"]
+    -- Match the tile's on-screen icon size (the window may be scaled).
+    local size = art:GetWidth() * tile:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    holder:SetSize(size, size)
+    holder.icon:SetTexture(art:GetTexture())
+    SetItemButtonDesaturated(tile, true)
+    holder:Show()
+end
+
+function Inv:DropIcon() if holder then holder:Hide() end end
+
+-- Swaps the item at fromPos with whatever sits at toPos.
+function Inv:MoveTo(key, fromPos, toPos)
+    local store, other = self:LayoutStore(), self.arranged and self.arranged[toPos]
+    if other then store[rowKey(other)] = fromPos end
+    store[key] = toPos
+    for _, tile in ipairs(self.buttons) do tile.sig = nil end
+    self:Render()
+    self.refreshAt = GetTime() + 0.25
+end
+
+-- Something is on the cursor and was released over a tile (or the window): reposition our own item, or
+-- put a foreign one into the first free carried slot (and onto that tile when free placement is on).
+function Inv:DropCursor(tile)
+    if self.scope ~= 0 or not CursorHasItem() then return end
+    if self.view == 1 then self.frame.status:SetText("Switch to the bag view to drop items here."); return end
+    local from, manual = self.dragFrom, self:ManualActive()
+    self.dragFrom = nil
+    if from then
+        ClearCursor()
+        if manual and tile and tile.pos and tile.pos ~= from.pos then self:MoveTo(from.key, from.pos, tile.pos) end
+        return
+    end
+    for bag = 0, NUM_BAG_SLOTS or 4 do
+        for slot = 1, GetContainerNumSlots(bag) do
+            if not GetContainerItemInfo(bag, slot) then
+                if manual and tile and tile.pos and not (self.arranged and self.arranged[tile.pos]) then
+                    self:LayoutStore()["p" .. bag .. ":" .. slot] = tile.pos
+                end
+                PickupContainerItem(bag, slot)
+                self.refreshAt = GetTime() + 0.25
+                return
+            end
+        end
+    end
+    self.frame.status:SetText("Your bags are full.")
 end
 
 function Inv:Flush()
@@ -338,6 +468,7 @@ end
 local function click(self, mouse)
     local I, row = self.window, self.row
     if I.scope == 2 then return guildClick(self, mouse) end
+    if CursorHasItem() and (not row or row.digital or I.dragFrom) then I:DropCursor(self); return end
     if not row then return end
     if IsControlKeyDown() then DressUpItemLink(fullLink(row)); return end
     if IsAltKeyDown() and row.digital then I:Request(ACTION.favorite, row); return end
@@ -391,16 +522,24 @@ function Inv:Render()
     local ratio = snapshot.capacity and snapshot.capacity > 0 and snapshot.used / snapshot.capacity or 0
     frame.bar:SetValue(math.min(ratio, 1))
     frame.percent:SetText(string.format("%.1f%% full", ratio * 100))
-    local pages = math.max(1, math.ceil((snapshot.total or 0) / page))
-    frame.page:SetText((math.floor((snapshot.offset or 0) / page) + 1) .. " / " .. pages)
+    local manual = self:ManualActive()
+    local offset = snapshot.offset or 0
+    if manual then
+        self:Arrange()
+        offset = math.min(self.manualOffset or 0, math.floor(math.max(0, self.arrangedTotal - 1) / page) * page)
+        self.manualOffset = offset
+    end
+    local pages = math.max(1, math.ceil((manual and self.arrangedTotal or snapshot.total or 0) / page))
+    frame.page:SetText((math.floor(offset / page) + 1) .. " / " .. pages)
     frame.expand.label:SetText(guild and "Expand Tab" or (snapshot.upgrade and snapshot.upgrade > 0
         and (bank and "Expand Bank" or "Expand Storage") or "At capacity limit"))
     if guild then if self.canExpand then frame.expand:Show() else frame.expand:Hide() end end
-    frame.sort.label:SetText("Sort: " .. sorts[self.sort + 1])
+    frame.sort.label:SetText((db().autoSort or guild) and ("Sort: " .. sorts[self.sort + 1]) or ("Sort now: " .. sorts[self.sort + 1]))
     for index = 1, page do
         local b = self.buttons[index]
-        local row = snapshot.rows[index]
-        b.row = row
+        local row
+        if manual then row = self.arranged[offset + index] else row = snapshot.rows[index] end
+        b.row, b.pos = row, manual and offset + index or nil
         if row then row.tag = row.tag or "" end
         local sig = row and row.digital and (row.guid .. ":" .. row.count .. ":" .. row.quality
             .. ":" .. (row.favorite and 1 or 0) .. ":" .. row.tag .. ":" .. (row.split and 1 or 0)) or nil
@@ -433,12 +572,13 @@ function Inv:Render()
         else
             b.sig = nil
             SetItemButtonTexture(b, nil); SetItemButtonCount(b, 0)
+            SetItemButtonDesaturated(b, false); _G[b:GetName() .. "IconTexture"]:Hide()
             b.hasItem = nil; b.name:SetText(""); b.favorite:SetText("")
             b.tagMark:SetText("")
             b:SetBackdropBorderColor(0.25, 0.25, 0.25, 0)
             CooldownFrame_SetTimer(_G[b:GetName() .. "Cooldown"], 0, 0, 0)
-            -- Guild bank empty tiles stay live so a held item can be dropped on them.
-            if guild then b:Enable() else b:Disable() end
+            -- Guild and bag empty tiles stay live so a held item can be dropped on them.
+            if guild or self.view == 0 then b:Enable() else b:Disable() end
         end
         local quest = _G[b:GetName() .. "IconQuestTexture"]
         if quest then quest:Hide() end
@@ -482,13 +622,13 @@ end
 
 -- Draws the Blizzard bag bar (DragonUI) as one button: our icon on the backpack, bag slots and fold arrow gone.
 function Inv:SkinBagButtons()
-    if not db().bagButton or not enabled() then return end
+    if not db().bagButton or not (enabled() or pending()) then return end
     for _, slot in ipairs({ CharacterBag0Slot, CharacterBag1Slot, CharacterBag2Slot, CharacterBag3Slot,
         _G.DragonUI_BagsToggle }) do
         if slot then
             if not slot.esteriaHooked then
                 slot.esteriaHooked = true
-                slot:HookScript("OnShow", function(self) if db().bagButton and enabled() then self:Hide() end end)
+                slot:HookScript("OnShow", function(self) if db().bagButton and (enabled() or pending()) then self:Hide() end end)
             end
             if slot:IsShown() then slot:Hide() end
         end
@@ -501,27 +641,29 @@ end
 
 function Inv:InstallHooks()
     local I = self
-    if self.hooked then return end
-    self.hooked = true
     local functions = { ToggleBackpack = "toggle", ToggleAllBags = "toggle", ToggleBag = "toggle",
         OpenBackpack = "open", OpenAllBags = "open", OpenBag = "open",
         CloseBackpack = "close", CloseAllBags = "close", CloseBag = "close" }
-    self.originals = {}
+    self.originals, self.wrappers = self.originals or {}, self.wrappers or {}
     for name, action in pairs(functions) do
         local original = _G[name]
-        if original then
+        -- Re-run to re-wrap: other bag add-ons (DragonUI Bagster) replace these globals after login.
+        if original and original ~= self.wrappers[name] then
             self.originals[name] = original
             local method = action
-            _G[name] = function(bag, ...)
-                if not enabled() or (type(bag) == "number" and (bag < 0 or bag > 4)) then
-                    return original(bag, ...)
-                end
+            self.wrappers[name] = function(bag, ...)
+                if type(bag) == "number" and (bag < 0 or bag > 4) then return original(bag, ...) end
+                if pending() then return end
+                if not enabled() then return original(bag, ...) end
                 if method == "toggle" then I:Toggle()
                 elseif method == "open" then I:Show()
                 else I.frame:Hide() end
             end
+            _G[name] = self.wrappers[name]
         end
     end
+    if self.hooked then return end
+    self.hooked = true
     -- The existing large-bag addon retains its implementation for /inventory legacy.
     if EsteriaSatchel then
         -- Satchel polls its hook installer every half-second. Keep the negotiated inventory
@@ -552,7 +694,7 @@ function Inv:MakeTile(index)
     proxy:Show()
     local name = self.prefix .. "ContainerFrameItem" .. index
     local b = CreateFrame("Button", name, proxy, "ContainerFrameItemButtonTemplate")
-    b.window = I
+    b.window, b.index = I, index
     b:ClearAllPoints(); b:SetAllPoints(proxy); b:SetBackdrop(tileBorder); b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     local slotArt = b:CreateTexture(nil, "BACKGROUND")
     slotArt:SetTexture(ART .. "SlotBackdrop"); slotArt:SetAllPoints(b)
@@ -579,15 +721,29 @@ function Inv:MakeTile(index)
     b:SetScript("OnDragStart", function(tile)
         if not tile.row then return end
         if tile.row.guild then PickupGuildBankItem(tile.row.guild.tab, tile.row.guild.slot); return end
-        if tile.row.digital then
+        if I:ManualActive() then I.dragFrom = { key = rowKey(tile.row), pos = tile.pos, internal = tile.row.digital, tile = tile } end
+        if tile.row.digital and I.dragFrom then
+            -- Stored items can't ride the cursor: a floating icon stands in, and OnDragStop drops it on the tile under the mouse.
+            I:HoldIcon(tile)
+        elseif tile.row.digital then
             I:Request(ACTION.withdraw, tile.row)
             frame.status:SetText(I.view == 1 and "Moving item to your bags."
                 or "Withdrawing item. Drag its carried icon after the inventory updates.")
         else ContainerFrameItemButton_OnDrag(tile) end
     end)
+    b:SetScript("OnDragStop", function()
+        local from = I.dragFrom
+        if not (from and from.internal) then return end
+        I.dragFrom = nil
+        I:DropIcon()
+        SetItemButtonDesaturated(from.tile, false)
+        local target = GetMouseFocus()
+        if target and target.window == I and target.pos and target.pos ~= from.pos then I:MoveTo(from.key, from.pos, target.pos) end
+    end)
     b:SetScript("OnReceiveDrag", function(tile)
         if I.scope == 2 then guildClick(tile, "LeftButton")
-        elseif tile.row and not tile.row.digital then ContainerFrameItemButton_OnClick(tile, "LeftButton") end
+        elseif I.dragFrom or not tile.row or tile.row.digital then I:DropCursor(tile)
+        else ContainerFrameItemButton_OnClick(tile, "LeftButton") end
     end)
     -- Bag templates can inherit hidden="true"; the custom container owns their visibility.
     b:Show(); self.buttons[index] = b
@@ -710,6 +866,11 @@ function Inv:Apply()
             (UIParent:GetWidth() - 35) / self.w))
     end
     self:Render()
+    -- Toggling auto sort changes what the server must send.
+    if self.sortMode ~= settings.autoSort then
+        self.sortMode = settings.autoSort
+        if frame:IsShown() and self.active then self.pageAt = GetTime() + 0.15 end
+    end
 end
 
 function Inv:ResetGeometry()
@@ -762,11 +923,12 @@ function Inv:Create()
             if CloseGuildBankFrame then CloseGuildBankFrame() end
         end
     end)
+    frame:SetScript("OnReceiveDrag", function() I:DropCursor() end)
     frame:EnableMouseWheel(true)
     frame:SetScript("OnMouseWheel", function(_, delta)
         local page = I.page or DEFAULT_PAGE
-        local offset = math.max(0, (I.targetOffset or I.snapshot.offset or 0) - delta * page)
-        if offset < math.max(page, I.snapshot.total or 0) then I:Page(offset) end
+        local offset = math.max(0, (I.targetOffset or I:Offset()) - delta * page)
+        if offset < math.max(page, I:Total()) then I:Page(offset) end
     end)
     local header = frame:CreateTexture(nil, "ARTWORK")
     header:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
@@ -812,6 +974,10 @@ function Inv:Create()
     frame.bar = bar
     frame.percent = text(frame, "GameFontNormalSmall", "0.0% full", "BOTTOMRIGHT", -26, 76)
     frame.sort = button(frame, nil, "Sort: Name", 95, "BOTTOMLEFT", 26, 46, function()
+        -- With auto sort off a click re-sorts once (wiping the layout); Shift-click also changes the order.
+        local once = I.scope ~= 2 and not settings.autoSort
+        if once then wipe(I:LayoutStore()) end
+        if once and not IsShiftKeyDown() then I:Render(); I:Page(0); return end
         for step = 1, #sorts do
             local next = (I.sort + step) % #sorts
             if not settings.hiddenSorts[next + 1] and not (I.scope == 2 and next == 4) then I.sort = next; break end
@@ -829,12 +995,12 @@ function Inv:Create()
             if guildWindow then StaticPopup_Show("GUILDBANK_WITHDRAW") else I:Request(ACTION.merge) end
         end)
     button(frame, nil, "<", 25, "BOTTOMLEFT", 303, 46, function()
-        I:Page(math.max(0, (I.targetOffset or I.snapshot.offset or 0) - I.page))
+        I:Page(math.max(0, (I.targetOffset or I:Offset()) - I.page))
     end)
     frame.page = text(frame, "GameFontDisableSmall", "1 / 1", "BOTTOMLEFT", 334, 54)
     button(frame, nil, ">", 25, "BOTTOMLEFT", 400, 46, function()
-        local offset = (I.targetOffset or I.snapshot.offset or 0) + I.page
-        if offset < (I.snapshot.total or 0) then I:Page(offset) end
+        local offset = (I.targetOffset or I:Offset()) + I.page
+        if offset < I:Total() then I:Page(offset) end
     end)
     frame.expand = button(frame, nil, "Expand Storage", 130, "BOTTOMRIGHT", -26, 46, function()
         if I.scope == 2 then I:GuildExpandPrompt(); return end
@@ -1056,6 +1222,7 @@ local function buildOptions()
         { "contextMenu", "Right-click item menu (Equip, Disenchant, Destroy...)" },
         { "bagButton", "Single bag button (hide DragonUI bag bar)" },
         { "showBankTab", "Bank tab in the bag window" },
+        { "autoSort", "Automatic sorting (off: place items freely)" },
         { "guildBank", "Esteria guild bank window (reload to apply)" } }) do
         check(option[2], 300, y, flag(option[1]))
         y = y - 26
@@ -1066,7 +1233,7 @@ local function buildOptions()
             function(value) db().hiddenCategories[category] = (not value) or nil end)
     end
     for s = 1, #sorts do
-        check("Allow sort: " .. sorts[s], 300, -380 - (s - 1) * 24,
+        check("Allow sort: " .. sorts[s], 300, -410 - (s - 1) * 24,
             function() return not db().hiddenSorts[s] end,
             function(value) db().hiddenSorts[s] = (not value) or nil end)
     end
@@ -1373,6 +1540,7 @@ end
 -- Delivers one server snapshot (scope 0 carried, 1 bank) to the window(s) that show that storage.
 function Inv:Deliver(snapshot, scope)
     self.snaps[scope] = snapshot
+    local asked = self.pending and snapshot.request == self.pending.id and self.pending.action == ACTION.browse
     if self.pending and snapshot.request == self.pending.id then self.pending = nil end
     if scope == 0 then self.active = snapshot.active end
     if self.view == scope then
@@ -1380,7 +1548,7 @@ function Inv:Deliver(snapshot, scope)
         self.targetOffset = nil
         -- A server without variable pages always answers with 20 rows; stop asking for more.
         local rows = #snapshot.rows
-        if rows == DEFAULT_PAGE and self.page > DEFAULT_PAGE and snapshot.offset + rows < snapshot.total then
+        if asked and rows == DEFAULT_PAGE and self.page > DEFAULT_PAGE and snapshot.offset + rows < snapshot.total then
             self.cap = DEFAULT_PAGE
             self:Layout()
         end
@@ -1440,7 +1608,7 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
         if BankFrame and EsteriaInventory_Request then BankFrame:UnregisterEvent("BANKFRAME_OPENED") end
         if EsteriaInventory_Request then
             events:RegisterEvent("ESTERIA_INVENTORY_UPDATE")
-            I.activateAt = GetTime() + 2
+            I.activateAt = GetTime() + 2; I.gateUntil = GetTime() + 10
         else
             I.frame.status:SetText("The matched Esteria native client is required. Normal bags remain available.")
             if BankFrame then BankFrame:RegisterEvent("BANKFRAME_OPENED") end
@@ -1454,7 +1622,7 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2, arg3, arg4)
         I.serverReady, I.nextDiscovery, I.discoveryDeadline, I.activateAt = false, nil, nil, nil
         if I.frame then I.frame:Hide(); Windows[1].frame:Hide(); Windows[2].frame:Hide() end
     elseif event == "PLAYER_ENTERING_WORLD" then
-        if I.frame and EsteriaInventory_Request then I.activateAt = GetTime() + 2 end
+        if I.frame and EsteriaInventory_Request then I.activateAt = GetTime() + 2; I.gateUntil = GetTime() + 10 end
     elseif event == "CHAT_MSG_ADDON" then
         local prefix, message, channel, sender = arg1, arg2, arg3, arg4
         if I.frame and EsteriaInventory_Request and I.discoveryDeadline and GetTime() <= I.discoveryDeadline
@@ -1527,7 +1695,11 @@ end)
 events:SetScript("OnUpdate", function()
     local now = GetTime()
     local I = Windows[0]
-    if I.active and now >= (I.skinAt or 0) then I.skinAt = now + 1; I:SkinBagButtons() end
+    if now >= (I.hookAt or 0) then
+        I.hookAt = now + 0.25
+        I:InstallHooks()
+        if I.active or pending() then hideStockBags(); I:SkinBagButtons() end
+    end
     if I.silenceUntil and now < I.silenceUntil then silenceStockGuildBank() end
     for scope = 0, 2 do
         local w = Windows[scope]
@@ -1545,6 +1717,7 @@ events:SetScript("OnUpdate", function()
         I.activateAt = nil; I:Request(ACTION.activate)
         return
     end
+    if I.dragFrom and not I.dragFrom.internal and not CursorHasItem() then I.dragFrom = nil end
     for scope = 0, 2 do
         local w = Windows[scope]
         if w.searchAt and now >= w.searchAt then
