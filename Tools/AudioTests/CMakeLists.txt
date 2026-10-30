@@ -10,6 +10,8 @@ add_compile_definitions(WIN32 _WINDOWS WOWDECOMP_ARCH_64=1 _CRT_SECURE_NO_WARNIN
 if(MSVC AND WOWDECOMP_CPU_ARM64)
     add_compile_options(/volatile:ms)
 endif()
-add_subdirectory("${REPO}/Engine/Source/SoundEngine" "fmod-source")
+# Reuse the exact FMOD target but do not build the unrelated game SoundEngine
+# wrapper, whose include/dependency graph belongs to the complete client build.
+add_subdirectory("${REPO}/Engine/Source/SoundEngine" "fmod-source" EXCLUDE_FROM_ALL)
 add_executable(fmod_output_device fmod_output_device.cpp)
 target_link_libraries(fmod_output_device PRIVATE fmodex user32)
