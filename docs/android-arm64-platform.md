@@ -590,3 +590,11 @@ application pin or existing Wine cohort, supply missing Retail/Forever bytes,
 qualify normal `CommonMain`, or establish Android/Adreno/world gameplay. Actual
 matched content preparation, offline asset coverage and full game initialization
 remain required before enabling the optional feature in an application runtime.
+
+The first optional full-profile run41125580246 stopped before compilation on
+Windows source-archive normalization. `git archive` inherits Windows
+core.autocrlf independently of the checkout-index command. The producer now
+selects core.autocrlf=false/core.eol=lf for the archive command itself and still
+checks every blob. An actual streaming negative control at5722f018 converts4669
+of4768 files; the fixed command matches all4768 canonical blobs/117,478,262 bytes.
+This fixes source preservation only; the next Windows builds qualify compilation.

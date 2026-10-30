@@ -96,7 +96,7 @@ jobs:
           # The complete immutable Git snapshot includes all existing dependency
           # notices and the source-owned codec adaptations. No game import is read.
           archive=out/'client-source.tar'
-          subprocess.run(['git','archive','--format=tar','--output='+str(archive),revision],check=True)
+          subprocess.run(['git','-c','core.autocrlf=false','-c','core.eol=lf','archive','--format=tar','--output='+str(archive),revision],check=True)
           expected={}
           for row in git('ls-tree','-r','-z',revision).split(b'\0'):
               if not row:continue
@@ -112,7 +112,7 @@ jobs:
                   sha1=hashlib.sha1(('blob '+str(member.size)+'\0').encode());sha256=hashlib.sha256();count=0
                   with bundle.extractfile(member) as incoming:
                       while block:=incoming.read(131072):count+=len(block);sha1.update(block);sha256.update(block)
-                  assert count==member.size and sha1.hexdigest()==expected[member.name]
+                  assert count==member.size and sha1.hexdigest()==expected[member.name], ('noncanonical-source-archive-member',member.name)
                   row=dict(bytes=count,sha256=sha256.hexdigest(),gitBlob=expected[member.name]);seen[member.name]=row
                   assert identity(root/member.name)=={key:row[key] for key in ('bytes','sha256')}
                   bundle.members.clear()
