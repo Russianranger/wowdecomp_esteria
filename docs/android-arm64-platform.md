@@ -361,6 +361,12 @@ network audit: the 64-bit worker array used byte-packed critical sections;
 connection construction notified the network using uninitialized event/state;
 and network shutdown neither closed its raw platform event nor retained shared
 state when a worker failed to join. The original 32-bit worker layout is retained.
-The timeout fixture exercises the retention branch with a real worker and checks
-its explicit release before freeing dependencies. Full compilation and runtime
-execution of this checkpoint are pending.
+The platform loops also service `WAIT_TIMEOUT`: delayed packets and disconnects
+otherwise stall when a worker-ready wake was consumed while the connection was
+excluded from that wait snapshot. Real x64 execution in run `41006100154` at
+`3e9ef3a8bbb25a976b33be6dc3c166d3a2b41c05` passed both connect/disconnect pairs,
+short/extended receives, both queued sends and stream I/O after this correction.
+It then reached the deliberate worker-timeout case and exposed a diagnostic
+error: the pooled `WDataStore` was read before `Finalize()` switched it to reading.
+That call is now present. The first complete loopback receipt and actual Wine
+transport qualification remain pending; successful I/O is not a teardown pass.

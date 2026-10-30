@@ -292,7 +292,7 @@ void StopRetention() {
         WaitForSingleObject(worker.value, 0) == WAIT_TIMEOUT && WaitForSingleObject(main.value, 0) == WAIT_OBJECT_0,
         "timed-out worker must retain its exact network before its own barrier timeout");
     DWORD flags = 0;Require(GetHandleInformation(retained->m_event, &flags) != 0, "retained platform event remains live");
-    { WDataStore pooled;pooled.Put(static_cast<uint32_t>(0x1234abcd));uint32_t value = 0;pooled.Get(value);
+    { WDataStore pooled;pooled.Put(static_cast<uint32_t>(0x1234abcd));pooled.Finalize();uint32_t value = 0;pooled.Get(value);
       Require(pooled.m_size == 4 && value == 0x1234abcd, "pooled buffers remain usable after retained shutdown"); }
     SetEvent(barrier.value);
     Require(WaitForSingleObject(worker.value, timeout) == WAIT_OBJECT_0, "blocked worker exits after explicit release");
