@@ -24,6 +24,7 @@ jobs:
       - run: ctest --test-dir build/portable --output-on-failure
       - run: python3 -m unittest discover -s Tools/RuntimeManifest -v
       - run: python3 -m unittest discover -s Tools/VulkanShaders/tests -v
+      - run: python3 -m unittest discover -s Tools/PlatformTests -p 'test_*.py' -v
   windows:
     strategy:
       fail-fast: false
@@ -82,6 +83,13 @@ jobs:
           cmake -S Tools/VulkanTests -B build/vulkan -G "${{ matrix.generator }}" -A ${{ matrix.arch }} -DVULKAN_TEXTURE_DEVICE_TEST=ON -DVULKAN_PRESENT_DEVICE_TEST=ON
           cmake --build build/vulkan --config Release --parallel 4
           ctest --test-dir build/vulkan -C Release --output-on-failure -R '^texture_registry$'
+      - name: Exercise actual client entry, fibers and strict diagnostic arguments
+        if: ${{ !cancelled() && steps.runtime_manifest.outcome == 'success' }}
+        run: >-
+          python Tools/PlatformTests/verify_client_entry.py
+          --directory "${{ matrix.runtime_dir }}"
+          --architecture "${{ matrix.arch }}"
+          --output build/client-entry
       - name: Preserve diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -102,6 +110,7 @@ jobs:
             build/vulkan/CMakeCache.txt
             build/vulkan/CMakeFiles/CMakeConfigureLog.yaml
             build/vulkan/Testing/Temporary/LastTest.log
+            build/client-entry/evidence/**
             build/client/generated/limits/**
             build/client/Tools/XvidDecoder/Xvid-1.3.7-LICENSE.txt
             ThirdParty/xvidcore/licenses/xvid.txt
@@ -123,7 +132,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Russianranger/esteria_android
-          ref: c2408d55862dfe4e299acf853443ebcedf0d2c94
+          ref: 9ee80cd31b079e6dab8b41de2429030447665cf5
           path: integration
       - name: Download this run's matching native ARM64 binaries
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -152,6 +161,7 @@ jobs:
           --driver "$GITHUB_WORKSPACE/client-artifact/build/platform/Release/test_xvid_adapter.exe"
           --presentation-driver "$GITHUB_WORKSPACE/client-artifact/build/vulkan/Release/presentation_device.exe"
           --texture-driver "$GITHUB_WORKSPACE/client-artifact/build/vulkan/Release/texture_device.exe"
+          --client-entry-check
           --output "$RUNNER_TEMP/wine-codec-evidence"
       - name: Preserve execution evidence, including failed startup
         if: always()

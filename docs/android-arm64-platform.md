@@ -127,11 +127,71 @@ success must be read from the completed job; adding the workflow is not executio
 evidence. Android runtime, full game startup and audio remain unqualified by these
 component fixtures.
 
+The first real native Linux ARM64 Wine codec run passed at client
+`61ad13eb90c9d3c5db2c45d06f6c9da63a04cc81`, integration harness
+`b7dd143f8e646f2d67606742e212c2dc744aee0d`, CI
+[`40985737329`](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40985737329).
+The packaged AA64 DLL decoded the fixture correctly with external networking
+isolated, zero fixture/namespace exit, clean Wine stop and fully drained bounded
+logs. [Evidence artifact 12946983350](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40985737329/artifacts/12946983350)
+contains the receipt (SHA-256
+`9e051e8b589cd2b2533aa1f7d9f9c938cfe2f79b11fba98bb52ae2e432fce562`).
+Wine prefix setup returned success with nonfatal COM/device-service/optional
+architecture diagnostics; this is a codec result, not qualification of every Wine
+service. The game executable was hashed but not started. Both Windows architectures
+also compiled the new graphics fixtures; their actual Wine execution is a separate
+follow-up run, not established by this codec pass.
+
+That follow-up passed at client `08e6d453733cff08f47eeb76dec5211749594753`,
+integration harness `c2408d55862dfe4e299acf853443ebcedf0d2c94`, CI
+[`40986534025`](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40986534025).
+Both native Windows builds and the Linux ARM64 Wine codec/presentation/texture
+fixtures passed. The real software adapter identified itself as llvmpipe LLVM
+15.0.6; 16 cleared frames presented across a 248x158 to 376x222 resize, and all
+30,000 image lifetimes were accounted for, including 20,000 simultaneous images.
+The Khronos validation layer was absent and is explicitly reported unavailable;
+this is not a validation-layer pass. [Evidence artifact 12947682663](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40986534025/artifacts/12947682663)
+contains receipt SHA-256
+`26e27a5437dd2785ed6b8db05b7281b7a45306696c1f58360709052f515cefc0`.
+No game shaders, Adreno hardware, Android presentation or game data were exercised.
+
 `Tools/VulkanTests` now also builds a shader-free clear/present fixture using the
 engine's Win32 surface/device/swapchain and checked acquire/submit/present calls,
 including resize. The older texture fixture checks 30,000 resource allocations
 without presenting. Neither fixture verifies game shaders, pixel readback or
 world rendering; Lavapipe software-driver results are not Adreno performance.
+
+## Actual executable entry diagnostic
+
+The explicit single argument `--esteria-entry-check` runs a bounded diagnostic
+through the **actual** 64-bit executable's `/ENTRY:start`, Storm/CRT setup,
+`WinMain` and newly-created main fiber. It checks initialized CRT floating-point
+control, real allocation/reallocation/preservation/free, a cross-function caught
+C++ exception with destructor unwinding, and return to the caller fiber after
+the main fiber is deleted. It returns before `CommonMain`: no MPQ, game systems,
+audio, renderer, server or login is initialized. Normal invocation retains the
+existing `CommonMain` path.
+
+Success exits 0 and exclusively creates a small sibling `Esteria-entry-check.json`
+with scope `executable-entry-only`. The complete flag with a case variation,
+appended value or additional arguments exits 64; unrelated ordinary client
+arguments retain their existing handling. An existing receipt is preserved and causes exit 66. Select a
+fresh writable binary directory for each attempt. The production crash logger is
+still active; its console may affect stdout, so the receipt plus process exit,
+not a printed marker alone, establishes success.
+
+```powershell
+python Tools/PlatformTests/verify_client_entry.py --directory bin/Win/ARM64 `
+  --architecture ARM64 --output build/client-entry
+```
+
+The Windows matrix verifies native architecture and binary hashes, copies the
+matched EXE/DLL to a private test directory, checks rejected arguments, valid entry
+and repeat-receipt preservation, and retains bounded diagnostics. Its helper tests
+run on Linux without pretending to execute the client. The optional Wine harness
+can exercise the same entry mode separately from codec or graphics tests. Read the
+completed CI results before claiming entry qualification; implementation alone is
+not runtime evidence and does not establish normal game startup.
 
 ## Optional Retail/Forever path
 

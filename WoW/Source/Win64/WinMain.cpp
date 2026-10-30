@@ -5,9 +5,12 @@
 #include <float.h>
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/Client.h"
+#include "WoW/Source/Win64/EntryCheck.h"
 
 // STATIC: 0x00B311E8
 static LPVOID lpFiber;
+static LPVOID entryCheckFiber;
+static bool entryCheckRequested;
 
 static void InvalidParameterHandler(const wchar_t* expression, const wchar_t* function, const wchar_t* file, unsigned int line, uintptr_t reserved) {
 }
@@ -36,6 +39,9 @@ int main() {
     _control87(0x9001F & ~(_MCW_PC | _MCW_IC), _MCW_DN | _MCW_EM | _MCW_RC);
     ReturnFalse();
 
+    if (entryCheckRequested)
+        return esteria::entrycheck::OnMainFiber(lpFiber, entryCheckFiber);
+
     return CommonMain();
 }
 
@@ -47,6 +53,9 @@ static VOID CALLBACK MainFiberProc(LPVOID parameter) {
 
 // OFFSET: 0x0040B7F0
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd) {
+    const auto entryMode = esteria::entrycheck::ParseCommandLine();
+    if (entryMode == esteria::entrycheck::Mode::Invalid) return 64;
+    entryCheckRequested = entryMode == esteria::entrycheck::Mode::Requested;
     lpFiber = ConvertThreadToFiber(nullptr);
 
     if (!lpFiber) {
@@ -60,8 +69,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return -1;
     }
 
+    if (entryCheckRequested) entryCheckFiber = fiber;
     SwitchToFiber(fiber);
     DeleteFiber(fiber);
+
+    if (entryCheckRequested)
+        return esteria::entrycheck::FinishAfterFiberReturn(result, lpFiber);
 
     return result;
 }
