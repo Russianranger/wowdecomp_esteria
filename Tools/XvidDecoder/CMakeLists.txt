@@ -5,12 +5,12 @@ add_library(XvidDecoder SHARED
 
 set_target_properties(XvidDecoder PROPERTIES
     OUTPUT_NAME XvidDecoder
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/Win
+    RUNTIME_OUTPUT_DIRECTORY ${WOWDECOMP_RUNTIME_OUTPUT_DIRECTORY}
 )
 
 foreach (config ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
     string(TOUPPER ${config} config)
-    set_target_properties(XvidDecoder PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${CMAKE_SOURCE_DIR}/bin/Win)
+    set_target_properties(XvidDecoder PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${WOWDECOMP_RUNTIME_OUTPUT_DIRECTORY})
 endforeach ()
 
 target_include_directories(XvidDecoder
@@ -28,7 +28,8 @@ else ()
     target_link_libraries(XvidDecoder PRIVATE ${CMAKE_SOURCE_DIR}/ThirdParty/xvidcore/lib/x64/libxvidcore.lib)
 endif ()
 
-target_compile_options(XvidDecoder
-    PRIVATE
-        $<$<CONFIG:Debug>:/MD>
-)
+# The bundled desktop codec uses the release CRT even in Debug. Source-built
+# ARM64 uses CMake's selected CRT consistently across adapter and codec.
+if (NOT WOWDECOMP_CPU_ARM64)
+    target_compile_options(XvidDecoder PRIVATE $<$<CONFIG:Debug>:/MD>)
+endif ()

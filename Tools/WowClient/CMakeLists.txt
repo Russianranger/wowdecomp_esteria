@@ -23,12 +23,12 @@ add_executable(WowClient WIN32 ${CLIENT_SOURCES} ${CLIENT_PLATFORM_SOURCES} ${CL
 
 set_target_properties(WowClient PROPERTIES
     OUTPUT_NAME ${WOWCLIENT_OUTPUT_NAME}
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/Win
+    RUNTIME_OUTPUT_DIRECTORY ${WOWDECOMP_RUNTIME_OUTPUT_DIRECTORY}
 )
 
 foreach (config ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
     string(TOUPPER ${config} config)
-    set_target_properties(WowClient PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${CMAKE_SOURCE_DIR}/bin/Win)
+    set_target_properties(WowClient PROPERTIES RUNTIME_OUTPUT_DIRECTORY_${config} ${WOWDECOMP_RUNTIME_OUTPUT_DIRECTORY})
 endforeach ()
 
 target_include_directories(WowClient

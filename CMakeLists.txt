@@ -54,6 +54,17 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+# Preserve desktop tooling's output path; ARM64 must not overwrite the x64
+# executable or its ABI-specific movie DLL when both build trees share a checkout.
+if (WOWDECOMP_CPU_ARM64)
+    set(_wow_runtime_default "${CMAKE_SOURCE_DIR}/bin/Win/ARM64")
+else ()
+    set(_wow_runtime_default "${CMAKE_SOURCE_DIR}/bin/Win")
+endif ()
+set(WOWDECOMP_RUNTIME_OUTPUT_DIRECTORY "${_wow_runtime_default}" CACHE PATH
+    "Directory for matching client executables and runtime DLLs")
+unset(_wow_runtime_default)
+
 add_compile_definitions(
     WIN32
     _WINDOWS

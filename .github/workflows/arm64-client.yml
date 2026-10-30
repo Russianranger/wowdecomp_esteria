@@ -22,6 +22,8 @@ jobs:
       - run: cmake -S Tools/PlatformTests -B build/portable -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build/portable --parallel 4
       - run: ctest --test-dir build/portable --output-on-failure
+      - run: python3 -m unittest discover -s Tools/RuntimeManifest -v
+      - run: python3 -m unittest discover -s Tools/VulkanShaders/tests -v
   windows:
     strategy:
       fail-fast: false
@@ -30,9 +32,11 @@ jobs:
           - arch: x64
             runner: windows-2022
             generator: Visual Studio 17 2022
+            runtime_dir: bin/Win
           - arch: ARM64
             runner: windows-11-arm
             generator: Visual Studio 18 2026
+            runtime_dir: bin/Win/ARM64
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
@@ -54,8 +58,18 @@ jobs:
           -DWOWDECOMP_MAX_CLASSES=32
           -DWOWCLIENT_CRASH_LOG=ON
       - name: Compile complete client
+        id: build_client
         if: ${{ !cancelled() && steps.configure_client.outcome == 'success' }}
-        run: cmake --build build/client --config Release --target WowClient --parallel 4 -- /fl /flp:logfile=client-build.log
+        run: cmake --build build/client --config RelWithDebInfo --target WowClient --parallel 4 -- /fl /flp:logfile=client-build.log
+      - name: Validate binary architecture and record runtime provenance
+        if: ${{ !cancelled() && steps.build_client.outcome == 'success' }}
+        run: >-
+          python Tools/RuntimeManifest/generate.py
+          --directory "${{ matrix.runtime_dir }}"
+          --architecture "${{ matrix.arch }}"
+          --revision "${{ github.sha }}"
+          --build-id "${{ github.run_id }}.${{ github.run_attempt }}"
+          --descriptor-manifest build/client/generated/limits/limits.json
       - name: Preserve diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -72,6 +86,12 @@ jobs:
             build/platform/Testing/Temporary/LastTest.log
             build/client/generated/limits/**
             build/client/Tools/XvidDecoder/Xvid-1.3.7-LICENSE.txt
+            ThirdParty/xvidcore/licenses/xvid.txt
+            bin/Win/client-build.json
+            bin/Win/ARM64/client-build.json
             bin/Win/*.exe
             bin/Win/*.dll
             bin/Win/*.pdb
+            bin/Win/ARM64/*.exe
+            bin/Win/ARM64/*.dll
+            bin/Win/ARM64/*.pdb

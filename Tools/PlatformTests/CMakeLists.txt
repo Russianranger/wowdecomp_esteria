@@ -25,4 +25,11 @@ if (WOWDECOMP_TEST_XVID)
     add_executable(test_xvid test_xvid.cpp)
     target_link_libraries(test_xvid PRIVATE XvidPortable)
     add_test(NAME xvid_movie_roundtrip COMMAND test_xvid)
+    # Exercise the same Divx-compatible adapter consumed by CSimpleMovieFrame,
+    # including its pixel layout, skipped-frame output and slot lifecycle.
+    add_executable(test_xvid_adapter test_xvid_adapter.cpp
+        "${CLIENT_ROOT}/Tools/XvidDecoder/XvidDecoder.cpp")
+    target_include_directories(test_xvid_adapter PRIVATE "${CLIENT_ROOT}")
+    target_link_libraries(test_xvid_adapter PRIVATE XvidPortable)
+    add_test(NAME xvid_movie_adapter COMMAND test_xvid_adapter)
 endif ()

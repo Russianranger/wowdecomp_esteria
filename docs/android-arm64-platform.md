@@ -56,6 +56,9 @@ cmake -S . -B build/arm64 -G "Visual Studio 17 2022" -A ARM64 `
 cmake --build build/arm64 --config Release --target WowClient --parallel 4
 ```
 
+ARM64 executable and matching Xvid DLL are staged together under
+`bin/Win/ARM64`; x64 keeps `bin/Win`. Override
+`-DWOWDECOMP_RUNTIME_OUTPUT_DIRECTORY=<absolute-path>` when packaging.
 Use `-A x64` for the reference. ARM64EC is intentionally rejected pending its
 own ABI qualification. First source-codec configuration downloads Xvid; subsequent
 offline builds can provide an extracted official archive using
@@ -69,9 +72,11 @@ cmake --build build/platform --parallel 4
 ctest --test-dir build/platform --output-on-failure
 ```
 
-Local Linux x64 evidence: five CTest cases pass (LZNT1 reference/malformed cases,
+Local Linux x64 evidence: six CTest cases pass (LZNT1 reference/malformed cases,
 target architecture selection, 10,000 vector transforms with misalignment and guard regions on SSE and scalar,
-voice rounding/overflow checks, real MPEG-4 encode/decode roundtrip). LZNT1 also
+voice rounding/overflow checks, real MPEG-4 encode/decode roundtrip, and the actual
+movie adapter with red/blue BGRA orientation, output guards, skipped frames and
+slot lifecycle). LZNT1 also
 passed ASan/UBSan including 20,000 random inputs. Windows adds differential
 comparison against system LZNT1 compression. `.github/workflows/arm64-client.yml`
 builds/tests Linux x64/ARM64 and Windows x64/ARM64, then compiles the full client.
@@ -86,7 +91,18 @@ configuration exposed mixed CRLF/LF hashes in ASECM3 metadata. The generator
 inputs are now pinned to LF and metadata regenerated; only hash comments changed,
 with the generated schema and semantic tables identical. The ARM64 runner also
 exposed upstream Xvid integer macros colliding with the newer MSVC standard
-headers. Full-client compilation remains pending the next CI run.
+headers. CI run `40981311211` passed all five component tests on Windows ARM64 as
+well as Windows x64 and both Linux architectures. The complete x64 client and
+Xvid DLL built successfully. The ARM64 full build reached one remaining x86
+segment-register reference in exception formatting; that now reports ARM64's
+actual fault address. Full ARM64 linking remains pending the next CI run.
+CI stages optimized `RelWithDebInfo` binaries and PDBs for useful crash reports;
+release-only builds remain supported. `Tools/RuntimeManifest/generate.py` verifies
+EXE/DLL machine types, checks generated descriptor limits, and records exact
+source revision, build ID, hashes and direct imports as `client-build.json`.
+Its evidence is explicitly build-only. Seventeen bounded parser/atomic-write
+tests pass locally; the x64 artifact's 36 client and eight codec direct imports
+also agree with independent `objdump` inspection.
 
 ## Remaining qualification
 

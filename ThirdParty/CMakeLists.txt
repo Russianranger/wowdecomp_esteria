@@ -181,8 +181,8 @@ if (WOWDECOMP_ARCH_32)
 
     if (EXISTS ${DIVXDECODER_DLL})
         add_custom_target(DivxDecoderDll
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin/Win
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DIVXDECODER_DLL} ${CMAKE_SOURCE_DIR}/bin/Win/DivxDecoder.dll
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${WOWDECOMP_RUNTIME_OUTPUT_DIRECTORY}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DIVXDECODER_DLL} ${WOWDECOMP_RUNTIME_OUTPUT_DIRECTORY}/DivxDecoder.dll
         )
 
         add_dependencies(DivxDecoder DivxDecoderDll)
