@@ -65,6 +65,7 @@ class ArchiveTests(unittest.TestCase):
         self.data.mkdir()
         self.shader = r'Shaders\Vertex\vs_3_0\Test.bls'
         self.put('common.MPQ', b'common')
+        make_mpq(self.data / 'enUS/locale-enUS.MPQ', [])
 
     def put(self, name, data):
         make_mpq(self.data / name, [(self.shader, data, 0)])
@@ -83,7 +84,7 @@ class ArchiveTests(unittest.TestCase):
         providers = self.providers('enUS')
         self.assertEqual(archive.grab(providers, self.shader)[1], b'custom')
         self.assertEqual([p.name for p in archive.provider_paths(self.data, 'enUS')],
-                         ['common.MPQ', 'patch-enUS.MPQ', 'patch.MPQ', 'patch-enUS-Z.MPQ',
+                         ['locale-enUS.MPQ', 'common.MPQ', 'patch-enUS.MPQ', 'patch.MPQ', 'patch-enUS-Z.MPQ',
                           'patch-Z.MPQ', 'pAtCh-ZzzzzMountStudio-001.mPq'])
 
     def test_base_priority_matches_engine_not_chronological_install(self):
@@ -103,6 +104,7 @@ class ArchiveTests(unittest.TestCase):
         self.assertIn(r'Shaders\Vertex\vs_3_0\Added.bls', archive.entries(providers))
 
     def test_explicit_locale_and_neutral_fallback(self):
+        make_mpq(self.data / 'frFR/locale-frFR.MPQ', [])
         make_mpq(self.data / 'patch-Z.MPQ', [(self.shader, b'neutral', 0),
                                            (self.shader, b'french', 0x40c)])
         self.assertEqual(archive.grab(self.providers('frFR'), self.shader)[1], b'french')
@@ -113,14 +115,71 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(archive.grab(self.providers(), self.shader)[1], b'format1 shader')
 
     def test_ambiguous_locale_rejected_unless_configured(self):
-        (self.data / 'enUS').mkdir()
-        (self.data / 'frFR').mkdir()
+        make_mpq(self.data / 'frFR/locale-frFR.MPQ', [])
         with self.assertRaisesRegex(ValueError, 'multiple locales'):
             archive.provider_paths(self.data)
         wtf = self.data.parent / 'WTF'
         wtf.mkdir()
         (wtf / 'Config.wtf').write_text('SET locale "frFR"\n')
         self.assertEqual(archive.select_locale(self.data), 'frFR')
+
+    def test_missing_requested_locale_keeps_effective_locale_patch_providers(self):
+        self.put('patch.MPQ', b'root-plain')
+        self.put('enUS/patch-enUS-z.MPQ', b'effective-locale-winner')
+        providers = self.providers('deDE')
+        self.assertEqual(archive.select_locale(self.data, 'deDE'), 'enUS')
+        self.assertEqual(archive.grab(providers, self.shader)[1], b'effective-locale-winner')
+        self.assertIn('enUS/patch-enUS-z.MPQ', [name for name, _ in providers])
+
+    def test_fallback_rotation_wraps_from_russian_to_german_and_uses_its_hash_locale(self):
+        make_mpq(self.data / 'deDE/locale-deDE.MPQ', [])
+        make_mpq(self.data / 'patch-Z.MPQ', [(self.shader, b'neutral', 0),
+            (self.shader, b'german', 0x407), (self.shader, b'english', 0x409)])
+        self.assertEqual(archive.select_locale(self.data, 'ruRU'), 'deDE')
+        self.assertEqual(archive.grab(self.providers('ruRU'), self.shader)[1], b'german')
+        (self.data.parent / 'WTF').mkdir()
+        (self.data.parent / 'WTF/Config.wtf').write_text('SET locale "ruRU"\n')
+        self.assertEqual(archive.select_locale(self.data), 'deDE')
+
+    def test_aliases_participate_in_rotation_but_winning_unsupported_alias_refuses(self):
+        self.assertEqual(archive.select_locale(self.data, 'enCN'), 'enUS')
+        self.assertEqual(archive.select_locale(self.data, 'enTW'), 'enUS')
+        make_mpq(self.data / 'enCN/locale-enCN.MPQ', [])
+        for requested in ('enCN', 'zhTW'):
+            with self.subTest(requested=requested), self.assertRaisesRegex(ValueError, 'effective client locale enCN is unsupported'):
+                self.providers(requested)
+        (self.data / 'enCN/locale-enCN.MPQ').unlink()
+        make_mpq(self.data / 'enTW/locale-enTW.MPQ', [])
+        with self.assertRaisesRegex(ValueError, 'effective client locale enTW is unsupported'):
+            self.providers('enCN')
+
+    def test_locale_availability_uses_case_insensitive_regular_archive_not_empty_folder(self):
+        (self.data / 'deDE/locale-deDE.MPQ').mkdir(parents=True)
+        self.assertEqual(archive.select_locale(self.data, 'deDE'), 'enUS')
+        (self.data / 'enUS/locale-enUS.MPQ').rename(self.data / 'enUS/LOCALE-ENUS.mpq')
+        (self.data / 'enUS').rename(self.data / 'ENus')
+        self.assertEqual(archive.select_locale(self.data, 'enus'), 'enUS')
+
+    def test_requested_locale_with_no_available_archive_fails_instead_of_root_only(self):
+        (self.data / 'enUS/locale-enUS.MPQ').unlink()
+        for requested in ('enUS', 'deDE', 'enCN'):
+            with self.subTest(requested=requested), self.assertRaisesRegex(ValueError, 'no available classical locale archive'):
+                self.providers(requested)
+        self.assertIsNone(archive.select_locale(self.data))
+        self.assertEqual(archive.grab(self.providers(), self.shader)[1], b'common')
+
+    def test_symlink_locale_directory_or_archive_refuses_before_provider_reads(self):
+        original = self.data / 'enUS/locale-enUS.MPQ'
+        retained = self.data.parent / 'retained-locale.MPQ'
+        original.rename(retained)
+        original.symlink_to(retained)
+        with self.assertRaisesRegex(ValueError, 'unsafe locale archive'):
+            archive.provider_paths(self.data, 'enUS')
+        original.unlink(); retained.rename(original)
+        (self.data / 'enUS').rename(self.data.parent / 'retained-locale-folder')
+        (self.data / 'enUS').symlink_to(self.data.parent / 'retained-locale-folder', target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, 'unsafe locale directory'):
+            archive.provider_paths(self.data, 'enUS')
 
     def test_corrupt_winner_is_not_silently_skipped(self):
         (self.data / 'patch-Z.MPQ').write_bytes(b'bad archive')

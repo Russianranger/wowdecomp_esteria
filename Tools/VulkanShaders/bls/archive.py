@@ -27,6 +27,10 @@ VS_FALLBACK = ['vs_3_0', 'vs_2_0', 'vs_1_1']
 PS_FALLBACK = ['ps_3_0', 'ps_2_0', 'ps_1_4', 'ps_1_1']
 
 
+# Client.cpp::g_localeNames/CheckAvailableLocales rotation includes aliases
+# which this translator does not yet have a qualified MPQ hash locale for.
+CLIENT_LOCALES = ('deDE', 'enGB', 'enUS', 'esES', 'frFR', 'koKR', 'zhCN', 'zhTW', 'enCN', 'enTW', 'esMX', 'ruRU')
+
 LOCALES = {'enUS': 0x409, 'enGB': 0x809, 'koKR': 0x412, 'frFR': 0x40c,
            'deDE': 0x407, 'zhCN': 0x804, 'zhTW': 0x404, 'esES': 0x40a,
            'esMX': 0x80a, 'ruRU': 0x419}
@@ -43,12 +47,41 @@ def directory_entries(folder):
     return found
 
 
+def available_locale(found, locale):
+    """Match Client.cpp's regular locale-<name>.MPQ availability check.
+
+    Imported paths are case insensitive like Windows; unsafe links and case
+    collisions remain refusals, and no archive payload is read at this stage.
+    """
+    folder = found.get(locale.lower())
+    if folder is None:
+        return False
+    if folder.is_symlink():
+        raise ValueError('unsafe locale directory: %s' % folder)
+    if not folder.is_dir():
+        return False
+    archive = directory_entries(folder).get('locale-%s.mpq' % locale.lower())
+    if archive is None:
+        return False
+    if archive.is_symlink():
+        raise ValueError('unsafe locale archive: %s' % archive)
+    return archive.is_file()
+
+
 def select_locale(datadir, explicit=None):
+    found = directory_entries(datadir)
     if explicit is not None:
-        matches = [name for name in LOCALES if name.lower() == explicit.lower()]
+        matches = [name for name in CLIENT_LOCALES if name.lower() == explicit.lower()]
         if not matches:
             raise ValueError('unsupported locale: %s' % explicit)
-        return matches[0]
+        start = CLIENT_LOCALES.index(matches[0])
+        for offset in range(len(CLIENT_LOCALES)):
+            effective = CLIENT_LOCALES[(start + offset) % len(CLIENT_LOCALES)]
+            if available_locale(found, effective):
+                if effective not in LOCALES:
+                    raise ValueError('effective client locale %s is unsupported by this translator' % effective)
+                return effective
+        raise ValueError('no available classical locale archive for requested locale %s' % matches[0])
     # The installed client's configured locale takes precedence over directory guesses.
     root = Path(datadir).parent
     wtf = directory_entries(root).get('wtf')
@@ -60,12 +93,14 @@ def select_locale(datadir, explicit=None):
                     match = re.fullmatch(r'\s*SET\s+locale\s+"([a-zA-Z]{4})"\s*', line, re.I)
                     if match:
                         return select_locale(datadir, match.group(1))
-    found = directory_entries(datadir)
-    locales = [name for name in LOCALES if name.lower() in found and found[name.lower()].is_dir()]
+    locales = [name for name in CLIENT_LOCALES if available_locale(found, name)]
     if len(locales) > 1:
         raise ValueError('multiple locales: pass --locale matching the client Config.wtf')
-    # A root-only shader extraction remains useful. No locale override is fabricated.
-    return locales[0] if locales else None
+    if locales:
+        return select_locale(datadir, locales[0])
+    # Root-only diagnostic extraction remains useful without an explicit locale.
+    # A requested or configured locale never silently degrades to that profile.
+    return None
 
 
 def provider_paths(datadir, locale=None):

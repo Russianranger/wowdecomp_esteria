@@ -17,7 +17,7 @@ python Tools/VulkanShaders/translate_shaders.py --client "C:\Games\World of Warc
 | Option | |
 | --- | --- |
 | `--client <folder>` | the 3.3.5a (12340) client folder, or its `Data` folder (required) |
-| `--locale <locale>` | active locale; otherwise use `WTF/Config.wtf`, or the single locale directory. Multiple unconfigured locales are rejected |
+| `--locale <locale>` | requested client locale; resolve the actual available locale as the client does. Otherwise use `WTF/Config.wtf`, or one available locale archive; multiple unconfigured locales are rejected |
 | `--glslang <path>` | `glslang.exe` / `glslangValidator.exe`; otherwise `$GLSLANG`, `$VULKAN_SDK`, then `PATH` |
 | `--out <folder>` | the output tree (default: `translated/` in this folder) |
 | `--deploy` | also copy `manifest.txt`, `index.txt` and every `.spv` into `<client>\VulkanShaders\`, removing stale modules |
@@ -31,6 +31,19 @@ this is not chronological expansion/patch order. Plain locale/root patches follo
 named root/locale patches sort by their complete relative path, case-insensitively, with the larger
 path winning. `Patch-ZzzzzCatalogs.MPQ` and `patch-ZzzzzzzzzzzMountStudio-001.MPQ` are not omitted.
 MPQ hash lookup uses the selected locale with neutral fallback.
+
+An explicit or configured locale now follows `Client.cpp::CheckAvailableLocales`:
+start at that locale in the exact twelve-name source rotation, select the first
+regular `locale-<name>.MPQ`, and use that effective locale for both providers and
+MPQ hash lookup. A missing deDE request with only enUS data therefore retains the
+enUS locale patches instead of generating from root archives alone. The rotation
+includes enCN/enTW. Their MPQ hash-locale behavior is not qualified by this reader;
+a winning alias is an explicit unsupported-locale error and is never skipped in
+favor of a different provider stack. An unavailable alias request can still rotate
+to a supported available locale exactly as the client does. Paths use Windows
+case matching; links and collisions are rejected. No available locale is an error
+for explicit/configured requests. Root-only extraction remains a diagnostic mode
+only when no locale is requested or configured.
 
 Unreadable providers, case collisions, symlinks, missing `(listfile)` inventories, unsupported MPQ
 formats and unsupported compression fail before output removal. A folder provider inventories its
