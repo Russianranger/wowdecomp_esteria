@@ -306,6 +306,13 @@ with controlled diagnostics. Updates belong in explicitly initiated launcher set
 Unsupported remote voice-chat initialization/capture and UDP transport are disabled;
 this does not disable the required FMOD game-audio output.
 
+The first full x64 execution in run `41002378940` compiled successfully, then
+caught a missing diagnostic startup dependency: `WowConnection::Init` reads the
+real `OsTimeManager`, which normal startup creates before networking. The
+pre-`CommonMain` diagnostic now creates and destroys that real timer around its
+connection checks. The corrected Windows/Wine execution is still pending;
+this failure does not establish offline qualification.
+
 `--offline-check --local-offline` is a separate no-content diagnostic path for the
 actual executable. The shorter diagnostic spelling fits SCmd's 15-character name
 limit. Its Windows harness tests both offline spellings through actual SCmd,

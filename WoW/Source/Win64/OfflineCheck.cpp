@@ -6,6 +6,7 @@
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Tracker.h"
 #include "Engine/Source/BlizzardCore/Source/System/URL/URL.h"
 #include "Engine/Source/Os/OsURLDownload.h"
+#include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Platform/LocalOffline.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/WowServices/WowConnection.h"
@@ -86,6 +87,12 @@ int Run() {
     Tracker::SendToTracker("fixture", 0, 0, "");
     Tracker::trackerAddress = previousTracker;
     if (GetTickCount64() - began > 1000) return Fail("tracker must not wait on an unstarted request");
+    // Normal startup creates the timer before networking. This diagnostic runs
+    // before CommonMain, so initialize that real dependency explicitly too.
+    struct Timer {
+        Timer() { OsTimeManagerCreate(OsTimeManager::BestAvailable); }
+        ~Timer() { OsTimeManagerDestroy(); }
+    } timer;
     ConnectionResponse response;
     WowConnection connection(&response, nullptr);
     if (WowConnection::s_network != nullptr) return Fail("diagnostic must not initialize a network worker");
