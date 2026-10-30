@@ -166,6 +166,8 @@ WowConnectionNet::WowConnectionNet(int32_t numThreads, void (*threadInit)()) : m
     this->m_numWorkers = numThreads;
     this->m_threadInit = threadInit;
     this->m_stop = false;
+    this->m_event = nullptr;
+    this->m_networkStarted = false;
 }
 
 // VERIFY: 88d38822 manual
@@ -196,16 +198,19 @@ void WowConnectionNet::Remove(WowConnection* connection) {
 
 // VERIFY: eb055e2d manual
 // OFFSET: 0x00469080
-void WowConnectionNet::Stop() {
+bool WowConnectionNet::Stop() {
+    bool joined = true;
     this->m_stop = true;
     this->PlatformStop();
     this->PlatformWorkerReady();
 
     if (this->m_stopEvent.Wait(10000)) {
+        joined = false;
         ConsolePrintf("Main network thread did not send stop event normally");
     }
 
     if (this->m_thread.Wait(5000)) {
+        joined = false;
         ConsolePrintf("Main network thread did not exit normally");
     }
 
@@ -216,6 +221,7 @@ void WowConnectionNet::Stop() {
         this->m_serviceSemaphore.Signal(1);
 
         if (worker.m_thread.Wait(10000)) {
+            joined = false;
             ConsolePrintf("Network thread %d did not exit normally", i);
         } else if (worker.m_connection) {
             InterlockedExchangeAdd(reinterpret_cast<volatile LONG*>(&worker.m_connection->m_serviceCount), -1);
@@ -223,6 +229,7 @@ void WowConnectionNet::Stop() {
             worker.m_connection = nullptr;
         }
     }
+    return joined;
 }
 
 // VERIFY: 91633125 manual

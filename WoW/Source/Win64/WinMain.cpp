@@ -7,12 +7,14 @@
 #include "WoW/Source/Client.h"
 #include "WoW/Source/Win64/EntryCheck.h"
 #include "WoW/Source/Win64/OfflineCheck.h"
+#include "WoW/Source/Win64/LoopbackCheck.h"
 
 // STATIC: 0x00B311E8
 static LPVOID lpFiber;
 static LPVOID entryCheckFiber;
 static bool entryCheckRequested;
 static bool offlineCheckRequested;
+static bool loopbackCheckRequested;
 
 static void InvalidParameterHandler(const wchar_t* expression, const wchar_t* function, const wchar_t* file, unsigned int line, uintptr_t reserved) {
 }
@@ -45,6 +47,8 @@ int main() {
         return esteria::entrycheck::OnMainFiber(lpFiber, entryCheckFiber);
     if (offlineCheckRequested)
         return esteria::offlinecheck::Run();
+    if (loopbackCheckRequested)
+        return esteria::loopbackcheck::Run();
 
     return CommonMain();
 }
@@ -61,6 +65,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (entryMode == esteria::entrycheck::Mode::Invalid) return 64;
     entryCheckRequested = entryMode == esteria::entrycheck::Mode::Requested;
     offlineCheckRequested = entryMode == esteria::entrycheck::Mode::OfflineRequested;
+    loopbackCheckRequested = entryMode == esteria::entrycheck::Mode::LoopbackRequested;
     lpFiber = ConvertThreadToFiber(nullptr);
 
     if (!lpFiber) {

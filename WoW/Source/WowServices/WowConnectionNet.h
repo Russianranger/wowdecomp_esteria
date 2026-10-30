@@ -11,7 +11,11 @@
 
 class WowConnectionNet {
     public:
+// The original 32-bit layout is packed. Win64 CRITICAL_SECTION and handle
+// members require their natural alignment, including every worker array entry.
+#if defined(WOWDECOMP_ARCH_32)
 #pragma pack(push, 1)
+#endif
     struct WORKER {
         /* 0000 */ WowConnectionNet* m_owner;
         /* 0004 */ SThread m_thread;
@@ -25,7 +29,13 @@ class WowConnectionNet {
 
         WORKER();
     };
+#if defined(WOWDECOMP_ARCH_32)
 #pragma pack(pop)
+#else
+    static_assert(alignof(WORKER) >= alignof(SCritSect), "Network worker lock alignment");
+    static_assert(offsetof(WORKER, m_lock) % alignof(SCritSect) == 0, "Network worker lock offset");
+    static_assert(sizeof(WORKER) % alignof(SCritSect) == 0, "Network worker array stride");
+#endif
 
     /* 0000 */ SThread m_thread;
     /* 0004 */ SEvent m_stopEvent;
@@ -61,7 +71,7 @@ class WowConnectionNet {
     void Remove(WowConnection* connection);
     void RunWorker(int32_t index);
     void Service(WowConnection* connection, uint32_t flags);
-    void Stop();
+    bool Stop();
     void SignalWorker(WowConnection* connection, uint32_t flags);
     void Start();
 };

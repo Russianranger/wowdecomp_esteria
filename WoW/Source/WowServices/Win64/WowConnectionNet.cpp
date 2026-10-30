@@ -182,6 +182,8 @@ void WowConnectionNet::PlatformStop() {
 
 // OFFSET: 0x00469730
 void WowConnectionNet::PlatformDestroy() {
+    // Stop has joined the network and worker threads before releasing its event.
+    if (this->m_event) { CloseHandle(this->m_event);this->m_event = nullptr; }
     WSACleanup();
 }
 

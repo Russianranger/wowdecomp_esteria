@@ -336,3 +336,22 @@ Reference sources: [Microsoft ARM64 intrinsics](https://learn.microsoft.com/cpp/
 [MSVC volatile ordering](https://learn.microsoft.com/cpp/build/reference/volatile-volatile-keyword-interpretation),
 [official Xvid source](https://labs.xvid.com/source/),
 [GitHub ARM64 hosted runners](https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/).
+
+## Actual loopback transport qualification
+
+`--loopback-check --local-offline` is a separate pre-`CommonMain` diagnostic. It
+starts the real timer, network manager and two workers, uses an owned ephemeral
+loopback TCP peer, and validates short/extended message framing, partial-header
+state, queued packet output, raw stream I/O, disconnect callbacks and joined
+thread handles. A real blocked-worker stop timeout additionally verifies that
+live network state, event and pooled buffers survive until a successful retry.
+Receipts remain transport-only; no authentication or gameplay is claimed.
+
+This work corrects three source-proven lifecycle defects exposed during the
+network audit: the 64-bit worker array used byte-packed critical sections;
+connection construction notified the network using uninitialized event/state;
+and network shutdown neither closed its raw platform event nor retained shared
+state when a worker failed to join. The original 32-bit worker layout is retained.
+The timeout fixture exercises the retention branch with a real worker and checks
+its explicit release before freeing dependencies. Full compilation and runtime
+execution of this checkpoint are pending.
