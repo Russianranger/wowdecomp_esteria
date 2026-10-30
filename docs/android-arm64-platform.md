@@ -306,6 +306,15 @@ with controlled diagnostics. Updates belong in explicitly initiated launcher set
 Unsupported remote voice-chat initialization/capture and UDP transport are disabled;
 this does not disable the required FMOD game-audio output.
 
+The current game-audio call sites do not select FMOD's separate HTTP transport.
+`SoundEngine.cpp` first opens named sounds through `SFile::OpenEx`, prefixes the
+FMOD name with the numeric sound identifier and supplies all four Storm file
+callbacks. `fmod_systemi.cpp` selects `UserFile` from those callbacks before its
+URL/`NetFile` branch. The sole `SESound::PlaySoundFromMemory` wrapper supplies
+`FMOD_OPENMEMORY`; capture supplies `FMOD_OPENUSER`. This source reachability audit
+covers the current engine call sites, not arbitrary future direct FMOD API calls,
+and is not an OS network sandbox or a full game-data execution qualification.
+
 The first full x64 execution in run `41002378940` compiled successfully, then
 caught a missing diagnostic startup dependency: `WowConnection::Init` reads the
 real `OsTimeManager`, which normal startup creates before networking. The
@@ -404,9 +413,9 @@ The measured ARM64 ZIP is artifact `12957975742`, 45,766,822 bytes, SHA256
 `226904a27efc8ed4831f78ea5708a70a68ded69eded2bba6ea31307c4dc8273b`.
 Both ZIP inventories exclude the private working directory and credential/key
 files. That run also passed the eight previous Linux ARM64 Wine component
-scopes; it did not run Grunt under Wine. The next optional Wine gate stages this
-same commit's hash-verified peer source and runs those real Grunt cases inside
-the owned namespace. Its execution remains pending.
+scopes; it did not run Grunt under Wine. The subsequent `0f931bb` run below
+executes those real Grunt cases under Wine using the matching committed peer
+source inside the owned namespace.
 
 Credentials enter only through an exclusive private sibling file
 `Esteria-auth-input.bin`: 57 bytes containing `ESTAUTH1`, a 16-byte nonce, a
@@ -426,3 +435,27 @@ and world entry are also false. A later paired server gate must use the same
 57-byte input contract with its owned generated account, verify the 40-byte key
 against the actual database and retain server revision/readiness/cleanup proof.
 The ordinary desktop launch path is unchanged.
+
+### Actual ARM64 Wine Grunt execution (0f931bb)
+
+Run [41012726334](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/41012726334)
+passed all five jobs at `0f931bbade36a4b197725d691b8eff7caea7b3be` (build
+`41012726334.1`). Both complete Windows builds passed their actual executable
+checks. The native Linux ARM64 Wine job also executed the same reconstructed
+Grunt/SRP implementation against the exact committed controlled peer: accepted
+proof/private session-key agreement, rejected server proof, rejected nonlocal
+realm, and existing-output preservation. It retained the previous entry, offline,
+transport, codec, Vulkan presentation/texture/engine-pixel, and FMOD PCM gates.
+This is nine scoped component qualifications, not compiled-server login,
+CommonMain startup, Android execution, or gameplay.
+
+The downloaded ARM64 artifact `12958691770` is 45,848,368 bytes, SHA-256
+`1fd6176727065f50a926b45a3d81df1bfd0ea33c330e9fb9131ff30ad170b94e`.
+Its manifest SHA-256 is
+`bccde6ee90f688b27ac9790e2aa29d70d270dad2b324a54e92a1bdf72bd58b40`.
+The downloaded Wine evidence artifact `12958019059` is 142,376,297 bytes,
+SHA-256 `8138278ea05ab9a4638e940d41179c16b1b7732270978904a6a532b80bdca5d6`.
+The combined `wine-codec-evidence/qualification.json` SHA-256 is
+`841d1d989c4e1402a9bf13a5150d1101259b332ed41b2b14a0f371dc0a60b33d`;
+it records all nine scoped flags true, namespace exit 0, and Android/game/server
+flags false. Private credential/session-key files are excluded from public evidence.
