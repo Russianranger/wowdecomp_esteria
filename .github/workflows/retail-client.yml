@@ -1,0 +1,250 @@
+name: Retail-enabled complete reconstructed client
+on:
+  workflow_dispatch:
+  push:
+    branches: [android/arm64-port]
+    paths:
+      - '.github/workflows/retail-client.yml'
+      - 'cmake/RetailAssets.cmake'
+      - 'Engine/**'
+      - 'WoW/**'
+      - 'Tools/RetailAssets/**'
+      - 'CMakeLists.txt'
+permissions:
+  contents: read
+concurrency:
+  group: retail-complete-client-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    name: Retail-enabled full client (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2022
+            generator: Visual Studio 17 2022
+          - arch: ARM64
+            runner: windows-11-arm
+            generator: Visual Studio 18 2026
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Prepare immutable client CascLib and codec source companions before compilation
+        id: sources
+        shell: python
+        run: |
+          from pathlib import Path,PurePosixPath
+          import hashlib,json,os,re,stat,subprocess,tarfile,urllib.request,zipfile
+          root=Path.cwd();out=root/'out/retail-sources';out.mkdir(parents=True)
+          revision=os.environ['GITHUB_SHA'];assert re.fullmatch('[0-9a-f]{40}',revision)
+          git=lambda *args:subprocess.check_output(['git',*args])
+          assert git('rev-parse','HEAD').decode().strip()==revision
+          subprocess.run(['git','diff','--exit-code','--quiet'],check=True)
+          subprocess.run(['git','diff','--cached','--exit-code','--quiet'],check=True)
+          # Fresh CI checkout only: use canonical LF blobs for exact source-byte
+          # comparison rather than an implicit Windows checkout conversion.
+          subprocess.run(['git','-c','core.autocrlf=false','-c','core.eol=lf','checkout-index','--all','--force'],check=True)
+          def identity(path):
+              digest=hashlib.sha256();count=0
+              with path.open('rb') as stream:
+                  while block:=stream.read(131072):count+=len(block);digest.update(block)
+              assert count==path.stat().st_size
+              return dict(bytes=count,sha256=digest.hexdigest())
+          def safe(name):
+              p=PurePosixPath(name)
+              assert not p.is_absolute() and str(p)==name and all(x not in ('','..','.') for x in p.parts)
+              assert chr(92) not in name and ':' not in name and all(32<=ord(x)<127 for x in name)
+          def download(url,path,expected,maximum):
+              digest=hashlib.sha256();count=0
+              with urllib.request.urlopen(url,timeout=180) as incoming,path.open('xb') as target:
+                  while block:=incoming.read(131072):
+                      count+=len(block);assert count<=maximum;digest.update(block);target.write(block)
+              assert count>0 and digest.hexdigest()==expected
+              return identity(path)
+          dependencies=out/'dependencies';dependencies.mkdir()
+          casc_revision='38a34665624b8775bb875274b36191b21c38d97b'
+          casc_zip=dependencies/'CascLib-38a34665624b8775bb875274b36191b21c38d97b.zip'
+          casc_pin=download('https://codeload.github.com/ladislav-zezula/CascLib/zip/'+casc_revision,casc_zip,
+              '1b59deebc82a4eb75c6e9ef463a7644b22231a4b3b0657ad9afe0dd5205fee3f',64<<20)
+          casc_tree=out/'casc-source';casc_tree.mkdir();casc_files={};total=0
+          with zipfile.ZipFile(casc_zip) as archive:
+              assert 0<len(archive.infolist())<=10000
+              for item in archive.infolist():
+                  name=item.filename.rstrip('/');safe(name)
+                  assert name.split('/')[0]=='CascLib-'+casc_revision
+                  assert not item.flag_bits&1
+                  mode=stat.S_IFMT(item.external_attr>>16)
+                  assert mode in (0,stat.S_IFDIR,stat.S_IFREG)
+                  if item.is_dir():continue
+                  assert name not in casc_files and 0<=item.file_size<=128<<20
+                  total+=item.file_size;assert total<=256<<20
+                  target=casc_tree/name;target.parent.mkdir(parents=True,exist_ok=True)
+                  with archive.open(item) as incoming,target.open('xb') as copied:
+                      while block:=incoming.read(131072):copied.write(block)
+                  assert target.stat().st_size==item.file_size
+                  casc_files[name]=identity(target)
+          casc_source=casc_tree/('CascLib-'+casc_revision)
+          assert (casc_source/'CMakeLists.txt').is_file() and (casc_source/'LICENSE').is_file()
+          xvid=dependencies/'xvidcore-1.3.7.tar.gz'
+          xvid_pin=download('https://downloads.xvid.com/downloads/xvidcore-1.3.7.tar.gz',xvid,
+              'abbdcbd39555691dd1c9b4d08f0a031376a3b211652c0d8b3b8aa9be1303ce2d',16<<20)
+          # The complete immutable Git snapshot includes all existing dependency
+          # notices and the source-owned codec adaptations. No game import is read.
+          archive=out/'client-source.tar'
+          subprocess.run(['git','archive','--format=tar','--output='+str(archive),revision],check=True)
+          expected={}
+          for row in git('ls-tree','-r','-z',revision).split(b'\0'):
+              if not row:continue
+              descriptor,name=row.split(b'\t',1);mode,kind,blob=descriptor.decode().split()
+              assert kind=='blob' and mode in ('100644','100755')
+              name=name.decode('utf-8');safe(name);assert name not in expected;expected[name]=blob
+          seen={};total=0
+          with tarfile.open(archive,'r|') as bundle:
+              for member in bundle:
+                  if member.isdir():bundle.members.clear();continue
+                  safe(member.name);assert member.isfile() and member.name in expected and member.name not in seen
+                  assert 0<=member.size<=128<<20;total+=member.size;assert total<=512<<20
+                  sha1=hashlib.sha1(('blob '+str(member.size)+'\0').encode());sha256=hashlib.sha256();count=0
+                  with bundle.extractfile(member) as incoming:
+                      while block:=incoming.read(131072):count+=len(block);sha1.update(block);sha256.update(block)
+                  assert count==member.size and sha1.hexdigest()==expected[member.name]
+                  row=dict(bytes=count,sha256=sha256.hexdigest(),gitBlob=expected[member.name]);seen[member.name]=row
+                  assert identity(root/member.name)=={key:row[key] for key in ('bytes','sha256')}
+                  bundle.members.clear()
+          assert set(seen)==set(expected)
+          proof=dict(formatVersion=1,scope='complete-retail-enabled-client-source-inputs-only',sourceRevision=revision,
+              clientSourceArchive=identity(archive),clientSourceFiles=seen,cascRevision=casc_revision,
+              originalCascSourceZip=casc_pin,cascSourceFiles=casc_files,cascSourceFileBytes=sum(x['bytes'] for x in casc_files.values()),
+              originalXvid137SourceArchive=xvid_pin,canonicalClientGitAndCheckoutBytesVerified=True,
+              allCascSourceZipMembersReadBack=True,allOriginalNoticesPreserved=True,
+              fullClientCompiled=False,retailAssetsExecuted=False,normalClientInitialized=False,
+              compiledServerQualified=False,androidRuntimeQualified=False,worldQualified=False,gameplayQualified=False)
+          (out/'source-inputs.json').write_text(json.dumps(proof,sort_keys=True,indent=2)+'\n')
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as environment:
+              environment.write('CASC_SOURCE='+str(casc_source)+'\n')
+      - name: Configure full matched client with optional Engine and WoW paths enabled
+        id: configure
+        run: >-
+          cmake -S . -B build/retail-client -G "${{ matrix.generator }}" -A ${{ matrix.arch }}
+          -DWOWDECOMP_RETAIL_ASSETS=ON
+          -DWOWDECOMP_CASCLIB_SOURCE_DIR="$env:CASC_SOURCE"
+          -DWOWDECOMP_EXTENDED_LIMITS=ON
+          -DWOWDECOMP_CONTAINER_SLOTS=254
+          -DWOWDECOMP_QUEST_LOG_SLOTS=25
+          -DWOWDECOMP_MAX_CLASSES=32
+          -DWOWCLIENT_CRASH_LOG=ON
+          -DWOWDECOMP_RUNTIME_OUTPUT_DIRECTORY="${{ github.workspace }}/out/retail-runtime/${{ matrix.arch }}"
+      - name: Compile complete Retail-enabled client
+        id: compile
+        run: >-
+          cmake --build build/retail-client --config RelWithDebInfo --target WowClient --parallel 4 --
+          /fl /flp:logfile=retail-client-build.log
+      - name: Compile and execute real Retail CascLib source tests from the same full configuration
+        id: retail_tests
+        run: |
+          cmake --build build/retail-client --config RelWithDebInfo --target RetailAssetTests --parallel 2 -- /fl /flp:logfile=retail-tests-build.log
+          ctest --test-dir build/retail-client -C RelWithDebInfo --output-on-failure -R '^retail-assets$'
+      - name: Validate PE architecture exact source revision and matched protocol limits
+        id: manifest
+        run: >-
+          python Tools/RuntimeManifest/generate.py
+          --directory "out/retail-runtime/${{ matrix.arch }}"
+          --architecture "${{ matrix.arch }}"
+          --revision "${{ github.sha }}"
+          --build-id "${{ github.run_id }}.${{ github.run_attempt }}.retail-on"
+          --descriptor-manifest build/retail-client/generated/limits/limits.json
+      - name: Exercise actual optional-enabled executable entry offline transport and synthetic Grunt
+        id: entry
+        run: >-
+          python Tools/PlatformTests/verify_client_auth.py
+          --directory "out/retail-runtime/${{ matrix.arch }}"
+          --architecture "${{ matrix.arch }}"
+          --output build/retail-entry
+      - name: Recheck every original source byte and record the explicit optional profile
+        id: source_readback
+        if: always() && steps.sources.outcome == 'success'
+        shell: python
+        env:
+          OPTIONAL_ARCH: ${{ matrix.arch }}
+          OPTIONAL_COMPILE: ${{ steps.compile.outcome }}
+          OPTIONAL_RETAIL_TESTS: ${{ steps.retail_tests.outcome }}
+          OPTIONAL_MANIFEST: ${{ steps.manifest.outcome }}
+          OPTIONAL_ENTRY: ${{ steps.entry.outcome }}
+        run: |
+          from pathlib import Path
+          import hashlib,json,os,re,subprocess
+          root=Path.cwd();source=root/'out/retail-sources';proof=json.loads((source/'source-inputs.json').read_bytes())
+          def identity(path):
+              assert path.is_file() and not path.is_symlink()
+              digest=hashlib.sha256();count=0
+              with path.open('rb') as stream:
+                  while block:=stream.read(131072):count+=len(block);digest.update(block)
+              assert count==path.stat().st_size
+              return dict(bytes=count,sha256=digest.hexdigest())
+          for name,row in proof['clientSourceFiles'].items():
+              assert identity(root/name)=={key:row[key] for key in ('bytes','sha256')}
+          for name,row in proof['cascSourceFiles'].items():assert identity(source/'casc-source'/name)==row
+          assert {p.relative_to(source/'casc-source').as_posix() for p in (source/'casc-source').rglob('*') if p.is_file()}==set(proof['cascSourceFiles'])
+          assert identity(source/'client-source.tar')==proof['clientSourceArchive']
+          assert identity(source/'dependencies/CascLib-38a34665624b8775bb875274b36191b21c38d97b.zip')==proof['originalCascSourceZip']
+          assert identity(source/'dependencies/xvidcore-1.3.7.tar.gz')==proof['originalXvid137SourceArchive']
+          subprocess.run(['git','diff','--exit-code','--quiet'],check=True)
+          cache=root/'build/retail-client/CMakeCache.txt';flags={}
+          if cache.is_file():
+              for name,expected in {'WOWDECOMP_RETAIL_ASSETS':'ON','WOWDECOMP_EXTENDED_LIMITS':'ON',
+                      'WOWDECOMP_CONTAINER_SLOTS':'254','WOWDECOMP_QUEST_LOG_SLOTS':'25',
+                      'WOWDECOMP_MAX_CLASSES':'32','WOWCLIENT_CRASH_LOG':'ON'}.items():
+                  values=re.findall('^'+name+r':[^=]+=(.*)$',cache.read_text(),re.M)
+                  assert values==[expected];flags[name]=expected
+              selected=re.findall(r'^WOWDECOMP_CASCLIB_SOURCE_DIR:PATH=(.*)$',cache.read_text(),re.M)
+              assert len(selected)==1 and Path(selected[0]).resolve()==Path(os.environ['CASC_SOURCE']).resolve()
+          else:assert os.environ['OPTIONAL_COMPILE']!='success'
+          report=dict(formatVersion=1,scope='retail-enabled-full-client-reference-build-and-source-readback',
+              sourceRevision=os.environ['GITHUB_SHA'],architecture=os.environ['OPTIONAL_ARCH'],configurationFlags=flags,
+              sourceCompanion=identity(source/'source-inputs.json'),allClientAndCascSourceBytesUnchanged=True,
+              allCorrespondingSourceCompanionsRetained=True,retailAssetsEnabled=True,
+              fullClientCompiled=os.environ['OPTIONAL_COMPILE']=='success',realRetailSourceTestsPassed=os.environ['OPTIONAL_RETAIL_TESTS']=='success',
+              peAndProtocolManifestPassed=os.environ['OPTIONAL_MANIFEST']=='success',assetFreeEntryAndSyntheticGruntPassed=os.environ['OPTIONAL_ENTRY']=='success',
+              x64ExistingPrebuiltCodecRebuildEquivalent=False,normalClientInitialized=False,realRetailContentQualified=False,
+              compiledServerQualified=False,androidRuntimeQualified=False,worldQualified=False,gameplayQualified=False)
+          target=root/'out/retail-evidence';target.mkdir(parents=True,exist_ok=True)
+          (target/'retail-profile.json').write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+      - name: Preserve bounded optional-build diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: retail-enabled-${{ matrix.arch }}-evidence-${{ github.sha }}
+          path: |
+            out/retail-evidence/
+            retail-client-build.log
+            retail-tests-build.log
+            build/retail-client/CMakeCache.txt
+            build/retail-client/CMakeFiles/CMakeConfigureLog.yaml
+            build/retail-client/Testing/Temporary/LastTest.log
+            build/retail-client/generated/limits/limits.json
+            build/retail-entry/evidence/
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Preserve complete canonical client CascLib codec sources and original notices
+        if: always() && steps.sources.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: retail-enabled-${{ matrix.arch }}-complete-sources-${{ github.sha }}
+          path: out/retail-sources/
+          include-hidden-files: true
+          compression-level: 6
+          retention-days: 30
+          if-no-files-found: error
+      - name: Preserve separately identified optional binaries and PDBs
+        if: steps.manifest.outcome == 'success' && steps.source_readback.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: retail-enabled-client-${{ matrix.arch }}-${{ github.sha }}
+          path: out/retail-runtime/${{ matrix.arch }}/
+          retention-days: 14
+          if-no-files-found: error

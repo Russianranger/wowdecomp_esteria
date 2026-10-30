@@ -555,3 +555,38 @@ x64/ARM64. Those new CI executions, complete optional-client compilation, actual
 user assets, Android and world gameplay remain separate gates. The primary
 client's existing `WOWDECOMP_RETAIL_ASSETS=OFF` default is unchanged; no application
 source pin or packaged executable is advanced by this source checkpoint alone.
+
+## Separate full Retail-enabled integration build
+
+`.github/workflows/retail-client.yml` adds a separate Windows ARM64/x64 matrix
+for the full `WowClient` target with `WOWDECOMP_RETAIL_ASSETS=ON`, matched
+254-container/25-quest/32-class limits and crash diagnostics. The existing
+default-OFF reference matrix and application runtime selection remain unchanged.
+The new matrix originates at client671db06; its actual full workflow commit is
+recorded in every manifest and source companion.
+
+This covers optional integration branches in the actual Engine and WoW targets,
+including `CharacterComponent`, `RetailRace` and `Unit_C`, beyond the standalone
+Retail test library. It also builds/runs the real Retail/CascLib tests from the
+same full configuration, verifies actual PE architecture and generated protocol
+limits, and invokes the existing asset-free entry/offline/transport/controlled
+Grunt checks. Workflow implementation is not a successful compile or execution
+receipt; inspect its actual completed jobs before recording a result.
+
+Before configuring, the workflow downloads and SHA256-verifies the complete
+CascLib38a34665624b8775bb875274b36191b21c38d97b archive and supplies that exact
+extracted source path to CMake. It retains the original archive, every source
+file and original notices, plus a canonical complete client Git snapshot and
+the official pinned Xvid1.3.7 source archive. A fresh CI checkout is normalized
+to canonical Git LF bytes, then checked against its Git blobs. Post-build
+readback verifies every client/CascLib source byte and all original archive
+identities. Sources stay in a separate companion artifact alongside the optional
+binaries/PDBs, rather than being mistaken for game assets or APK contents.
+The existing x64 prebuilt codec is preserved; retaining official codec sources
+does not assert that this prebuilt library has been reproduced from them.
+
+These optional binaries are separate reference inputs. They do not advance the
+application pin or existing Wine cohort, supply missing Retail/Forever bytes,
+qualify normal `CommonMain`, or establish Android/Adreno/world gameplay. Actual
+matched content preparation, offline asset coverage and full game initialization
+remain required before enabling the optional feature in an application runtime.
