@@ -11,7 +11,9 @@
 #include "Engine/Source/Os/Error.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
+#if defined(WOWDECOMP_HAS_NVAPI)
 #include "ThirdParty/nvapi/nvapi.h"
+#endif
 
 typedef IDirect3D9* (WINAPI* Direct3DCreate9Proc)(UINT sdkVersion);
 
@@ -2552,6 +2554,7 @@ static void DefaultTexUserFunc(EGxTexCommand command, uint32_t width, uint32_t h
 // VERIFY: ee744ef0 manual
 // OFFSET: 0x0068F3D0
 int32_t CGxDeviceD3d::ICreateD3dDevice(const CGxFormat& format) {
+#if defined(WOWDECOMP_HAS_NVAPI)
     if (NvAPI_Initialize() == NVAPI_OK) {
         this->m_d3dStereoEnabled = 0;
         this->m_d3dNVAPI = 1;
@@ -2591,6 +2594,7 @@ int32_t CGxDeviceD3d::ICreateD3dDevice(const CGxFormat& format) {
                 break;
         }
     }
+#endif
 
     bool hwTnL = format.m_hwTnL;
 
@@ -2610,6 +2614,7 @@ int32_t CGxDeviceD3d::ICreateD3dDevice(const CGxFormat& format) {
         return 0;
     }
 
+#if defined(WOWDECOMP_HAS_NVAPI)
     if (this->m_d3dNVAPI) {
         NvU8 stereoEnabled = 0;
 
@@ -2623,6 +2628,7 @@ int32_t CGxDeviceD3d::ICreateD3dDevice(const CGxFormat& format) {
             }
         }
     }
+#endif
 
     this->m_devAdapterFormat = d3dpp.BackBufferFormat;
     this->m_context = 1;
@@ -2778,16 +2784,19 @@ void CGxDeviceD3d::IDestroyD3d() {
         this->m_texture3B58 = nullptr;
     }
 
+#if defined(WOWDECOMP_HAS_NVAPI)
     if (this->m_d3dStereoHandle) {
         NvAPI_Stereo_DestroyHandle(static_cast<StereoHandle>(this->m_d3dStereoHandle));
         this->m_d3dStereoHandle = nullptr;
     }
+#endif
 
     if (this->m_d3dDevice) {
         this->m_d3dDevice->Release();
         this->m_d3dDevice = nullptr;
     }
 
+#if defined(WOWDECOMP_HAS_NVAPI)
     if (this->m_d3dNVAPI) {
         NvU8 stereoEnabled;
 
@@ -2801,6 +2810,7 @@ void CGxDeviceD3d::IDestroyD3d() {
             }
         }
     }
+#endif
 }
 
 // VERIFY: fc602985 manual
@@ -3265,6 +3275,7 @@ void CGxDeviceD3d::ScenePresent() {
             this->m_context = 0;
         }
 
+#if defined(WOWDECOMP_HAS_NVAPI)
         if (this->m_d3dStereoHandle && this->m_d3dStereoDirty) {
             this->m_d3dStereoDirty = 0;
 
@@ -3274,6 +3285,7 @@ void CGxDeviceD3d::ScenePresent() {
             status = NvAPI_Stereo_SetSeparation(static_cast<StereoHandle>(this->m_d3dStereoHandle), this->m_d3dStereoSeparation);
             CGxDevice::Log("NvAPI_Stereo_SetSeparation: status=%d separation=%g", status, this->m_d3dStereoSeparation);
         }
+#endif
     }
 
     this->ISceneBegin();

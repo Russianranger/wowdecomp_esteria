@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.24)
 
 if (${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     message(FATAL_ERROR
@@ -13,6 +13,7 @@ project(wowdecomp CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+include(cmake/TargetArchitecture.cmake)
 include(cmake/ExtendedLimits.cmake)
 
 option(WOWDECOMP_RETAIL_ASSETS "Read Retail assets from local CASC or Blizzard's CDN" OFF)

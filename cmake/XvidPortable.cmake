@@ -1,0 +1,77 @@
+# Xvid 1.3.7, official release archive. All decoder functionality uses the
+# upstream generic C kernels; no x86 assembly or binary import library.
+include(FetchContent)
+FetchContent_Declare(xvid137
+    URL https://downloads.xvid.com/downloads/xvidcore-1.3.7.tar.gz
+    URL_HASH SHA256=abbdcbd39555691dd1c9b4d08f0a031376a3b211652c0d8b3b8aa9be1303ce2d
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(xvid137)
+# Patch a build-tree copy, never an override/source checkout supplied by users.
+set(_xvid_source "${CMAKE_CURRENT_BINARY_DIR}/xvid-portable")
+file(COPY "${xvid137_SOURCE_DIR}/src/" DESTINATION "${_xvid_source}")
+file(READ "${_xvid_source}/portab.h" _portab)
+# Upstream writes two pointer-sized affinity masks into DWORDs on Win64.
+string(REPLACE "DWORD p_aff, s_aff, r = 0;" "DWORD_PTR p_aff = 0, s_aff = 0; DWORD r = 0;" _portab "${_portab}")
+file(WRITE "${_xvid_source}/portab.h" "${_portab}")
+set(_xvid_sources
+    decoder.c
+    encoder.c
+    xvid.c
+    bitstream/bitstream.c
+    bitstream/cbp.c
+    bitstream/mbcoding.c
+    dct/fdct.c
+    dct/idct.c
+    dct/simple_idct.c
+    image/colorspace.c
+    image/image.c
+    image/interpolate8x8.c
+    image/font.c
+    image/postprocessing.c
+    image/qpel.c
+    image/reduced.c
+    motion/estimation_bvop.c
+    motion/estimation_common.c
+    motion/estimation_gmc.c
+    motion/estimation_pvop.c
+    motion/estimation_rd_based.c
+    motion/estimation_rd_based_bvop.c
+    motion/gmc.c
+    motion/motion_comp.c
+    motion/vop_type_decision.c
+    motion/sad.c
+    prediction/mbprediction.c
+    plugins/plugin_single.c
+    plugins/plugin_2pass1.c
+    plugins/plugin_2pass2.c
+    plugins/plugin_lumimasking.c
+    plugins/plugin_dump.c
+    plugins/plugin_psnr.c
+    plugins/plugin_ssim.c
+    plugins/plugin_psnrhvsm.c
+    quant/quant_h263.c
+    quant/quant_matrix.c
+    quant/quant_mpeg.c
+    utils/emms.c
+    utils/mbtransquant.c
+    utils/mem_align.c
+    utils/mem_transfer.c
+    utils/timer.c
+)
+list(TRANSFORM _xvid_sources PREPEND "${_xvid_source}/")
+add_library(XvidPortable STATIC ${_xvid_sources})
+target_compile_definitions(XvidPortable PRIVATE ARCH_IS_GENERIC ARCH_IS_64BIT)
+target_include_directories(XvidPortable PUBLIC "${_xvid_source}")
+set_target_properties(XvidPortable PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if (WIN32)
+    target_compile_definitions(XvidPortable PRIVATE WIN32)
+else ()
+    find_package(Threads REQUIRED)
+    target_link_libraries(XvidPortable PUBLIC Threads::Threads m)
+endif ()
+# Package this alongside source/binaries; original bundled Xvid notices remain.
+configure_file("${xvid137_SOURCE_DIR}/LICENSE" "${CMAKE_CURRENT_BINARY_DIR}/Xvid-1.3.7-LICENSE.txt" COPYONLY)
+unset(_xvid_sources)
+unset(_portab)
+unset(_xvid_source)

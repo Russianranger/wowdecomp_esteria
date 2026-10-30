@@ -51,8 +51,10 @@ target_include_directories(lzma
         ${CMAKE_CURRENT_SOURCE_DIR}/lzma
 )
 
-if (WIN32)
+if (WIN32 AND WOWDECOMP_CPU_X86)
     add_library(nvapi INTERFACE)
+
+    target_compile_definitions(nvapi INTERFACE WOWDECOMP_HAS_NVAPI=1)
 
     target_include_directories(nvapi
         INTERFACE

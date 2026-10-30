@@ -19,6 +19,23 @@
 #define LOG_PTR "%016llX"
 #define LOG_PTR_EXTRA 8
 
+// CONTEXT is CPU-specific even though both supported targets use Win64 APIs.
+// ARM64 Windows preserves a chain of {previous FP, saved LR} frame records:
+// https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions
+#if defined(_M_ARM64) || defined(__aarch64__)
+static constexpr DWORD s_stackMachine = IMAGE_FILE_MACHINE_ARM64;
+static constexpr DWORD_PTR s_frameAlignmentMask = 15;
+static DWORD_PTR sContextPc(const CONTEXT& context) { return context.Pc; }
+static DWORD_PTR sContextFp(const CONTEXT& context) { return context.Fp; }
+static DWORD_PTR sContextSp(const CONTEXT& context) { return context.Sp; }
+#else
+static constexpr DWORD s_stackMachine = IMAGE_FILE_MACHINE_AMD64;
+static constexpr DWORD_PTR s_frameAlignmentMask = 7;
+static DWORD_PTR sContextPc(const CONTEXT& context) { return context.Rip; }
+static DWORD_PTR sContextFp(const CONTEXT& context) { return context.Rbp; }
+static DWORD_PTR sContextSp(const CONTEXT& context) { return context.Rsp; }
+#endif
+
 class CDbgHelpDll {
     public:
     /* 0000 */ HINSTANCE hInstance;
@@ -273,7 +290,7 @@ static void sLogMemory(uint32_t logOptions, void (*logLineProc)(void*, const cha
     sLogHeader(logLineProc, logLineProcParam, "Memory Dump");
 
     if (logOptions & LOG_OPTION_CODE) {
-        logLineProc(logLineProcParam, "Code: %d bytes starting at (EIP = " LOG_PTR ")", 16, reinterpret_cast<uintptr_t>(instructionPointer));
+        logLineProc(logLineProcParam, "Code: %d bytes starting at (PC = " LOG_PTR ")", 16, reinterpret_cast<uintptr_t>(instructionPointer));
         logLineProc(logLineProcParam, "");
         sLogMemoryHexDump(logLineProc, logLineProcParam, instructionPointer, 16, 0);
         logLineProc(logLineProcParam, "");
@@ -281,7 +298,7 @@ static void sLogMemory(uint32_t logOptions, void (*logLineProc)(void*, const cha
     }
 
     if (logOptions & LOG_OPTION_STACK) {
-        logLineProc(logLineProcParam, "Stack: %d bytes starting at (ESP = " LOG_PTR ")", 1024, reinterpret_cast<uintptr_t>(stackPointer));
+        logLineProc(logLineProcParam, "Stack: %d bytes starting at (SP = " LOG_PTR ")", 1024, reinterpret_cast<uintptr_t>(stackPointer));
         logLineProc(logLineProcParam, "");
         sLogMemoryHexDump(logLineProc, logLineProcParam, stackPointer, 1024, 1);
         logLineProc(logLineProcParam, "");
@@ -560,10 +577,8 @@ static void sEnumerateThreads(DWORD* threads, uint32_t maxThreads, uint32_t* num
 
 // OFFSET: 0x0077D7C0
 static void sLogDbgHelpStackFrames(STACKFRAME* stackFrame, HANDLE process, HANDLE thread, uint32_t logOptions, void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, CONTEXT* context, uint32_t stackFramesToSkip) {
-    const DWORD machineType = IMAGE_FILE_MACHINE_AMD64;
-
     for (uint32_t frame = 0; frame < 100; ++frame) {
-        if (!sgDbgHelpDll.StackWalk(machineType, process, thread, stackFrame, context, nullptr, sgDbgHelpDll.SymFunctionTableAccess, sgDbgHelpDll.SymGetModuleBase, nullptr)) {
+        if (!sgDbgHelpDll.StackWalk(s_stackMachine, process, thread, stackFrame, context, nullptr, sgDbgHelpDll.SymFunctionTableAccess, sgDbgHelpDll.SymGetModuleBase, nullptr)) {
             sLogVerboseMessage(logOptions, logLineProc, logLineProcParam, "**** StackWalk() returned FALSE, error: %d", GetLastError());
             return;
         }
@@ -577,7 +592,7 @@ static void sLogDbgHelpStackFrames(STACKFRAME* stackFrame, HANDLE process, HANDL
 }
 
 // OFFSET: 0x0077D860
-static void sLogDbgHelpStackTrace(uint32_t logOptions, void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, DWORD_PTR registerEip, DWORD_PTR registerEbp, DWORD_PTR registerEsp, uint32_t stackFramesToSkip) {
+static void sLogDbgHelpStackTrace(uint32_t logOptions, void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, const CONTEXT& initialContext, uint32_t stackFramesToSkip) {
     sLogHeader(logLineProc, logLineProcParam, "Stack Trace (Using DBGHELP.DLL)");
 
     if (!sgDbgHelpDll.Load()) {
@@ -625,15 +640,14 @@ static void sLogDbgHelpStackTrace(uint32_t logOptions, void (*logLineProc)(void*
                         continue;
                     }
 
-                    stackFrame.AddrPC.Offset = context.Rip;
-                    stackFrame.AddrFrame.Offset = context.Rbp;
-                    stackPointer = context.Rsp;
                 } else {
-                    stackFrame.AddrPC.Offset = registerEip;
-                    stackFrame.AddrFrame.Offset = registerEbp;
-                    stackPointer = registerEsp;
-                    RtlCaptureContext(&context);
+                    // StackWalk mutates its context. Start from the actual
+                    // exception/capture context, including ARM64's saved LR.
+                    context = initialContext;
                 }
+                stackFrame.AddrPC.Offset = sContextPc(context);
+                stackFrame.AddrFrame.Offset = sContextFp(context);
+                stackPointer = sContextSp(context);
 
                 stackFrame.AddrPC.Mode = AddrModeFlat;
                 stackFrame.AddrFrame.Mode = AddrModeFlat;
@@ -651,8 +665,11 @@ static void sLogDbgHelpStackTrace(uint32_t logOptions, void (*logLineProc)(void*
 }
 
 // OFFSET: 0x0077DB10
-static void sLogX86ManualStackTrace(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, DWORD_PTR registerEip, DWORD_PTR registerEbp, uint32_t stackFramesToSkip) {
-    sLogHeader(logLineProc, logLineProcParam, "Stack Trace (Manual)");
+static void sLogManualStackTrace(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, DWORD_PTR registerEip, DWORD_PTR registerEbp, uint32_t stackFramesToSkip) {
+    sLogHeader(logLineProc, logLineProcParam, "Stack Trace (Manual Frame Chain)");
+#if defined(_M_ARM64) || defined(__aarch64__)
+    logLineProc(logLineProcParam, "ARM64 FP/LR chain; leaf frames require the DBGHELP unwind trace.");
+#endif
     logLineProc(logLineProcParam, "%s", "Address  Frame    Logical addr  Module");
     logLineProc(logLineProcParam, "");
 
@@ -693,8 +710,8 @@ static void sLogX86ManualStackTrace(void (*logLineProc)(void*, const char*, ...)
                 continue;
             }
 
-            eip = context.Rip;
-            ebp = reinterpret_cast<DWORD_PTR*>(context.Rbp);
+            eip = sContextPc(context);
+            ebp = reinterpret_cast<DWORD_PTR*>(sContextFp(context));
         }
 
         for (uint32_t frame = 0; frame < 100; ++frame) {
@@ -706,23 +723,21 @@ static void sLogX86ManualStackTrace(void (*logLineProc)(void*, const char*, ...)
                 logLineProc(logLineProcParam, LOG_PTR " " LOG_PTR " %04X:%08X %s", eip, reinterpret_cast<DWORD_PTR>(ebp), section, offset, modulePath);
             }
 
-            if (IsBadWritePtr(ebp, 2 * sizeof(DWORD_PTR))) {
+            if (!ebp || (reinterpret_cast<DWORD_PTR>(ebp) & s_frameAlignmentMask)) {
                 break;
             }
-
-            eip = ebp[1];
-            DWORD_PTR* previous = ebp;
-            ebp = reinterpret_cast<DWORD_PTR*>(ebp[0]);
-
-            if (reinterpret_cast<DWORD_PTR>(ebp) & 3) {
+            // Read both entries into local storage; do not dereference a
+            // potentially corrupt frame pointer while handling a crash.
+            DWORD_PTR record[2];
+            SIZE_T bytesRead = 0;
+            if (!ReadProcessMemory(GetCurrentProcess(), ebp, record, sizeof(record), &bytesRead)
+                || bytesRead != sizeof(record)) {
                 break;
             }
-
-            if (ebp <= previous) {
-                break;
-            }
-
-            if (IsBadWritePtr(ebp, 2 * sizeof(DWORD_PTR))) {
+            eip = record[1];
+            const DWORD_PTR previous = reinterpret_cast<DWORD_PTR>(ebp);
+            ebp = reinterpret_cast<DWORD_PTR*>(record[0]);
+            if (!eip || record[0] <= previous) {
                 break;
             }
         }
@@ -732,7 +747,18 @@ static void sLogX86ManualStackTrace(void (*logLineProc)(void*, const char*, ...)
 }
 
 // OFFSET: 0x0077DD50
-static void sLogX86ContextRegisters(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, const CONTEXT* context) {
+static void sLogContextRegisters(void (*logLineProc)(void*, const char*, ...), void* logLineProcParam, const CONTEXT* context) {
+#if defined(_M_ARM64) || defined(__aarch64__)
+    sLogHeader(logLineProc, logLineProcParam, "ARM64 Registers");
+    for (unsigned i = 0; i < 28; i += 4) {
+        logLineProc(logLineProcParam, "X%-2u=%016llX  X%-2u=%016llX  X%-2u=%016llX  X%-2u=%016llX",
+                    i, context->X[i], i + 1, context->X[i + 1],
+                    i + 2, context->X[i + 2], i + 3, context->X[i + 3]);
+    }
+    logLineProc(logLineProcParam, "X28=%016llX  FP =%016llX  LR =%016llX  SP =%016llX",
+                context->X[28], context->Fp, context->Lr, context->Sp);
+    logLineProc(logLineProcParam, "PC =%016llX  CPSR=%08X", context->Pc, static_cast<unsigned>(context->Cpsr));
+#else
     sLogHeader(logLineProc, logLineProcParam, "x64 Registers");
     logLineProc(logLineProcParam, "RAX=%016llX  RBX=%016llX  RCX=%016llX  RDX=%016llX", context->Rax, context->Rbx, context->Rcx, context->Rdx);
     logLineProc(logLineProcParam, "RSI=%016llX  RDI=%016llX  RBP=%016llX  RSP=%016llX", context->Rsi, context->Rdi, context->Rbp, context->Rsp);
@@ -740,6 +766,7 @@ static void sLogX86ContextRegisters(void (*logLineProc)(void*, const char*, ...)
     logLineProc(logLineProcParam, "R12=%016llX  R13=%016llX  R14=%016llX  R15=%016llX", context->R12, context->R13, context->R14, context->R15);
     logLineProc(logLineProcParam, "RIP=%016llX  FLG=%08X", context->Rip, context->EFlags);
     logLineProc(logLineProcParam, "CS =%04X      DS =%04X      ES =%04X      SS =%04X      FS =%04X      GS =%04X", context->SegCs, context->SegDs, context->SegEs, context->SegSs, context->SegFs, context->SegGs);
+#endif
     logLineProc(logLineProcParam, "");
 }
 
@@ -1055,37 +1082,31 @@ void LogMachineState(uint32_t logOptions, void (*logLineProc)(void*, const char*
             }
         }
 
-        DWORD_PTR registerEip;
-        DWORD_PTR registerEbp;
-        DWORD_PTR registerEsp;
-
+        CONTEXT capturedContext = {};
         if (context) {
-            registerEip = context->Rip;
-            registerEbp = context->Rbp;
-            registerEsp = context->Rsp;
+            capturedContext = *context;
             stackFramesToSkip = 0;
         } else {
-            CONTEXT current;
-            RtlCaptureContext(&current);
-            registerEip = current.Rip;
-            registerEbp = current.Rbp;
-            registerEsp = current.Rsp;
+            RtlCaptureContext(&capturedContext);
             logOptions &= ~static_cast<uint32_t>(LOG_OPTION_REGISTERS | LOG_OPTION_CODE);
             stackFramesToSkip = stackFramesToSkip + 1;
         }
 
+        const DWORD_PTR registerEip = sContextPc(capturedContext);
+        const DWORD_PTR registerEbp = sContextFp(capturedContext);
+        const DWORD_PTR registerEsp = sContextSp(capturedContext);
         sLogSeparatorLine(logLineProc, logLineProcParam, '-', 1);
 
         if ((logOptions & LOG_OPTION_REGISTERS) && context) {
-            sLogX86ContextRegisters(logLineProc, logLineProcParam, context);
+            sLogContextRegisters(logLineProc, logLineProcParam, context);
         }
 
         if (logOptions & LOG_OPTION_MANUALSTACK) {
-            sLogX86ManualStackTrace(logLineProc, logLineProcParam, registerEip, registerEbp, stackFramesToSkip);
+            sLogManualStackTrace(logLineProc, logLineProcParam, registerEip, registerEbp, stackFramesToSkip);
         }
 
         if (logOptions & LOG_OPTION_DBGHELPSTACK) {
-            sLogDbgHelpStackTrace(logOptions, logLineProc, logLineProcParam, registerEip, registerEbp, registerEsp, stackFramesToSkip);
+            sLogDbgHelpStackTrace(logOptions, logLineProc, logLineProcParam, capturedContext, stackFramesToSkip);
         }
 
         if (logOptions & LOG_OPTION_MODULES) {

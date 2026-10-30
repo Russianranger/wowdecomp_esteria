@@ -19,10 +19,14 @@ target_include_directories(XvidDecoder
         ${CMAKE_SOURCE_DIR}/ThirdParty/xvidcore/include
 )
 
-target_link_libraries(XvidDecoder
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/ThirdParty/xvidcore/lib/x64/libxvidcore.lib
-)
+if (WOWDECOMP_CPU_ARM64)
+    # An x64 .lib cannot be linked into ARM64. Build the same 1.3.7 codec
+    # from pinned upstream source; do not discard movie playback.
+    include(${CMAKE_SOURCE_DIR}/cmake/XvidPortable.cmake)
+    target_link_libraries(XvidDecoder PRIVATE XvidPortable)
+else ()
+    target_link_libraries(XvidDecoder PRIVATE ${CMAKE_SOURCE_DIR}/ThirdParty/xvidcore/lib/x64/libxvidcore.lib)
+endif ()
 
 target_compile_options(XvidDecoder
     PRIVATE

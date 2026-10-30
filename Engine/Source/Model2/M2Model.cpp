@@ -9,7 +9,7 @@
 #include <mutex>
 #include <utility>
 #include <vector>
-#include <xmmintrin.h>
+#include "Engine/Source/Platform/Float4.h"
 #if defined(_MSC_VER)
 #include <malloc.h>
 #else
@@ -3018,7 +3018,7 @@ int32_t CM2Model::GetRegionBounds(M2SkinSection* section, CAaBox& box, C44Matrix
             weights = *reinterpret_cast<uint32_t*>(&vertex->m_weights);
             indices = *reinterpret_cast<uint32_t*>(&vertex->m_indices);
 
-            if (CM2Cache::s_processorFeatures & 4) {
+            if (WowSimd::Supported(CM2Cache::s_processorFeatures)) {
                 M2BlendBoneMatricesSSE(this->m_boneMatrices, vertex->m_weights, vertex->m_indices, &transform);
             } else {
                 M2BlendBoneMatrices(this->m_boneMatrices, vertex->m_weights, vertex->m_indices, &transform);
@@ -3470,37 +3470,37 @@ void CM2Model::TransformVertices_sse(CM2Model* model, M2SkinSection* section, ui
     M2Vertex* vertex = &model->m_shared->m_data->m_vertices[section->m_vertexStart];
     M2Vertex* end = vertex + section->m_vertexCount;
     float* out = reinterpret_cast<float*>(vertices);
-    __m128 row0;
-    __m128 row1;
-    __m128 row2;
-    __m128 row3;
+    WowSimd::Float4 row0;
+    WowSimd::Float4 row1;
+    WowSimd::Float4 row2;
+    WowSimd::Float4 row3;
 
     while (vertex != end) {
         if (static_cast<uint32_t>(vertex->m_weights) != weights || static_cast<uint32_t>(vertex->m_indices) != indices) {
             weights = static_cast<uint32_t>(vertex->m_weights);
             indices = static_cast<uint32_t>(vertex->m_indices);
 
-            __m128 weight = _mm_set1_ps(vertex->m_weights[0] * 0.0039215689f);
+            WowSimd::Float4 weight = WowSimd::Splat(vertex->m_weights[0] * 0.0039215689f);
             const float* bone = reinterpret_cast<const float*>(&bones[vertex->m_indices[0]]);
-            row0 = _mm_mul_ps(_mm_load_ps(&bone[0]), weight);
-            row1 = _mm_mul_ps(_mm_load_ps(&bone[4]), weight);
-            row2 = _mm_mul_ps(_mm_load_ps(&bone[8]), weight);
-            row3 = _mm_mul_ps(_mm_load_ps(&bone[12]), weight);
+            row0 = WowSimd::Multiply(WowSimd::Load(&bone[0]), weight);
+            row1 = WowSimd::Multiply(WowSimd::Load(&bone[4]), weight);
+            row2 = WowSimd::Multiply(WowSimd::Load(&bone[8]), weight);
+            row3 = WowSimd::Multiply(WowSimd::Load(&bone[12]), weight);
 
             for (uint32_t i = 1; i < 4 && vertex->m_weights[i]; i++) {
-                weight = _mm_set1_ps(vertex->m_weights[i] * 0.0039215689f);
+                weight = WowSimd::Splat(vertex->m_weights[i] * 0.0039215689f);
                 bone = reinterpret_cast<const float*>(&bones[vertex->m_indices[i]]);
-                row0 = _mm_add_ps(row0, _mm_mul_ps(_mm_load_ps(&bone[0]), weight));
-                row1 = _mm_add_ps(row1, _mm_mul_ps(_mm_load_ps(&bone[4]), weight));
-                row2 = _mm_add_ps(row2, _mm_mul_ps(_mm_load_ps(&bone[8]), weight));
-                row3 = _mm_add_ps(row3, _mm_mul_ps(_mm_load_ps(&bone[12]), weight));
+                row0 = WowSimd::Add(row0, WowSimd::Multiply(WowSimd::Load(&bone[0]), weight));
+                row1 = WowSimd::Add(row1, WowSimd::Multiply(WowSimd::Load(&bone[4]), weight));
+                row2 = WowSimd::Add(row2, WowSimd::Multiply(WowSimd::Load(&bone[8]), weight));
+                row3 = WowSimd::Add(row3, WowSimd::Multiply(WowSimd::Load(&bone[12]), weight));
             }
         }
 
-        __m128 normal = _mm_add_ps(_mm_add_ps(_mm_mul_ps(_mm_set1_ps(vertex->m_normal.x), row0), _mm_mul_ps(_mm_set1_ps(vertex->m_normal.y), row1)), _mm_mul_ps(_mm_set1_ps(vertex->m_normal.z), row2));
-        __m128 position = _mm_add_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(_mm_set1_ps(vertex->m_position.x), row0), _mm_mul_ps(_mm_set1_ps(vertex->m_position.y), row1)), _mm_mul_ps(_mm_set1_ps(vertex->m_position.z), row2)), row3);
-        _mm_store_ps(&out[0], position);
-        _mm_storeu_ps(&out[3], normal);
+        WowSimd::Float4 normal = WowSimd::Add(WowSimd::Add(WowSimd::Multiply(WowSimd::Splat(vertex->m_normal.x), row0), WowSimd::Multiply(WowSimd::Splat(vertex->m_normal.y), row1)), WowSimd::Multiply(WowSimd::Splat(vertex->m_normal.z), row2));
+        WowSimd::Float4 position = WowSimd::Add(WowSimd::Add(WowSimd::Add(WowSimd::Multiply(WowSimd::Splat(vertex->m_position.x), row0), WowSimd::Multiply(WowSimd::Splat(vertex->m_position.y), row1)), WowSimd::Multiply(WowSimd::Splat(vertex->m_position.z), row2)), row3);
+        WowSimd::Store(&out[0], position);
+        WowSimd::Store(&out[3], normal);
         out[6] = vertex->m_texcoord[texCoord].x;
         out[7] = vertex->m_texcoord[texCoord].y;
         vertex++;
@@ -3523,13 +3523,13 @@ void CM2Model::TransformVerticesOneBone_sse(CM2Model* model, M2SkinSection* sect
 
     for (; vertex < end; vertex++, out += 8) {
         const float* bone = reinterpret_cast<const float*>(&bones[vertex->m_indices.b[0]]);
-        __m128 row0 = _mm_load_ps(&bone[0]);
-        __m128 row1 = _mm_load_ps(&bone[4]);
-        __m128 row2 = _mm_load_ps(&bone[8]);
-        __m128 position = _mm_add_ps(_mm_add_ps(_mm_mul_ps(row2, _mm_set1_ps(vertex->m_position.z)), _mm_add_ps(_mm_mul_ps(row1, _mm_set1_ps(vertex->m_position.y)), _mm_mul_ps(row0, _mm_set1_ps(vertex->m_position.x)))), _mm_load_ps(&bone[12]));
-        __m128 normal = _mm_add_ps(_mm_add_ps(_mm_mul_ps(row0, _mm_set1_ps(vertex->m_normal.x)), _mm_mul_ps(row1, _mm_set1_ps(vertex->m_normal.y))), _mm_mul_ps(_mm_set1_ps(vertex->m_normal.z), row2));
-        _mm_store_ps(&out[0], position);
-        _mm_storeu_ps(&out[3], normal);
+        WowSimd::Float4 row0 = WowSimd::Load(&bone[0]);
+        WowSimd::Float4 row1 = WowSimd::Load(&bone[4]);
+        WowSimd::Float4 row2 = WowSimd::Load(&bone[8]);
+        WowSimd::Float4 position = WowSimd::Add(WowSimd::Add(WowSimd::Multiply(row2, WowSimd::Splat(vertex->m_position.z)), WowSimd::Add(WowSimd::Multiply(row1, WowSimd::Splat(vertex->m_position.y)), WowSimd::Multiply(row0, WowSimd::Splat(vertex->m_position.x)))), WowSimd::Load(&bone[12]));
+        WowSimd::Float4 normal = WowSimd::Add(WowSimd::Add(WowSimd::Multiply(row0, WowSimd::Splat(vertex->m_normal.x)), WowSimd::Multiply(row1, WowSimd::Splat(vertex->m_normal.y))), WowSimd::Multiply(WowSimd::Splat(vertex->m_normal.z), row2));
+        WowSimd::Store(&out[0], position);
+        WowSimd::Store(&out[3], normal);
         out[6] = vertex->m_texcoord[texCoord].x;
         out[7] = vertex->m_texcoord[texCoord].y;
     }
@@ -4156,7 +4156,7 @@ CM2Model::CM2Model() {
         CM2Model::s_transformVertices[3] = CM2Model::TransformVertices_cpp;
         CM2Model::s_transformVertices[4] = CM2Model::TransformVertices_cpp;
 
-        if (CM2Cache::s_processorFeatures & 4) {
+        if (WowSimd::Supported(CM2Cache::s_processorFeatures)) {
             CM2Model::s_transformVertices[0] = CM2Model::TransformVertices_sse;
             CM2Model::s_transformVertices[1] = CM2Model::TransformVerticesOneBone_sse;
             CM2Model::s_transformVertices[2] = CM2Model::TransformVertices_sse;

@@ -1,6 +1,6 @@
 #include <cmath>
 #include <cstdint>
-#include <xmmintrin.h>
+#include "Engine/Source/Platform/ScalarMath.h"
 #include "Engine/Source/ComSat/SPIRIT/ipmr.h"
 
 extern "C" {
@@ -337,7 +337,7 @@ void SPIRIT_IP_MR_V3_NAME_200(const float* src, int16_t* pcm, int16_t count) {
     int32_t blocks = count / 4;
 
     for (int32_t i = 0; i < blocks * 4; i++) {
-        int32_t value = _mm_cvtss_si32(_mm_set_ss(src[i]));
+        int32_t value = WowPlatform::RoundToInt32(src[i]);
 
         if (value > 32767) {
             value = 32767;

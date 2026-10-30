@@ -1,0 +1,70 @@
+name: Reconstructed client ARM64
+on:
+  push:
+    branches: [android/arm64-port]
+  pull_request:
+    branches: [Esteria]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: arm64-client-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -S Tools/PlatformTests -B build/portable -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build/portable --parallel 4
+      - run: ctest --test-dir build/portable --output-on-failure
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2022
+          - arch: ARM64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure platform behavior tests
+        run: cmake -S Tools/PlatformTests -B build/platform -G "Visual Studio 17 2022" -A ${{ matrix.arch }}
+      - name: Build platform behavior tests
+        run: cmake --build build/platform --config Release --parallel 4
+      - name: Run native architecture and Windows differential tests
+        run: ctest --test-dir build/platform -C Release --output-on-failure
+      - name: Configure matched reconstructed client
+        run: >-
+          cmake -S . -B build/client -G "Visual Studio 17 2022" -A ${{ matrix.arch }}
+          -DWOWDECOMP_EXTENDED_LIMITS=ON
+          -DWOWDECOMP_CONTAINER_SLOTS=254
+          -DWOWDECOMP_QUEST_LOG_SLOTS=25
+          -DWOWDECOMP_MAX_CLASSES=32
+          -DWOWCLIENT_CRASH_LOG=ON
+      - name: Compile complete client
+        run: cmake --build build/client --config Release --target WowClient --parallel 4 -- /fl /flp:logfile=client-build.log
+      - name: Preserve diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-${{ matrix.arch }}-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            client-build.log
+            build/client/client-build.log
+            build/client/CMakeCache.txt
+            build/client/CMakeFiles/CMakeConfigureLog.yaml
+            build/platform/Testing/Temporary/LastTest.log
+            build/client/generated/limits/**
+            build/client/Tools/XvidDecoder/Xvid-1.3.7-LICENSE.txt
+            bin/Win/*.exe
+            bin/Win/*.dll
+            bin/Win/*.pdb

@@ -2,7 +2,10 @@
 #include <cstdint>
 #include <cmath>
 #include <cstring>
+#if defined(_M_X64) || defined(_M_IX86) || defined(__SSE2__)
+#define WOWDECOMP_CHARACTER_SSE2 1
 #include <emmintrin.h>
+#endif
 #include <new>
 #include <typeinfo>
 #if defined(_MSC_VER)
@@ -265,6 +268,7 @@ void* CCharacterComponent::LoadItemComponentTexture(const ItemDisplayInfoRec* di
 
 // VERIFY: c2d32b47 manual
 // OFFSET: 0x004E7030
+#if defined(WOWDECOMP_CHARACTER_SSE2)
 static void CompressBlockSSE(const uint8_t* src, uint32_t stride, uint32_t* out) {
     const __m128i zero = _mm_setzero_si128();
     const __m128 scale = _mm_set1_ps(1.0f / 255.0f);
@@ -385,6 +389,8 @@ static void CompressBlockSSE(const uint8_t* src, uint32_t stride, uint32_t* out)
     out[0] = color0 | (color1 << 16);
     out[1] = indices;
 }
+
+#endif // WOWDECOMP_CHARACTER_SSE2
 
 // VERIFY: 4cd9c152 manual
 // OFFSET: 0x004E7650
@@ -1602,6 +1608,7 @@ static void CompressBlock(const uint8_t* src, uint32_t stride, uint8_t* out) {
 static void ComputeMipLevels(MipBits* src, MipBits* dst) {
     int32_t size = s_textureSize;
 
+#if defined(WOWDECOMP_CHARACTER_SSE2)
     if ((OsGetProcessorFeatures() & 0x14) == 0x14) {
         for (uint32_t level = 0; level < CCharacterComponent::s_mipLevels; level++, size >>= 1) {
             if (size < 4) {
@@ -1624,7 +1631,11 @@ static void ComputeMipLevels(MipBits* src, MipBits* dst) {
                 in += 3 * stride;
             }
         }
-    } else {
+    } else
+#endif
+    {
+        // The existing scalar BC1 compressor is architecture independent and
+        // preserves composed character textures when SSE2 is unavailable.
         for (uint32_t level = 0; level < CCharacterComponent::s_mipLevels; level++, size >>= 1) {
             if (size < 4) {
                 CompressBlock(reinterpret_cast<const uint8_t*>(src->m_mip[CCharacterComponent::s_mipLevels - 2]), 16, reinterpret_cast<uint8_t*>(dst->m_mip[level]));

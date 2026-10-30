@@ -76,14 +76,18 @@ static const char s_vendorIds[] = "GenuineIntel" "AuthenticAMD" "CyrixInstead" "
 int32_t IOsGetProcessorFeatures(CpuIdInfo* info) {
     memset(info, 0, sizeof(CpuIdInfo));
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+    // CPUID feature words describe x86 instructions. ARM64 has no such leaves;
+    // report the architecture without advertising unsupported MMX/SSE/TSC bits.
+    memcpy(info->m_vendor, "ARM64       ", 12);
+    memcpy(info->m_brand, "ARM64", 6);
+    return 1;
+#else
     int32_t result = 0;
     uint32_t maxStandard = 0;
     uint32_t maxExtended = 0;
 
-    uintptr_t flags = __readeflags();
-    __writeeflags(flags ^ 0x200000);
-
-    if (__readeflags() != flags) {
+    {
         int32_t regs[4];
         __cpuid(regs, 0);
 
@@ -139,6 +143,7 @@ int32_t IOsGetProcessorFeatures(CpuIdInfo* info) {
     }
 
     return result;
+#endif
 }
 
 // OFFSET: 0x0086B0C0
@@ -594,6 +599,10 @@ uint32_t OsGetProcessorFeaturesEx(int32_t& vendor) {
         s_processorVendor = 4;
     }
 
+#if defined(_M_ARM64) || defined(__aarch64__)
+    s_processorVendor = 5; // ARM64; x86 instruction flags intentionally remain zero.
+    s_processorCores = s_processorCount;
+#endif
     s_processorFeatures = features | 0x80000000;
 
     IOsSystemCpuLog(&info);

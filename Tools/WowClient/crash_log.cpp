@@ -41,18 +41,38 @@ static void ModuleOffset(void* address, char* out, size_t size) {
 }
 
 static void LogStack(CONTEXT* context) {
-#if defined(_M_X64)
+#if defined(_M_X64) || defined(_M_ARM64)
     HANDLE process = GetCurrentProcess();
     SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
     SymInitialize(process, nullptr, TRUE);
 
     CONTEXT frame = *context;
+#if defined(_M_ARM64)
+    // DbgHelp consumes the full ARM64 context (including LR) and Windows unwind
+    // metadata, so leaf functions and prolog/epilog PCs are not guessed from a
+    // frame-pointer chain. Its copy may be mutated; preserve the crash context.
+    STACKFRAME64 stackFrame = {};
+    stackFrame.AddrPC.Offset = frame.Pc;
+    stackFrame.AddrFrame.Offset = frame.Fp;
+    stackFrame.AddrStack.Offset = frame.Sp;
+    stackFrame.AddrPC.Mode = AddrModeFlat;
+    stackFrame.AddrFrame.Mode = AddrModeFlat;
+    stackFrame.AddrStack.Mode = AddrModeFlat;
+#endif
 
-    for (int depth = 0; depth < 24 && frame.Rip; depth++) {
+    for (int depth = 0; depth < 24; depth++) {
+#if defined(_M_ARM64)
+        const DWORD64 programCounter = stackFrame.AddrPC.Offset;
+#else
+        const DWORD64 programCounter = frame.Rip;
+#endif
+        if (!programCounter) {
+            break;
+        }
         char where[MAX_PATH + 32];
-        ModuleOffset(reinterpret_cast<void*>(frame.Rip), where, sizeof(where));
+        ModuleOffset(reinterpret_cast<void*>(programCounter), where, sizeof(where));
 
-        char buffer[sizeof(SYMBOL_INFO) + 256] = {};
+        alignas(SYMBOL_INFO) char buffer[sizeof(SYMBOL_INFO) + 256] = {};
         SYMBOL_INFO* symbol = reinterpret_cast<SYMBOL_INFO*>(buffer);
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
         symbol->MaxNameLen = 255;
@@ -64,8 +84,8 @@ static void LogStack(CONTEXT* context) {
 
         char line[1024];
 
-        if (SymFromAddr(process, frame.Rip, &displacement, symbol)) {
-            if (SymGetLineFromAddr64(process, frame.Rip, &lineDisplacement, &source)) {
+        if (SymFromAddr(process, programCounter, &displacement, symbol)) {
+            if (SymGetLineFromAddr64(process, programCounter, &lineDisplacement, &source)) {
                 _snprintf_s(line, sizeof(line), _TRUNCATE, "  #%02d %s %s+0x%llX (%s:%lu)\n", depth, where, symbol->Name, static_cast<unsigned long long>(displacement), source.FileName, source.LineNumber);
             } else {
                 _snprintf_s(line, sizeof(line), _TRUNCATE, "  #%02d %s %s+0x%llX\n", depth, where, symbol->Name, static_cast<unsigned long long>(displacement));
@@ -76,6 +96,25 @@ static void LogStack(CONTEXT* context) {
 
         LogLine(line);
 
+#if defined(_M_ARM64)
+        const DWORD64 previousStack = stackFrame.AddrStack.Offset;
+        BOOL walked = StackWalk64(IMAGE_FILE_MACHINE_ARM64, process, GetCurrentThread(),
+                                  &stackFrame, &frame, nullptr,
+                                  SymFunctionTableAccess64, SymGetModuleBase64, nullptr);
+        // Some DbgHelp versions emit the initialized frame on the first call.
+        // It was already printed above; advance once more without duplicating it.
+        if (depth == 0 && walked && stackFrame.AddrPC.Offset == programCounter
+            && stackFrame.AddrStack.Offset == previousStack) {
+            walked = StackWalk64(IMAGE_FILE_MACHINE_ARM64, process, GetCurrentThread(),
+                                  &stackFrame, &frame, nullptr,
+                                  SymFunctionTableAccess64, SymGetModuleBase64, nullptr);
+        }
+        if (!walked || (stackFrame.AddrPC.Offset == programCounter
+                        && stackFrame.AddrStack.Offset == previousStack)) {
+            LogLine("  ARM64 unwind stopped (end of stack, unavailable metadata, or invalid frame).\n");
+            break;
+        }
+#else
         DWORD64 imageBase = 0;
         PRUNTIME_FUNCTION function = RtlLookupFunctionEntry(frame.Rip, &imageBase, nullptr);
 
@@ -88,6 +127,7 @@ static void LogStack(CONTEXT* context) {
         void* handlerData = nullptr;
         DWORD64 establisher = 0;
         RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, frame.Rip, function, &frame, &handlerData, &establisher, nullptr);
+#endif
     }
 #endif
 }

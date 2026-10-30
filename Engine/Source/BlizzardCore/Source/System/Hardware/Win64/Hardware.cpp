@@ -18,17 +18,14 @@ Blizzard::Lock::Atomic System_Hardware::s_initCount;
 
 // OFFSET: 0x0042E120
 bool System_Hardware::ReadCPUID(CPUIDInfo* info) {
-    memset(info, sizeof(info), 0);
+    memset(info, 0, sizeof(*info));
+#if defined(_M_ARM64) || defined(__aarch64__)
+    // Not an x86 CPU: no CPUID leaves and therefore no x86 feature flags.
+    return false;
+#else
     bool result = false;
     uint32_t maxLeaf = 0;
     uint32_t maxExtLeaf = 0;
-
-    uintptr_t flags = __readeflags();
-    __writeeflags(flags ^ 0x200000);
-
-    if (__readeflags() == flags) {
-        return result;
-    }
 
     int32_t regs[4];
     __cpuidex(regs, 0, 0);
@@ -77,6 +74,7 @@ bool System_Hardware::ReadCPUID(CPUIDInfo* info) {
     info->m_ext1Ecx = regs[2];
 
     return result;
+#endif
 }
 
 // OFFSET: 0x00432D90
@@ -92,6 +90,10 @@ void System_Hardware::InitProcessorFeatures() {
     }
 
     s_processorFeatures.m_coreCount = 1;
+#if defined(_M_ARM64) || defined(__aarch64__)
+    s_processorFeatures.m_vendor = 5;
+    s_processorFeatures.m_coreCount = s_processorFeatures.m_processorCount;
+#endif
 
     CPUIDInfo info;
 

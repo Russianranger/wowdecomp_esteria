@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstring>
 #include <new>
-#include <xmmintrin.h>
+#include "Engine/Source/Platform/Float4.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Extensions/ASECM3/client/UnitWorldBinding.h"
 #include "Engine/Source/Base/ObjectAlloc.h"
@@ -390,11 +390,11 @@ uint32_t CM2Scene::SphereTestModels(const C3Vector& start, const C3Vector& dir, 
 // OFFSET: 0x0081D2C0
 void M2BlendBoneMatricesSSE(const C44Matrix* bones, ubyte4 weights, ubyte4 indices, C44Matrix* result) {
     const float* bone = reinterpret_cast<const float*>(&bones[indices.b[0]]);
-    __m128 weight = _mm_set1_ps(weights.b[0] * 0.0039215689f);
-    __m128 row0 = _mm_mul_ps(_mm_loadu_ps(&bone[0]), weight);
-    __m128 row1 = _mm_mul_ps(_mm_loadu_ps(&bone[4]), weight);
-    __m128 row2 = _mm_mul_ps(_mm_loadu_ps(&bone[8]), weight);
-    __m128 row3 = _mm_mul_ps(_mm_loadu_ps(&bone[12]), weight);
+    WowSimd::Float4 weight = WowSimd::Splat(weights.b[0] * 0.0039215689f);
+    WowSimd::Float4 row0 = WowSimd::Multiply(WowSimd::Load(&bone[0]), weight);
+    WowSimd::Float4 row1 = WowSimd::Multiply(WowSimd::Load(&bone[4]), weight);
+    WowSimd::Float4 row2 = WowSimd::Multiply(WowSimd::Load(&bone[8]), weight);
+    WowSimd::Float4 row3 = WowSimd::Multiply(WowSimd::Load(&bone[12]), weight);
 
     for (uint32_t i = 1; i < 4; i++) {
         if (!weights.b[i]) {
@@ -402,18 +402,18 @@ void M2BlendBoneMatricesSSE(const C44Matrix* bones, ubyte4 weights, ubyte4 indic
         }
 
         bone = reinterpret_cast<const float*>(&bones[indices.b[i]]);
-        weight = _mm_set1_ps(weights.b[i] * 0.0039215689f);
-        row0 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(&bone[0]), weight), row0);
-        row1 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(&bone[4]), weight), row1);
-        row2 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(&bone[8]), weight), row2);
-        row3 = _mm_add_ps(_mm_mul_ps(_mm_loadu_ps(&bone[12]), weight), row3);
+        weight = WowSimd::Splat(weights.b[i] * 0.0039215689f);
+        row0 = WowSimd::Add(WowSimd::Multiply(WowSimd::Load(&bone[0]), weight), row0);
+        row1 = WowSimd::Add(WowSimd::Multiply(WowSimd::Load(&bone[4]), weight), row1);
+        row2 = WowSimd::Add(WowSimd::Multiply(WowSimd::Load(&bone[8]), weight), row2);
+        row3 = WowSimd::Add(WowSimd::Multiply(WowSimd::Load(&bone[12]), weight), row3);
     }
 
     float* out = reinterpret_cast<float*>(result);
-    _mm_storeu_ps(&out[0], row0);
-    _mm_storeu_ps(&out[4], row1);
-    _mm_storeu_ps(&out[8], row2);
-    _mm_storeu_ps(&out[12], row3);
+    WowSimd::Store(&out[0], row0);
+    WowSimd::Store(&out[4], row1);
+    WowSimd::Store(&out[8], row2);
+    WowSimd::Store(&out[12], row3);
     result->a3 = 0.0f;
     result->b3 = 0.0f;
     result->c3 = 0.0f;
@@ -676,7 +676,7 @@ M2HitRec* CM2Scene::HitTestGeometry(const CM2Model* model, uint32_t pass, const 
 
         if (section->m_boneInfluences == 1) {
             this->TransformHitTestVertices(model, skinData, section, pass, dir, d);
-        } else if (CM2Cache::s_processorFeatures & 4) {
+        } else if (WowSimd::Supported(CM2Cache::s_processorFeatures)) {
             this->TransformHitTestVerticesBlendSSE(model, skinData, section, pass, dir, d);
         } else {
             this->TransformHitTestVerticesBlend(model, skinData, section, pass, dir, d);

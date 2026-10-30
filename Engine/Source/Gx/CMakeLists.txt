@@ -30,11 +30,14 @@ if (WIN32)
 
     target_link_libraries(Gx
         PRIVATE
-            nvapi
             opengl32.lib
         PUBLIC
             GxVulkan
     )
+endif ()
+
+if (TARGET nvapi)
+    target_link_libraries(Gx PRIVATE nvapi)
 endif ()
 
 if (WOWDECOMP_RETAIL_ASSETS)

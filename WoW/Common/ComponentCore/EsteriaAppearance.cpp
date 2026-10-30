@@ -6,6 +6,7 @@
 #include "Engine/Source/Retail/RetailLookWire.h"
 #include "Engine/Source/Retail/BodyShape.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
+#include "WoW/Common/ComponentCore/Lznt1.h"
 #include "Engine/Source/Retail/EyeEffects.h"
 #include "WoW/Common/ComponentCore/CharacterComponent.h"
 #include "WoW/Common/ComponentCore/ComponentUtils.h"
@@ -791,10 +792,8 @@ bool ComposeGroup(CCharacterComponent* character, const Options& options, uint32
         return false;
     }
 
-    using DecompressFn = LONG(WINAPI*)(USHORT, PUCHAR, ULONG, PUCHAR, ULONG, PULONG);
-    DecompressFn decompress = reinterpret_cast<DecompressFn>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlDecompressBuffer"));
     uint32_t header[4] = {};
-    bool valid = decompress && input.Read(header, sizeof(header), 1) == 1 && header[0] == 0x31544845 && header[1] == 1 && header[2] <= 4096;
+    bool valid = input.Read(header, sizeof(header), 1) == 1 && header[0] == 0x31544845 && header[1] == 1 && header[2] <= 4096;
     std::vector<uint8_t> pixels;
     uint32_t width = 0;
     uint32_t height = 0;
@@ -808,9 +807,9 @@ bool ComposeGroup(CCharacterComponent* character, const Options& options, uint32
 
         std::vector<uint8_t> packed(item[2]);
         std::vector<uint8_t> layer(item[0] * item[1] * 4);
-        ULONG size = 0;
+        size_t size = 0;
         if (input.Read(packed.data(), 1, packed.size()) != packed.size()
-            || decompress(2, layer.data(), static_cast<ULONG>(layer.size()), packed.data(), item[2], &size) || size != layer.size()) {
+            || !Esteria::DecodeLznt1(packed.data(), packed.size(), layer.data(), layer.size(), size) || size != layer.size()) {
             valid = false;
             break;
         }

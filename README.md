@@ -8,6 +8,8 @@ Every upstream function is reconstructed from the original binary and keeps the 
 original client (`Engine/Source/<Module>`, `WoW/Source/<Module>`, original file names). Everything this fork
 adds on top is described below, and none of it is in the original binary.
 
+ARM64 port status and platform build instructions: [Android ARM64 bring-up](docs/android-arm64-platform.md).
+
 x64 is the main target. Win32 still builds and is used to check struct layouts against the 32-bit original.
 
 Join the upstream discord for other clients and to show off what you build: https://discord.gg/W5YSWcM8PB
