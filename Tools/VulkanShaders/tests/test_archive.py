@@ -13,15 +13,16 @@ from bls import archive, mpq_extract as mq
 def encrypt(data, key):
     result = []
     seed = 0xEEEEEEEE
-    for value in struct.unpack('<%dI' % (len(data) // 4), data):
+    aligned = len(data) // 4 * 4
+    for value in struct.unpack('<%dI' % (len(data) // 4), data[:aligned]):
         seed = (seed + mq.CT[0x400 + (key & 0xFF)]) & 0xFFFFFFFF
         result.append(value ^ ((key + seed) & 0xFFFFFFFF))
         key = ((((~key) << 0x15) + 0x11111111) | (key >> 0x0B)) & 0xFFFFFFFF
         seed = (value + seed + (seed << 5) + 3) & 0xFFFFFFFF
-    return struct.pack('<%dI' % len(result), *result)
+    return struct.pack('<%dI' % len(result), *result) + data[aligned:]
 
 
-def make_mpq(path, files, listfile=True):
+def make_mpq(path, files, listfile=True, compressed=False):
     """files: [(name, bytes, locale)]. Emit a minimal genuine format-0 MPQ."""
     path.parent.mkdir(parents=True, exist_ok=True)
     records = list(files)
@@ -29,20 +30,29 @@ def make_mpq(path, files, listfile=True):
         records.append(('(listfile)', '\n'.join(n for n, _, _ in files).encode('ascii'), 0))
     hashes = [(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFF, 0xFFFF, 0xFFFFFFFF)] * 32
     blocks, payload = [], bytearray()
+    header_size = 44 if compressed else 32
     for number, (name, data, locale) in enumerate(records):
         index = mq.hash_string(name, 0) % len(hashes)
         while hashes[index][-1] != 0xFFFFFFFF:
             index = (index + 1) % len(hashes)
         hashes[index] = (mq.hash_string(name, 1), mq.hash_string(name, 2), locale, 0, number)
-        blocks.append((32 + len(payload), len(data), len(data), mq.FLAG_EXISTS | mq.FLAG_SINGLE_UNIT))
+        blocks.append((header_size + len(payload), len(data), len(data), mq.FLAG_EXISTS | mq.FLAG_SINGLE_UNIT))
         payload.extend(data)
-    hash_start = 32 + len(payload)
-    block_start = hash_start + len(hashes) * 16
-    total = block_start + len(blocks) * 16
-    header = struct.pack('<4sIIHHIIII', b'MPQ\x1a', 32, total, 0, 3,
-                         hash_start, block_start, len(hashes), len(blocks))
     hash_bytes = b''.join(struct.pack('<IIHHI', *item) for item in hashes)
     block_bytes = b''.join(struct.pack('<IIII', *item) for item in blocks)
+    if compressed:
+        hash_bytes = b'\x02' + zlib.compress(hash_bytes)
+        packed_block = b'\x02' + zlib.compress(block_bytes)
+        if len(packed_block) < len(block_bytes):
+            block_bytes = packed_block
+    hash_start = header_size + len(payload)
+    block_start = hash_start + len(hash_bytes)
+    total = block_start + len(block_bytes)
+    header = struct.pack('<4sIIHHIIII', b'MPQ\x1a', header_size, 0 if compressed else total, int(compressed), 3,
+                         hash_start, block_start, len(hashes), len(blocks))
+    if compressed:
+        # The low archive size is intentionally stale; format1 must ignore it.
+        header += struct.pack('<QHH', 0, 0, 0)
     path.write_bytes(header + payload + encrypt(hash_bytes, mq.hash_string('(hash table)', 3))
                      + encrypt(block_bytes, mq.hash_string('(block table)', 3)))
 
@@ -97,6 +107,10 @@ class ArchiveTests(unittest.TestCase):
                                            (self.shader, b'french', 0x40c)])
         self.assertEqual(archive.grab(self.providers('frFR'), self.shader)[1], b'french')
         self.assertEqual(archive.grab(self.providers('enUS'), self.shader)[1], b'neutral')
+
+    def test_format1_compressed_tables_and_deprecated_archive_size(self):
+        make_mpq(self.data / 'patch-Z.MPQ', [(self.shader, b'format1 shader', 0)], compressed=True)
+        self.assertEqual(archive.grab(self.providers(), self.shader)[1], b'format1 shader')
 
     def test_ambiguous_locale_rejected_unless_configured(self):
         (self.data / 'enUS').mkdir()

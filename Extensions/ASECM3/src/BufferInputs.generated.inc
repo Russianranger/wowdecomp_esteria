@@ -1,4 +1,4 @@
-// Input SHA256: madd_shader_inputs.json f92b6a6c447aafecdfa0b4cb69aa929943a6abb1883e89751ac8e4f277619598
+// Input SHA256: madd_shader_inputs.json b1224fb845aef3965b3b02c09d599e8ac4ed698e3897c42c9581b7c52618e196
 // Named parameter metadata extracted from four agreeing HotS shader-cache sections.
 constexpr BufferGroupName bufferGroupNames[]={
 {1543313946u,"DiffuseTeamColor"},

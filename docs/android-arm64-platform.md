@@ -39,6 +39,11 @@ claiming to be a client.
 - Appearance texture-bank LZNT1 decompression uses a bounded portable decoder,
   with malformed-input checks. WIC image conversion is still Windows-dependent.
 - ARM64 crash contexts use PC/SP/FP and real register/minidump reporting.
+- ARM64 MSVC explicitly uses `/volatile:ms` to preserve acquire/release ordering
+  assumed by reconstructed Storm locks (for example `SUNNLockLeave`). ARM64's
+  default ISO volatile semantics would not publish protected data safely.
+  Migration to explicit atomic synchronization remains a separate follow-up;
+  additional barriers can affect performance and require device measurement.
 
 ## Build and focused validation
 
@@ -75,7 +80,13 @@ builds/tests. This validates NEON compilation/execution, the portable catalog
 decoder and source-built MPEG-4 codec on ARM64, not Android/Wine gameplay.
 Initial Windows failures exposed the Xvid generic MSVC inline-assembly guard
 (fixed) and the hosted ARM64 image's migration to Visual Studio 2026 (workflow
-now selects that generator). Windows full-client builds remain pending.
+now selects that generator). CI run `40980585693` additionally passed all five Windows x64 component tests,
+including comparison against the system LZNT1 codec. Its clean full-client
+configuration exposed mixed CRLF/LF hashes in ASECM3 metadata. The generator
+inputs are now pinned to LF and metadata regenerated; only hash comments changed,
+with the generated schema and semantic tables identical. The ARM64 runner also
+exposed upstream Xvid integer macros colliding with the newer MSVC standard
+headers. Full-client compilation remains pending the next CI run.
 
 ## Remaining qualification
 
@@ -86,5 +97,6 @@ application package and server pins are owned by the integration repository.
 No user device test is requested for this component checkpoint.
 
 Reference sources: [Microsoft ARM64 intrinsics](https://learn.microsoft.com/cpp/intrinsics/arm64-intrinsics),
+[MSVC volatile ordering](https://learn.microsoft.com/cpp/build/reference/volatile-volatile-keyword-interpretation),
 [official Xvid source](https://labs.xvid.com/source/),
 [GitHub ARM64 hosted runners](https://github.blog/changelog/2025-08-07-arm64-hosted-runners-for-public-repositories-are-now-generally-available/).

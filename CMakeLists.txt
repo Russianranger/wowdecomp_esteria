@@ -16,6 +16,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(cmake/TargetArchitecture.cmake)
 include(cmake/ExtendedLimits.cmake)
 
+if (MSVC AND WOWDECOMP_CPU_ARM64)
+    # Reconstructed Storm locks publish/release through volatile fields, relying
+    # on the desktop MSVC acquire/release contract. ARM64 defaults to ISO volatile
+    # (no ordering); retain that contract until the locks use explicit atomics.
+    add_compile_options(/volatile:ms)
+endif ()
+
 option(WOWDECOMP_RETAIL_ASSETS "Read Retail assets from local CASC or Blizzard's CDN" OFF)
 if (WOWDECOMP_RETAIL_ASSETS)
     include(cmake/RetailAssets.cmake)
@@ -25,7 +32,7 @@ if (NOT CMAKE_SYSTEM_NAME MATCHES "Windows")
     message(FATAL_ERROR "wowdecomp targets Windows only.")
 endif ()
 
-# x64 is the target. Win32 stays buildable: it is the configuration whose struct layouts can be
+# x64 and ARM64 share 64-bit layouts. Win32 stays buildable: it is the configuration whose struct layouts can be
 # checked against Wow.exe 3.3.5a (12340).
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(WOWDECOMP_ARCH_64 1)

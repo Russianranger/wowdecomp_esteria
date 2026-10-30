@@ -33,9 +33,9 @@ MPQ hash lookup uses the selected locale with neutral fallback.
 
 Unreadable providers, case collisions, symlinks, missing `(listfile)` inventories, unsupported MPQ
 formats and unsupported compression fail before output removal. A folder provider inventories its
-actual shader subtree. Classic MPQ formats 0/1 with 32-bit offsets are supported; `alternate.MPQ`
-archive views, streaming/split developer layouts, PKWARE/Huffman compression and offset extensions
-above 32 bits are not supported by this small reader. These are explicit setup errors rather than
+actual shader subtree. Classic MPQ formats 0/1 are supported, including format-1 compressed tables
+and extended offsets. `alternate.MPQ` archive views, streaming/split developer layouts and
+PKWARE/Huffman compression are not supported by this small reader. These are explicit setup errors rather than
 silently translating an older provider. Header/table/sector bounds and decompressed sizes are checked;
 the shader/listfile extraction limit is 64 MiB per file.
 

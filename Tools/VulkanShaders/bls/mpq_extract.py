@@ -99,12 +99,17 @@ class MPQ:
                  self.hash_table_size, self.block_table_size) = struct.unpack('<IIHHIIII', hdr)
                 if self.format_version not in (0, 1) or self.header_size < (44 if self.format_version == 1 else 32):
                     raise ValueError('only classic MPQ formats 0/1 are supported: %s' % self.path)
+                self.high_block_pos = 0
                 if self.format_version == 1:
-                    high_block, hash_high, block_high = struct.unpack('<QHH', self._read_exact(12))
-                    if high_block or hash_high or block_high:
-                        raise ValueError('MPQ offsets above 32 bits are unsupported: %s' % self.path)
-                if self.archive_size < self.header_size or off + self.archive_size > size:
+                    self.high_block_pos, hash_high, block_high = struct.unpack('<QHH', self._read_exact(12))
+                    self.hash_table_pos |= hash_high << 32
+                    self.block_table_pos |= block_high << 32
+                if self.format_version == 0 and (self.archive_size < self.header_size or off + self.archive_size > size):
                     raise ValueError('truncated MPQ archive: %s' % self.path)
+                # The TBC-format low archive-size field is deprecated. Bound reads by
+                # actual bytes, not that field (also permits offsets beyond 4 GiB).
+                if self.format_version == 1:
+                    self.archive_size = size - off
                 if self.block_size_exp > 16:
                     raise ValueError('invalid MPQ sector size: %s' % self.path)
                 return
@@ -121,20 +126,46 @@ class MPQ:
 
     def _read_tables(self):
         f = self.f
-        for pos, count in ((self.hash_table_pos, self.hash_table_size),
-                           (self.block_table_pos, self.block_table_size)):
-            if count > MAX_TABLE_ENTRIES or pos < self.header_size or pos + count * 16 > self.archive_size:
+        for pos, count in ((self.hash_table_pos, self.hash_table_size), (self.block_table_pos, self.block_table_size)):
+            if count > MAX_TABLE_ENTRIES or pos < self.header_size or pos > self.archive_size:
                 raise ValueError('invalid or oversized MPQ table: %s' % self.path)
-        if not self.hash_table_size:
-            raise ValueError('empty MPQ hash table: %s' % self.path)
+        if not self.hash_table_size or self.hash_table_size & (self.hash_table_size - 1):
+            raise ValueError('MPQ hash table count must be a power of two: %s' % self.path)
+        hash_expected, block_expected = self.hash_table_size * 16, self.block_table_size * 16
+        if self.format_version == 0:
+            hash_stored, block_stored = hash_expected, block_expected
+            if self.hash_table_pos < self.block_table_pos + block_stored and self.block_table_pos < self.hash_table_pos + hash_stored:
+                raise ValueError('overlapping MPQ tables: %s' % self.path)
+        else:
+            # Engine SFileArchives.cpp::LoadTables decrypts the stored span then
+            # decompresses whenever that span differs from the decoded table size.
+            hash_stored = self.block_table_pos - self.hash_table_pos
+            block_end = self.high_block_pos or min(self.archive_size, self.block_table_pos + block_expected)
+            block_stored = block_end - self.block_table_pos
+            if hash_stored < 2 or hash_stored > hash_expected or block_stored < 0 or block_stored > block_expected:
+                raise ValueError('unsupported MPQ table ordering/extent: %s' % self.path)
+            if self.block_table_size and block_stored < 2:
+                raise ValueError('truncated MPQ block table: %s' % self.path)
+            if self.high_block_pos and self.high_block_pos + self.block_table_size * 2 > self.archive_size:
+                raise ValueError('truncated MPQ high-block table: %s' % self.path)
+        if self.hash_table_pos + hash_stored > self.archive_size or self.block_table_pos + block_stored > self.archive_size:
+            raise ValueError('truncated MPQ tables: %s' % self.path)
         f.seek(self.archive_offset + self.hash_table_pos)
-        raw = self._read_exact(self.hash_table_size * 16)
+        raw = self._read_exact(hash_stored)
         raw = decrypt(raw, hash_string('(hash table)', 3))
+        if hash_stored != hash_expected:
+            raw = decompress_sector(raw, hash_expected)
         self.hash_table = [struct.unpack_from('<IIHHI', raw, i * 16) for i in range(self.hash_table_size)]
         f.seek(self.archive_offset + self.block_table_pos)
-        raw = self._read_exact(self.block_table_size * 16)
+        raw = self._read_exact(block_stored)
         raw = decrypt(raw, hash_string('(block table)', 3))
+        if block_stored != block_expected:
+            raw = decompress_sector(raw, block_expected)
         self.block_table = [struct.unpack_from('<IIII', raw, i * 16) for i in range(self.block_table_size)]
+        if self.high_block_pos:
+            f.seek(self.archive_offset + self.high_block_pos)
+            high = struct.unpack('<%dH' % self.block_table_size, self._read_exact(self.block_table_size * 2))
+            self.block_table = [(entry[0] | high[i] << 32,) + entry[1:] for i, entry in enumerate(self.block_table)]
 
     def find(self, name):
         idx = hash_string(name, 0) % self.hash_table_size

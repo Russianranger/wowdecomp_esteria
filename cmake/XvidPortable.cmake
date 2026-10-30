@@ -11,6 +11,28 @@ FetchContent_MakeAvailable(xvid137)
 set(_xvid_source "${CMAKE_CURRENT_BINARY_DIR}/xvid-portable")
 file(COPY "${xvid137_SOURCE_DIR}/src/" DESTINATION "${_xvid_source}")
 file(READ "${_xvid_source}/portab.h" _portab)
+# VS 2010 and later supply stdint.h. Upstream's legacy type-name macros
+# corrupt its typedef declarations when modern Windows headers include it.
+# Keep the old compiler/Watcom fallback, but use the standard types on MSVC.
+set(_portab_types_old "#if defined(_MSC_VER) || defined (__WATCOMC__)")
+string(FIND "${_portab}" "${_portab_types_old}" _portab_types_guard)
+if (_portab_types_guard EQUAL -1)
+    message(FATAL_ERROR "Xvid source does not match the pinned 1.3.7 fixed-width type patch")
+endif ()
+string(REPLACE "${_portab_types_old}"
+    "#if defined(_MSC_VER) && _MSC_VER >= 1600\n#    include <stdint.h>\n#elif defined(_MSC_VER) || defined (__WATCOMC__)"
+    _portab "${_portab}")
+# stdint.h also owns intptr_t; do not redefine it as a macro on modern MSVC.
+foreach (_portab_intptr_type int32_t int64_t)
+    set(_portab_intptr_old "#    define intptr_t ${_portab_intptr_type}\n#    define _INTPTR_T_DEFINED")
+    string(FIND "${_portab}" "${_portab_intptr_old}" _portab_intptr_guard)
+    if (_portab_intptr_guard EQUAL -1)
+        message(FATAL_ERROR "Xvid source does not match the pinned 1.3.7 pointer type patch")
+    endif ()
+    string(REPLACE "${_portab_intptr_old}"
+        "#    if !defined(_MSC_VER) || _MSC_VER < 1600\n${_portab_intptr_old}\n#    endif"
+        _portab "${_portab}")
+endforeach ()
 # Upstream writes two pointer-sized affinity masks into DWORDs on Win64.
 string(REPLACE "DWORD p_aff, s_aff, r = 0;" "DWORD_PTR p_aff = 0, s_aff = 0; DWORD r = 0;" _portab "${_portab}")
 file(WRITE "${_xvid_source}/portab.h" "${_portab}")
@@ -85,6 +107,11 @@ endif ()
 configure_file("${xvid137_SOURCE_DIR}/LICENSE" "${CMAKE_CURRENT_BINARY_DIR}/Xvid-1.3.7-LICENSE.txt" COPYONLY)
 unset(_xvid_sources)
 unset(_portab)
+unset(_portab_types_old)
+unset(_portab_types_guard)
+unset(_portab_intptr_type)
+unset(_portab_intptr_old)
+unset(_portab_intptr_guard)
 unset(_gmc)
 unset(_gmc_old)
 unset(_gmc_guard)

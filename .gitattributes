@@ -1,2 +1,11 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# ASECM3 generated metadata records byte hashes of these inputs. Keep the same
+# bytes on Windows and Unix checkouts (including core.autocrlf=true).
+Extensions/ASECM3/data/*.csv text eol=lf
+Extensions/ASECM3/data/*.json text eol=lf
+Extensions/ASECM3/schema/*.xml text eol=lf
+Extensions/ASECM3/shaders/*.hlsl text eol=lf
+Extensions/ASECM3/src/*.generated.inc text eol=lf
+Extensions/ASECM3/client/*.generated.inc text eol=lf

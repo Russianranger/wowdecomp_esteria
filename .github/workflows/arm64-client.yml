@@ -18,7 +18,7 @@ jobs:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: cmake -S Tools/PlatformTests -B build/portable -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build/portable --parallel 4
       - run: ctest --test-dir build/portable --output-on-failure
@@ -36,7 +36,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Configure platform behavior tests
         run: cmake -S Tools/PlatformTests -B build/platform -G "${{ matrix.generator }}" -A ${{ matrix.arch }}
       - name: Build platform behavior tests
@@ -44,6 +44,8 @@ jobs:
       - name: Run native architecture and Windows differential tests
         run: ctest --test-dir build/platform -C Release --output-on-failure
       - name: Configure matched reconstructed client
+        id: configure_client
+        if: ${{ !cancelled() }}
         run: >-
           cmake -S . -B build/client -G "${{ matrix.generator }}" -A ${{ matrix.arch }}
           -DWOWDECOMP_EXTENDED_LIMITS=ON
@@ -52,10 +54,11 @@ jobs:
           -DWOWDECOMP_MAX_CLASSES=32
           -DWOWCLIENT_CRASH_LOG=ON
       - name: Compile complete client
+        if: ${{ !cancelled() && steps.configure_client.outcome == 'success' }}
         run: cmake --build build/client --config Release --target WowClient --parallel 4 -- /fl /flp:logfile=client-build.log
       - name: Preserve diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: client-${{ matrix.arch }}-${{ github.sha }}
           if-no-files-found: warn
