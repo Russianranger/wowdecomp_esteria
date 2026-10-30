@@ -89,6 +89,10 @@ namespace gxvk::vk::context
      */
     void LogValidationSummary();
 
+    /// True only when the validation layer is enabled and its message callback
+    /// was created. A requested or enumerated layer alone is not active evidence.
+    bool ValidationActive();
+
     /**
      * Whether the instance and logical device exist.
      *

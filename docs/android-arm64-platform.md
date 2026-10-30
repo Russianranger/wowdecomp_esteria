@@ -47,10 +47,11 @@ claiming to be a client.
 
 ## Build and focused validation
 
-CMake 3.24+, Python 3.10+, Visual Studio 2022 C++ with ARM64 tools and Windows SDK:
+CMake 3.24+, Python 3.10+, Visual Studio C++ tools and Windows SDK. The passing
+native Windows ARM64 runner uses Visual Studio 2026; x64 uses Visual Studio 2022:
 
 ```powershell
-cmake -S . -B build/arm64 -G "Visual Studio 17 2022" -A ARM64 `
+cmake -S . -B build/arm64 -G "Visual Studio 18 2026" -A ARM64 `
   -DWOWDECOMP_EXTENDED_LIMITS=ON -DWOWDECOMP_CONTAINER_SLOTS=254 `
   -DWOWDECOMP_QUEST_LOG_SLOTS=25 -DWOWDECOMP_MAX_CLASSES=32
 cmake --build build/arm64 --config Release --target WowClient --parallel 4
@@ -59,7 +60,7 @@ cmake --build build/arm64 --config Release --target WowClient --parallel 4
 ARM64 executable and matching Xvid DLL are staged together under
 `bin/Win/ARM64`; x64 keeps `bin/Win`. Override
 `-DWOWDECOMP_RUNTIME_OUTPUT_DIRECTORY=<absolute-path>` when packaging.
-Use `-A x64` for the reference. ARM64EC is intentionally rejected pending its
+Use `-G "Visual Studio 17 2022" -A x64` for the reference. ARM64EC is intentionally rejected pending its
 own ABI qualification. First source-codec configuration downloads Xvid; subsequent
 offline builds can provide an extracted official archive using
 `-DFETCHCONTENT_SOURCE_DIR_XVID137=<path-to-xvidcore>`.
@@ -91,11 +92,17 @@ configuration exposed mixed CRLF/LF hashes in ASECM3 metadata. The generator
 inputs are now pinned to LF and metadata regenerated; only hash comments changed,
 with the generated schema and semantic tables identical. The ARM64 runner also
 exposed upstream Xvid integer macros colliding with the newer MSVC standard
-headers. CI run `40981311211` passed all five component tests on Windows ARM64 as
-well as Windows x64 and both Linux architectures. The complete x64 client and
-Xvid DLL built successfully. The ARM64 full build reached one remaining x86
-segment-register reference in exception formatting; that now reports ARM64's
-actual fault address. Full ARM64 linking remains pending the next CI run.
+headers. CI run `40982595595` at client commit
+`a3683cc3644d965bf0ed8d91946cd5d6b3f928e1` passed all jobs: six component
+behavior tests on Linux x64/ARM64 and Windows x64/ARM64, 17 manifest tests and
+13 shader archive tests on Linux, and complete x64 and ARM64 client builds.
+The downloaded ARM64 executable and Xvid DLL both have PE machine `0xaa64`.
+Their direct CRT imports require `VCRUNTIME140.dll`; the client also imports
+`MSVCP140.dll`. Neither directly imports the x64-only `VCRUNTIME140_1.dll` found
+in the candidate Wine archive. The generated descriptor manifest has SHA-256
+`16e5024377ebb4cd59b3fd0acb4029b35ae481f16c7bec39a5a6a9490867c188`.
+These are compilation and component-level results; Wine startup, graphics,
+audio, data loading, login and world entry remain separate qualification.
 CI stages optimized `RelWithDebInfo` binaries and PDBs for useful crash reports;
 release-only builds remain supported. `Tools/RuntimeManifest/generate.py` verifies
 EXE/DLL machine types, checks generated descriptor limits, and records exact
@@ -107,6 +114,36 @@ accepts an absolute Windows DLL path and runs its fixture through the packaged
 DLL's four exports. CI performs that check after binary architecture validation;
 the test driver is included for later Wine qualification. Passing on Windows
 still does not establish Wine/Android runtime behavior.
+
+Run `40983191169` at `b335a3111cd64e69d5ceaebc73fb4daa57eed560` passed the complete
+matrix plus the actual packaged DLL fixture on both native Windows architectures.
+The subsequent `wine-arm64` job uses a fixed integration-repository commit and
+this run's exact ARM64 artifact. It stages a hash-verified Wine candidate, executes
+the real DLL fixture within an isolated native Linux ARM64 namespace and retains
+logs/qualification JSON. Its success must be read from the completed job; adding
+the workflow is not execution evidence. Android runtime, full game startup and
+audio remain unqualified by that codec fixture.
+
+`Tools/VulkanTests` now also builds a shader-free clear/present fixture using the
+engine's Win32 surface/device/swapchain and checked acquire/submit/present calls,
+including resize. The older texture fixture checks 30,000 resource allocations
+without presenting. Neither fixture verifies game shaders, pixel readback or
+world rendering; Lavapipe software-driver results are not Adreno performance.
+
+## Optional Retail/Forever path
+
+The primary artifact explicitly uses `WOWDECOMP_RETAIL_ASSETS=OFF`. Enabling it
+builds CascLib from source commit `38a34665624b8775bb875274b36191b21c38d97b`, with
+the source archive SHA-256 pinned in `cmake/RetailAssets.cmake`. ARM64 compilation
+of this optional path has not yet been qualified.
+
+`RetailCasc.ini` and the matching Forever source support `mode=files`: pinned
+build config, locale and FileDataID `.bin` files are required. This mode reads the
+local pack and returns an error for missing assets; it does not fall back to CDN
+access. `mode=online` explicitly permits network acquisition and belongs only in
+setup/update tooling for the Android application. Actual dependency closure,
+matching table overlays and custom rendering still require the unavailable
+content package and separate validation.
 
 ## Remaining qualification
 

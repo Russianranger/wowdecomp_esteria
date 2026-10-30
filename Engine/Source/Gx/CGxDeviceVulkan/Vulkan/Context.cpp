@@ -132,6 +132,11 @@ namespace gxvk::vk::context
         CreateSwapchain(win);
     }
 
+    bool ValidationActive()
+    {
+        return g.validation && g.messenger != VK_NULL_HANDLE;
+    }
+
     void LogValidationSummary()
     {
         AcquireSRWLockShared(&g_validation.lock);
