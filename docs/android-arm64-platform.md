@@ -241,9 +241,18 @@ checkout's pinned guest ALSA plugin and captures its actual accepted PCM through
 a bounded receiver. Both channel frequencies, amplitude/duration, lifecycle
 markers and owned cleanup must pass. The receiver supplies a simulated monotonic
 clock; this cannot qualify Android AudioTrack, audible hardware output, physical
-latency, music decoding or complete game audio. The first complete captured-FMOD
-execution is pending; the existing codec, entry and graphics evidence remains
-scoped separately.
+latency, music decoding or complete game audio. The existing codec, entry and
+graphics evidence remains scoped separately.
+
+The first paired run [40995927216](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40995927216)
+at client `7a226415d0ca34ac90f931b51890f7bfc6dad5be` compiled both Windows targets
+and captured the correct WinMM stereo signal (98,422 frames, clean EOF). Its
+lifecycle test failed after natural completion invalidated the channel handle;
+DirectSound did not run and audio qualification remains pending. The fixture now
+registers the actual END callback while paused, requires exactly one callback and
+prior observed sample progression, and accepts an invalid-handle race only when
+that callback has occurred. Captured PCM and clean output shutdown remain required.
+The corrected fixture still needs the paired runtime check.
 
 ## Optional Retail/Forever path
 

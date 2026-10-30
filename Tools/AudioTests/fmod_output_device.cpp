@@ -3,6 +3,7 @@
 // only establishes the API/clock lifecycle and cannot qualify audible output.
 #include <windows.h>
 #include <fmod.hpp>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -11,6 +12,13 @@
 #include <vector>
 
 namespace {
+std::atomic<unsigned> endCallbacks{0};
+FMOD_RESULT F_CALLBACK ChannelEnded(FMOD_CHANNEL*, FMOD_CHANNEL_CALLBACKTYPE type,
+                                   int command, unsigned data1, unsigned data2) {
+    if (type == FMOD_CHANNEL_CALLBACKTYPE_END && command == 0x455354 && !data1 && !data2)
+        endCallbacks.fetch_add(1, std::memory_order_release);
+    return FMOD_OK;
+}
 void Require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
@@ -82,18 +90,28 @@ int main(int argc, char** argv) {
         FMOD::Channel* channel = nullptr;
         Check(owned.system->playSound(FMOD_CHANNEL_FREE, owned.sound, true, &channel), "create paused software channel");
         Require(channel != nullptr, "software channel exists");
+        Check(channel->setCallback(FMOD_CHANNEL_CALLBACKTYPE_END, ChannelEnded, 0x455354),
+              "register actual channel end callback while paused");
         Check(channel->setPaused(false), "start real mixer playback");
         const ULONGLONG began = GetTickCount64();
-        bool sawPlaying = false, ended = false;
+        bool sawPlaying = false;
         unsigned furthest = 0;
         while (GetTickCount64() - began < 8000) {
             Check(owned.system->update(), "update actual mixer/output");
+            if (endCallbacks.load(std::memory_order_acquire)) break;
             bool playing = false;
-            Check(channel->isPlaying(&playing), "observe actual channel lifecycle");
-            if (!playing) { ended = true; break; }
+            const FMOD_RESULT playingResult = channel->isPlaying(&playing);
+            // ChannelI::stopEx invokes END before releasing the real channel.
+            // Natural completion may invalidate its handle between API calls;
+            // only the actual callback can establish completion in that race.
+            if (playingResult == FMOD_ERR_INVALID_HANDLE && endCallbacks.load(std::memory_order_acquire)) break;
+            Check(playingResult, "observe actual channel lifecycle");
+            if (!playing) break;
             sawPlaying = true;
             unsigned position = 0;
-            Check(channel->getPosition(&position, FMOD_TIMEUNIT_PCM), "observe advancing sample position");
+            const FMOD_RESULT positionResult = channel->getPosition(&position, FMOD_TIMEUNIT_PCM);
+            if (positionResult == FMOD_ERR_INVALID_HANDLE && endCallbacks.load(std::memory_order_acquire)) break;
+            Check(positionResult, "observe advancing sample position");
             if (position > furthest) furthest = position;
             MSG message;
             while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
@@ -101,7 +119,7 @@ int main(int argc, char** argv) {
             }
             Sleep(10);
         }
-        Require(sawPlaying && ended && furthest > frames * 9 / 10,
+        Require(sawPlaying && endCallbacks.load(std::memory_order_acquire) == 1 && furthest > frames * 9 / 10,
                 "playback must advance through the two-second signal and finish within its deadline");
         // Mixer completion precedes physical queue consumption. Give the four
         // short output buffers time to drain before releasing the backend.

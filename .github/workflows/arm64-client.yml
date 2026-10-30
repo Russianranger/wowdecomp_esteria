@@ -140,7 +140,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Russianranger/esteria_android
-          ref: 61bf8a134845276cb78430884d557e477ff286aa
+          ref: 682f8c309365e7c8f4cd1a3503cc794275c73c8e
           path: integration
       - name: Download this run's matching native ARM64 binaries
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
