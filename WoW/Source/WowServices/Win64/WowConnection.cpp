@@ -6,6 +6,7 @@
 #include <malloc.h>
 #include <new>
 #include "WoW/Source/WowServices/WowConnection.h"
+#include "Engine/Source/Platform/LocalOffline.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -658,6 +659,11 @@ void WowConnection::DoWrites() {
 
 // OFFSET: 0x00468BA0
 void WowConnection::StartConnect() {
+    if (Esteria::LocalOffline::Enabled() && (!this->m_connectPort ||
+        !Esteria::LocalOffline::IsLoopbackAddressBytes(&this->m_connectAddress))) {
+        this->RejectLocalOfflineConnect();
+        return;
+    }
     if (this->m_sock >= 0) {
         if (this->m_netLink.IsLinked()) {
             WowConnection::s_network->Remove(this);
@@ -712,6 +718,8 @@ void WowConnection::StartConnect() {
 
 // OFFSET: 0x00468D20
 bool WowConnection::Connect(const char* host, uint16_t port, int32_t timeout) {
+    if (Esteria::LocalOffline::Enabled() &&
+        (!port || !Esteria::LocalOffline::IsLiteralLoopbackHost(host))) return this->RejectLocalOfflineConnect();
     uint32_t address = inet_addr(host);
 
     if (address == INADDR_NONE || !address) {

@@ -9,6 +9,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/BlizzardCore/Source/System/Thread/Thread.h"
 #include "Engine/Source/BlizzardCore/Source/System/Unicode/Unicode.h"
+#include "Engine/Source/Platform/LocalOffline.h"
 
 // STATIC: 0x00B38010
 static HINTERNET s_session;
@@ -267,6 +268,8 @@ static HINTERNET GetSession() {
 
 // OFFSET: 0x00451470
 bool Blizzard::URL::DownloadURL(const char* url, DownloadCallback* callback) {
+    // Callers retain their callback when initiation fails; do not complete it.
+    if (Esteria::LocalOffline::Reject("streaming HTTP download")) return false;
     char hostName[1024];
     char urlPath[1024];
 

@@ -6,11 +6,13 @@
 #include "Engine/Source/Storm/H/storm.h"
 #include "WoW/Source/Client.h"
 #include "WoW/Source/Win64/EntryCheck.h"
+#include "WoW/Source/Win64/OfflineCheck.h"
 
 // STATIC: 0x00B311E8
 static LPVOID lpFiber;
 static LPVOID entryCheckFiber;
 static bool entryCheckRequested;
+static bool offlineCheckRequested;
 
 static void InvalidParameterHandler(const wchar_t* expression, const wchar_t* function, const wchar_t* file, unsigned int line, uintptr_t reserved) {
 }
@@ -41,6 +43,8 @@ int main() {
 
     if (entryCheckRequested)
         return esteria::entrycheck::OnMainFiber(lpFiber, entryCheckFiber);
+    if (offlineCheckRequested)
+        return esteria::offlinecheck::Run();
 
     return CommonMain();
 }
@@ -56,6 +60,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     const auto entryMode = esteria::entrycheck::ParseCommandLine();
     if (entryMode == esteria::entrycheck::Mode::Invalid) return 64;
     entryCheckRequested = entryMode == esteria::entrycheck::Mode::Requested;
+    offlineCheckRequested = entryMode == esteria::entrycheck::Mode::OfflineRequested;
     lpFiber = ConvertThreadToFiber(nullptr);
 
     if (!lpFiber) {

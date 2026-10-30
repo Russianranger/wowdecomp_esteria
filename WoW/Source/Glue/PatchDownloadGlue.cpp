@@ -1,3 +1,4 @@
+#include "Engine/Source/Platform/LocalOffline.h"
 #include "PatchDownloadGlue.h"
 #include <cstdint>
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
@@ -148,7 +149,20 @@ size_t CGlueMgr::GetPatchFolder(char* buffer, uint32_t size) {
 
 // VERIFY: 95e3f756 auto
 // OFFSET: 0x004E5200
+static bool RejectLocalOfflinePatch() {
+    if (!Esteria::LocalOffline::Reject("client patch download or execution")) return false;
+    if (ClientServices::LoginConnection()) ClientServices::LoginConnection()->Logoff();
+    CGlueMgr::m_idleState = IDLE_NONE;
+    CGlueMgr::m_showedDisconnect = 0;
+    CGlueMgr::SetScreen("login");
+    FrameScript_SignalEvent(GLUE_EVENT_CLOSE_STATUS_DIALOG, nullptr);
+    FrameScript_SignalEvent(GLUE_EVENT_OPEN_STATUS_DIALOG, "%s%s", "OKAY",
+        "Local offline mode: install matching updates through launcher setup.");
+    return true;
+}
+
 void CGlueMgr::PatchDownloadStart() {
+    if (RejectLocalOfflinePatch()) return;
     FrameScript_SignalEvent(GLUE_EVENT_CLOSE_STATUS_DIALOG, nullptr);
     CGlueMgr::m_idleState = IDLE_12;
     CGlueMgr::m_showedDisconnect = 0;
@@ -332,6 +346,7 @@ void CGlueMgr::PatchDownloadIdle() {
 // VERIFY: 8c2017c4 manual
 // OFFSET: 0x004E5730
 void CGlueMgr::PatchDownloadApply() {
+    if (RejectLocalOfflinePatch()) return;
     char currentDirectory[260];
     OsGetCurrentDirectory(sizeof(currentDirectory), currentDirectory);
 

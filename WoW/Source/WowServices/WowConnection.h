@@ -121,6 +121,7 @@ class WowConnection {
     bool Connect(const char* address, int32_t timeout);
     bool Connect(const char* host, uint16_t port, int32_t timeout);
     bool Connect(uint32_t address, uint16_t port, int32_t timeout);
+    bool RejectLocalOfflineConnect();
     void Disconnect();
     void DoDisconnect();
     void DoExceptions();

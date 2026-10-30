@@ -167,4 +167,10 @@ HttpDownload::HttpDownload(const char* url, const char* targetName) {
     }
 
     this->m_requested = Blizzard::URL::DownloadURL(url, this->m_callback);
+    if (!this->m_requested) {
+        // No request owns the self-deleting callback after failed initiation.
+        delete this->m_callback;
+        this->m_callback = nullptr;
+        this->m_state->m_done = true;
+    }
 }

@@ -11,6 +11,7 @@ extern "C" int EsteriaClientVersion();
 namespace esteria::entrycheck {
 namespace {
 constexpr wchar_t kFlag[] = L"--esteria-entry-check";
+constexpr wchar_t kOfflineFlag[] = L"--offline-check";
 constexpr wchar_t kReceipt[] = L"Esteria-entry-check.json";
 bool mainFiberPassed = false;
 
@@ -71,6 +72,13 @@ Mode ParseCommandLine() {
     if (!arguments) return Mode::Invalid;
     Mode mode = Mode::None;
     for (int i = 1; i < count; ++i) {
+        if (_wcsnicmp(arguments[i], kOfflineFlag, (sizeof(kOfflineFlag) / sizeof(*kOfflineFlag)) - 1) == 0) {
+            const int other = i == 1 ? 2 : 1;
+            mode = count == 3 && std::wcscmp(arguments[i], kOfflineFlag) == 0 &&
+                (!std::wcscmp(arguments[other], L"--local-offline") || !std::wcscmp(arguments[other], L"-local-offline"))
+                ? Mode::OfflineRequested : Mode::Invalid;
+            break;
+        }
         // The complete diagnostic flag prefix with wrong case, an appended
         // value or extra arguments must not fall through into normal gameplay.
         if (_wcsnicmp(arguments[i], kFlag, (sizeof(kFlag) / sizeof(*kFlag)) - 1) == 0) {

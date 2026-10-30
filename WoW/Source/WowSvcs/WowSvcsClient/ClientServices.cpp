@@ -1,3 +1,4 @@
+#include "Engine/Source/Platform/LocalOffline.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "WoW/Common/ComponentCore/RetailRace.h"
 #include <cstdint>
@@ -836,7 +837,7 @@ void ClientServices::Logon(const char* username, const char* password) {
         ClientServices::s_newLogin = false;
     }
 
-    bool battlenet = SStrChr(username, '@') != nullptr;
+    bool battlenet = !Esteria::LocalOffline::Enabled() && SStrChr(username, '@') != nullptr;
 
     if (ClientServices::s_loginObj && ((ClientServices::s_loginObj->GetLoginServerType() == 1 && !battlenet) || (ClientServices::s_loginObj->GetLoginServerType() == 0 && battlenet))) {
         delete ClientServices::s_loginObj;
@@ -857,7 +858,7 @@ void ClientServices::Logon(const char* username, const char* password) {
 
     char accountName[1280];
 
-    if (ClientServices::s_decorateAccountName->m_intValue) {
+    if (!Esteria::LocalOffline::Enabled() && ClientServices::s_decorateAccountName->m_intValue) {
         switch (s_locale) {
             case 0:
             case 7:
@@ -891,6 +892,7 @@ void ClientServices::Logon(const char* username, const char* password) {
 
     const char* portal = ClientServices::s_loginObj->GetLoginServerType() == 1 ? ClientServices::s_portalVar->m_stringValue.m_str : "";
     const char* realmList = ClientServices::s_loginObj->GetLoginServerType() == 1 ? ClientServices::s_realmListBNVar->m_stringValue.m_str : ClientServices::s_realmListVar->m_stringValue.m_str;
+    if (Esteria::LocalOffline::Enabled()) realmList = "127.0.0.1:3724";
     ClientServices::s_loginObj->Logon(realmList, portal);
 }
 

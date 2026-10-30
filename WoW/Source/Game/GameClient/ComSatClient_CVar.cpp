@@ -1,3 +1,4 @@
+#include "Engine/Source/Platform/LocalOffline.h"
 #include "ComSatClient.h"
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/ConsoleBase/ConsoleVar.h"
@@ -20,6 +21,7 @@ CVar* s_cvarEnableMicrophone;
 // VERIFY: ed2e7fbe manual
 // OFFSET: 0x007DC770
 bool EnableMicrophoneHandler(CVar* var, const char* oldValue, const char* value, void* arg) {
+    if (SStrToInt(value) && Esteria::LocalOffline::Reject("unsupported local-session voice capture")) return false;
     if (!s_cvarEnableVoiceChat) {
         return true;
     }
@@ -137,6 +139,7 @@ bool SelfMuteHandler(CVar* var, const char* oldValue, const char* value, void* a
 // VERIFY: 041fa9fd manual
 // OFFSET: 0x007DFEA0
 bool EnableVoiceChatHandler(CVar* var, const char* oldValue, const char* value, void* arg) {
+    if (SStrToInt(value) && Esteria::LocalOffline::Reject("unsupported local-session voice capture")) return false;
     bool wasEnabled = oldValue && SStrToInt(oldValue);
     bool enabled = SStrToInt(value) != 0;
     bool microphoneEnabled = s_cvarEnableMicrophone && s_cvarEnableMicrophone->m_intValue;

@@ -18,6 +18,7 @@
 #include "Engine/Source/Retail/CentaurAppearance.h"
 #include "Engine/Source/Retail/EtherealModel.h"
 #include "Engine/Source/Model2/M2Data.h"
+#include "Engine/Source/Platform/LocalOffline.h"
 #include <chrono>
 #include <set>
 #include <algorithm>
@@ -1590,6 +1591,19 @@ int main(int argc, char** argv) {
     Check(source.Handles("creature\\test\\test.m2"), "explicit replacement alias");
     Check(source.Handles("retail/interface/icons/test.blp"), "listfile stays in Retail namespace");
     Check(!source.Handles("interface/icons/test.blp"), "no implicit stock overrides");
+    Esteria::LocalOffline::ConfigureAtStartup(true);
+    for (const auto kind : {Retail::SourceKind::Retail, Retail::SourceKind::Forever}) {
+        Retail::CascSource blocked(kind);
+        Check(!blocked.Configure((temp / "RetailCasc.ini").string().c_str(), error)
+            && error.find("online CASC access is disabled") != std::string::npos,
+            "local offline policy rejects Retail and Forever online configurations");
+    }
+    Check(!source.Inspect("retail/999.m2", prepared, error)
+        && error.find("online CASC access is disabled") != std::string::npos,
+        "local offline policy also blocks opening previously configured online storage");
+    Check(source.Stats().acquired == 0 && !std::filesystem::exists(temp / "cache"),
+        "offline refusal does not acquire assets or create an online cache");
+    Esteria::LocalOffline::ConfigureAtStartup(false);
     Retail::HandItemAppearance appearance;
     Check(source.HandItem(123, appearance) && appearance.modelId == 916541 && appearance.textureId == 916543, "equipment uses Wrath display ID and Retail file IDs");
     Check(!source.HandItem(124, appearance), "unmapped equipment unchanged");
@@ -1609,6 +1623,8 @@ int main(int argc, char** argv) {
     Check(!invalidEquipment.Configure((temp / "RetailCasc.ini").string().c_str(), error), "reject missing equipment texture");
     std::ofstream(temp / "offline.ini") << "mode=files\npath=.\nbuild=0123456789abcdef0123456789abcdef\n";
     std::ofstream(temp / "42.bin", std::ios::binary).write(reinterpret_cast<const char*>(valid.data()), valid.size());
+    // Exercise real prepared files/cache reads with the gameplay policy enabled.
+    Esteria::LocalOffline::ConfigureAtStartup(true);
     Retail::CascSource offline;
     Check(offline.Configure((temp / "offline.ini").string().c_str(), error), "configure offline originals without network");
     Check(offline.Inspect("retail/42.m2", prepared, error) && prepared == valid, "offline source preserves original bytes");
@@ -1726,6 +1742,7 @@ int main(int argc, char** argv) {
         }
         for (auto dir = directories.rbegin(); dir != directories.rend(); ++dir) std::filesystem::remove(*dir);
     }
+    Esteria::LocalOffline::ConfigureAtStartup(false);
     {
         std::vector<uint8_t> emptyTable(212);
         Put(emptyTable, 0, 0x35434457); Put(emptyTable, 4, 5);

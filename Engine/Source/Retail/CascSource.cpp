@@ -7,6 +7,7 @@
 #include "Engine/Source/Retail/Centaur.h"
 #include "Engine/Source/Retail/Ethereal.h"
 #include "Engine/Source/Retail/EtherealModel.h"
+#include "Engine/Source/Platform/LocalOffline.h"
 #include <CascLib.h>
 #include <algorithm>
 #include <atomic>
@@ -124,6 +125,8 @@ struct CascSource::Impl {
 
     bool Open(std::string& error) {
         if (!configured) { error = configurationError; return false; }
+        if (online && Esteria::LocalOffline::Reject("Retail/Forever online CASC storage"))
+            return Failure(error, "Local offline mode requires prepared Retail/Forever assets using mode=files or mode=local; online CASC access is disabled");
         if (storage) return true;
         CASC_OPEN_STORAGE_ARGS args = {};
         args.Size = sizeof(args);
@@ -310,6 +313,8 @@ bool CascSource::Configure(const char* configPath, std::string& error) {
             return Failure(error, "Unknown Retail CASC config key");
     }
     if (values["mode"] != "online" && values["mode"] != "local" && values["mode"] != "files") return Failure(error, "mode must be online, local or files");
+    if (values["mode"] == "online" && Esteria::LocalOffline::Reject("Retail/Forever online CASC configuration"))
+        return Failure(error, "Local offline mode requires prepared Retail/Forever assets using mode=files or mode=local; online CASC access is disabled");
     s.online = values["mode"] == "online";
     s.files = values["mode"] == "files";
     if (!values["product"].empty()) s.product = values["product"];

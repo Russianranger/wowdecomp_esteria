@@ -17,6 +17,7 @@
 #include "Engine/Source/BlizzardCore/Source/System/Time/Time.h"
 #include "Engine/Source/BlizzardCore/Source/System/URL/URL.h"
 #include "Engine/Source/BlizzardCore/Source/System/Using/Using.h"
+#include "Engine/Source/Platform/LocalOffline.h"
 
 // STATIC: 0x00AB938C
 static Blizzard::Using::Use s_useFile("Blizzard::File");
@@ -376,6 +377,11 @@ void Blizzard::Streaming::Transport::GetSplitFileURL(const std::string& url, int
 // VERIFY: fc935412 manual
 // OFFSET: 0x00455F10
 bool Blizzard::Streaming::Transport::ReadHttp(Manifests::TransportItem* transport, std::string url, int32_t maxRetry, void* data, int64_t fileSize, int64_t offset, int32_t size) {
+    if (Esteria::LocalOffline::Reject("streaming HTTP asset transport")) {
+        Blizzard::File::AddToLastErrorStack(Blizzard::URL::DownloadCallback::DOWNLOAD_STOPPED,
+            "Local offline mode requires all streaming assets to be prepared before gameplay", 21);
+        return false;
+    }
     int32_t error = 0;
 
     TransportHttpCallback* callback = new TransportHttpCallback(size);

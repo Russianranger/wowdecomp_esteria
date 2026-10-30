@@ -5,6 +5,7 @@
 #include <windows.h>
 #include <wininet.h>
 #include "Engine/Source/Os/OsURLDownload.h"
+#include "Engine/Source/Platform/LocalOffline.h"
 #include "Engine/Source/Storm/H/storm.h"
 
 // VERIFY: 91f7c49f manual
@@ -155,6 +156,8 @@ OsUrlDownload::OsUrlDownload() {
 // VERIFY: 128818cf manual
 // OFFSET: 0x0086FE40
 bool OsUrlDownload::DownloadString(const char* url, OsURLDownloadCallback callback, void* param, int32_t timeout) {
+    // Preserve the initiation-failure contract: no request or callback is owned.
+    if (Esteria::LocalOffline::Reject("OS HTTP download")) return false;
     char hostName[1024];
     char urlPath[1024];
 

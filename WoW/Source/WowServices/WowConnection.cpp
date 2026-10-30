@@ -1,4 +1,5 @@
 #include "WowConnection.h"
+#include "Engine/Source/Platform/LocalOffline.h"
 #include <cstdlib>
 #include <cstring>
 #include <new>
@@ -564,6 +565,8 @@ void WowConnection::DoExceptions() {
 // VERIFY: 2e088c06 auto
 // OFFSET: 0x00468D00
 bool WowConnection::Connect(uint32_t address, uint16_t port, int32_t timeout) {
+    if (Esteria::LocalOffline::Enabled() &&
+        (!port || !Esteria::LocalOffline::IsLoopbackAddressBytes(&address))) return this->RejectLocalOfflineConnect();
     this->m_connectAddress = address;
     this->m_connectPort = port;
     this->StartConnect();
@@ -611,6 +614,8 @@ int32_t WowConnection::InitOsNet(bool (*netAddrFilter)(const NETADDR* addr), voi
 // VERIFY: f15c6280 auto
 // OFFSET: 0x00468E50
 bool WowConnection::Connect(const char* address, int32_t timeout) {
+    if (Esteria::LocalOffline::Enabled() &&
+        !Esteria::LocalOffline::IsLiteralLoopbackEndpoint(address)) return this->RejectLocalOfflineConnect();
     char host[256];
     const char* separator = SStrChr(address, ':');
 
@@ -629,9 +634,28 @@ bool WowConnection::Connect(const char* address, int32_t timeout) {
         SStrCopy(host, address, sizeof(host));
     }
 
-    this->Connect(host, this->m_connectPort, timeout);
+    return this->Connect(host, this->m_connectPort, timeout);
+}
 
-    return true;
+bool WowConnection::RejectLocalOfflineConnect() {
+    Esteria::LocalOffline::Reject("non-loopback or invalid game connection");
+    // Match the existing callback/ref lifetime pattern. Grunt and world callers
+    // do not all inspect Connect's return, so they must receive failure too.
+    this->AddRef();
+    this->m_lock.Enter();
+    if (this->m_netLink.IsLinked()) WowConnection::s_network->Remove(this);
+    if (this->m_sock >= 0) this->CloseSocket(this->m_sock);
+    this->m_sock = -1;
+    this->SetState(WOWC_DISCONNECTED);
+    this->AcquireResponseRef();
+    WowConnectionResponse* response = this->m_response;
+    this->m_lock.Leave();
+    if (response) response->WCCantConnect(this, OsGetAsyncTimeMs(), &this->m_peer);
+    this->m_lock.Enter();
+    this->ReleaseResponseRef();
+    this->m_lock.Leave();
+    this->Release();
+    return false;
 }
 
 // INLINED

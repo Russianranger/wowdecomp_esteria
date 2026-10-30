@@ -1,5 +1,6 @@
 #if defined(WOWDECOMP_ARCH_32)
 
+#include "Engine/Source/Platform/LocalOffline.h"
 #include <winsock2.h>
 #include <windows.h>
 #include <cstring>
@@ -52,6 +53,10 @@ bool ComSat::Network::SocketPosix::Bind(int32_t port) {
 // VERIFY: 417b79dd auto
 // OFFSET: 0x00888860
 int32_t ComSat::Network::SocketPosix::SendTo(const ComSat::Network::Address& address, const uint8_t* data, uint32_t size) {
+    if (Esteria::LocalOffline::Reject("unsupported local-session voice transport")) {
+        WSASetLastError(WSAEACCES);
+        return SOCKET_ERROR;
+    }
     return sendto(this->m_socket, reinterpret_cast<const char*>(data), size, 0, reinterpret_cast<const sockaddr*>(&address.m_family), address.m_length);
 }
 

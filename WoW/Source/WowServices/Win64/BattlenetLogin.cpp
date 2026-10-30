@@ -1,5 +1,6 @@
 #if defined(WOWDECOMP_ARCH_64)
 
+#include "Engine/Source/Platform/LocalOffline.h"
 #include <winsock2.h>
 #include <windows.h>
 #include "WoW/Source/WowServices/BattlenetLogin.h"
@@ -13,6 +14,12 @@ uint32_t BattlenetApplication::Resolve(uint32_t token, const char* hostname) {
     }
 
     Battlenet::SystemClient& client = g_tumorManager->m_tumor;
+    if (Esteria::LocalOffline::Reject("Battle.net DNS resolution")) {
+        Battlenet::Client::DNSInfo info;
+        info.m_name = "";
+        client.Resolved(token, info);
+        return 0;
+    }
     hostent* host = gethostbyname(hostname);
 
     if (host) {

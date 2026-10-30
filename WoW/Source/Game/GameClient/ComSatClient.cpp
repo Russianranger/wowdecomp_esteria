@@ -1,3 +1,4 @@
+#include "Engine/Source/Platform/LocalOffline.h"
 #include "ComSatClient.h"
 #include "Engine/Source/SoundEngine/SoundEngine.h"
 #include "Engine/Source/Os/TimeManager.h"
@@ -1701,6 +1702,11 @@ void ComSatClient_Init() {
     CVar::Lookup("VoiceChatSelfMute");
     s_cvarPushToTalkButton = CVar::Lookup("PushToTalkButton");
     s_cvarComSatSleepTime = nullptr;
+
+    if (Esteria::LocalOffline::Reject("unsupported local-session voice initialization")) {
+        s_comsatDisabledByClient = 1;
+        return;
+    }
 
     if (!(OsSupportsClientMath())) {
         s_comsatDisabledByClient = 1;

@@ -5,6 +5,7 @@
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Streaming.h"
 #include "Engine/Source/BlizzardCore/Source/System/String/String.h"
 #include "Engine/Source/Os/TimeManager.h"
+#include "Engine/Source/Platform/LocalOffline.h"
 
 // STATIC: 0x00AB9414
 static const uint32_t s_frameTimeBuckets[25] = { 0, 1, 8, 11, 14, 18, 24, 32, 42, 56, 74, 97, 128, 170, 224, 295, 390, 515, 680, 897, 1184, 1563, 2063, 2724, 3595 };
@@ -309,14 +310,16 @@ std::string Tracker::MakeTrackerURL(const char* address, const char* infoHash, i
 // VERIFY: 514e4984 manual
 // OFFSET: 0x00462E20
 void Tracker::SendToTracker(const char* infoHash, int32_t event, int64_t downloaded, const char* stats) {
-    if (!Tracker::trackerAddress) {
+    if (!Tracker::trackerAddress || Esteria::LocalOffline::Reject("streaming telemetry")) {
         return;
     }
 
     TrackerHttpDataDownloadCallBack callback;
     std::string url = MakeTrackerURL(Tracker::trackerAddress, infoHash, event, downloaded, stats);
-    Blizzard::URL::DownloadURL(url.c_str(), &callback);
-    Blizzard::Lock::EventWaitForever(callback.m_event);
+    // Failed initiation never signals Completed(), including offline policy.
+    if (Blizzard::URL::DownloadURL(url.c_str(), &callback)) {
+        Blizzard::Lock::EventWaitForever(callback.m_event);
+    }
 }
 
 // VERIFY: 498455b5 manual

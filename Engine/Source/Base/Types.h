@@ -28,6 +28,8 @@ enum CMDOPT {
     CMD_VULKAN = 40,
     // Keep custom backend options beyond WOWCMDOPT's ids; 16 selects 800x600.
     CMD_D3D11 = 41,
+    CMD_LOCAL_OFFLINE = 42,
+    CMD_LOCAL_OFFLINE_LONG = 43,
 };
 
 enum PROPERTY {

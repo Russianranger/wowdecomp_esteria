@@ -83,10 +83,10 @@ jobs:
           cmake -S Tools/VulkanTests -B build/vulkan -G "${{ matrix.generator }}" -A ${{ matrix.arch }} -DVULKAN_TEXTURE_DEVICE_TEST=ON -DVULKAN_PRESENT_DEVICE_TEST=ON
           cmake --build build/vulkan --config Release --parallel 4
           ctest --test-dir build/vulkan -C Release --output-on-failure -R '^texture_registry$'
-      - name: Exercise actual client entry, fibers and strict diagnostic arguments
+      - name: Exercise actual client entry, fibers, offline command parsing and refused remote paths
         if: ${{ !cancelled() && steps.runtime_manifest.outcome == 'success' }}
         run: >-
-          python Tools/PlatformTests/verify_client_entry.py
+          python Tools/PlatformTests/verify_client_offline.py
           --directory "${{ matrix.runtime_dir }}"
           --architecture "${{ matrix.arch }}"
           --output build/client-entry
@@ -140,7 +140,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Russianranger/esteria_android
-          ref: 682f8c309365e7c8f4cd1a3503cc794275c73c8e
+          ref: ce45a79fb3786ab0e16ea8055a2c2bd0fbb7d444
           path: integration
       - name: Download this run's matching native ARM64 binaries
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -173,7 +173,7 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/guest-bridges"
           cp integration/LICENSE "$RUNNER_TEMP/guest-bridges/payload/notices/ESTERIA-GPL-3.0"
           cp integration/runtime/bridge-reference.json "$RUNNER_TEMP/guest-bridges/payload/corresponding-source/"
-      - name: Execute entry, codec, graphics and captured FMOD audio without external networking
+      - name: Execute entry, offline boundaries, codec, graphics and captured FMOD audio
         run: >-
           sudo -n python3 integration/tools/qualify_wine_arm64.py
           --runtime "$RUNNER_TEMP/wine-codec-runtime"
@@ -182,6 +182,7 @@ jobs:
           --presentation-driver "$GITHUB_WORKSPACE/client-artifact/build/vulkan/Release/presentation_device.exe"
           --texture-driver "$GITHUB_WORKSPACE/client-artifact/build/vulkan/Release/texture_device.exe"
           --client-entry-check
+          --client-offline-check
           --require-engine-frame-readback
           --audio-driver "$GITHUB_WORKSPACE/client-artifact/build/audio/Release/fmod_output_device.exe"
           --bridge-dir "$RUNNER_TEMP/guest-bridges/payload"

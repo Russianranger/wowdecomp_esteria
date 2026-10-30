@@ -1,5 +1,6 @@
 #if defined(WOWDECOMP_ARCH_64)
 
+#include "Engine/Source/Platform/LocalOffline.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -457,6 +458,7 @@ int32_t OsIsRemoteSession() {
 
 // OFFSET: 0x0086B790
 int32_t OsLaunchURL(const char* url) {
+    if (Esteria::LocalOffline::Reject("external browser launch")) return 0;
     if (!url || !*url) {
         return 0;
     }

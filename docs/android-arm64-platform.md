@@ -252,7 +252,15 @@ DirectSound did not run and audio qualification remains pending. The fixture now
 registers the actual END callback while paused, requires exactly one callback and
 prior observed sample progression, and accepts an invalid-handle race only when
 that callback has occurred. Captured PCM and clean output shutdown remain required.
-The corrected fixture still needs the paired runtime check.
+The corrected paired run [40998295147](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40998295147)
+at client `243b6c4dd141976f043d1b1a0d465631c40890ec` and integration harness
+`682f8c309365e7c8f4cd1a3503cc794275c73c8e` passed all five jobs. Actual WinMM and
+DirectSound captures contained 122,414 and 123,344 stereo frames respectively,
+both matching the expected signal with clean EOF, zero fixture exits and observed
+owned Wine stop/final wait. The explicit FMOD PCM transport qualification is true;
+Android AudioTrack/audible output and game audio integration remain unqualified.
+Evidence artifact12952801053 has qualification receipt SHA-256
+`663bdfd114d8440098556f5e475a4024224b28b8c5700a903d58308762131ffd`.
 
 ## Optional Retail/Forever path
 
@@ -268,6 +276,46 @@ access. `mode=online` explicitly permits network acquisition and belongs only in
 setup/update tooling for the Android application. Actual dependency closure,
 matching table overlays and custom rendering still require the unavailable
 content package and separate validation.
+
+## Explicit local offline sessions
+
+`--local-offline` (also `-local-offline`) is an opt-in startup policy, independent
+of imported CVars. Without it, existing desktop behavior remains. Normal launcher
+arguments are `--local-offline -datadir Z:\work\launch\<generation> -vulkan`.
+The option is processed before MFIL/streaming initialization. Separate IDs42/43
+avoid relying on SCmd's same-ID alias propagation. This is a client behavior
+policy, not an OS sandbox or a substitute for complete prepared content.
+
+In this mode, login uses the classic Grunt protocol at literal `127.0.0.1:3724`,
+without regional account decoration or Battle.net selection from an `@` username.
+Game/world/redirect connections require literal `127.0.0.1` and a valid port;
+nonnumeric hostnames are rejected before DNS. Numeric redirects are checked too.
+Rejected connections notify the normal `WCCantConnect` path with the existing
+response/connection lifetime rules, so callers that ignore a boolean return still
+receive failure. Actual successful login/world communication remains to be tested.
+
+Both HTTP entry points fail before starting requests. Caller-owned callbacks stay
+owned by the caller on initiation failure; HttpDownload now frees its unstarted
+callback. Tracker exits before its otherwise unbounded event wait, and streaming
+HTTP reports a missing-prepared-assets error before retry loops. Retail/Forever
+`online` configuration and preconfigured online storage are refused; their existing
+`files`/`local` reads remain. No blank asset replacement or silent CDN fallback is
+introduced. Optional alerts, remote agreements, scan-DLL updates, account/support
+HTTP, external browser launches and client patch download/execution are disabled
+with controlled diagnostics. Updates belong in explicitly initiated launcher setup.
+Unsupported remote voice-chat initialization/capture and UDP transport are disabled;
+this does not disable the required FMOD game-audio output.
+
+`--offline-check --local-offline` is a separate no-content diagnostic path for the
+actual executable. The shorter diagnostic spelling fits SCmd's 15-character name
+limit. Its Windows harness tests both offline spellings through actual SCmd,
+real HTTP refusals without synthetic callbacks, nonblocking tracker return and
+three actual game-connection refusals with failure callbacks/ref release. The
+exclusive receipt states no CommonMain, assets or loopback-gameplay qualification.
+Malformed diagnostic arguments and existing receipt preservation are checked.
+The optional Wine harness executes both spellings with its own exact receipt gate.
+These actual Windows/Wine runs are pending for this change; portable policy tests,
+receipt rejection guards and host Retail files/local tests have passed.
 
 ## Remaining qualification
 
