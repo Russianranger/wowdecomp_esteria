@@ -51,6 +51,8 @@
 #include "WoW/Source/Glue/CSimpleModelFFX.h"
 #include "WoW/Source/Glue/CWOWClientStatus.h"
 #include "WoW/Source/Glue/GlueMgr.h"
+#include "WoW/Source/Glue/LocalAccountLogin.h"
+#include "Engine/Source/Platform/LocalAccountHandoff.h"
 #include "WoW/Source/Glue/RealmList.h"
 #include "WoW/Source/LoadingScreen.h"
 #include "WoW/Source/Net/Types.h"
@@ -379,7 +381,7 @@ void CGlueMgr::LoginServerLogin(const char* username, char* password) {
 
     FrameScript_SignalEvent(GLUE_EVENT_OPEN_STATUS_DIALOG, "%s", "CANCEL");
     ClientServices::Logon(CGlueMgr::m_accountName, password);
-    memset(password, 0, strlen(password));
+    Esteria::LocalAccount::SecureClear(password, strlen(password));
 }
 
 // VERIFY: 6c64b192 auto
@@ -675,6 +677,7 @@ void CGlueMgr::HandleDisplaySizeChanged(const CSizeEvent& event) {
 // VERIFY: e486096e manual
 // OFFSET: 0x004DA5F0
 void CGlueMgr::Resume() {
+    Esteria::LocalLogin::SetFramesLoaded(false);
     CGlueMgr::m_disconnectPending = 0;
     CGlueMgr::m_reconnect = 0;
     CGlueMgr::m_idleState = IDLE_NONE;
@@ -780,6 +783,7 @@ void CGlueMgr::Resume() {
                 CGlueMgr::m_pendingServerAlert = 0;
             }
 
+            Esteria::LocalLogin::SetFramesLoaded(true);
             return;
         }
 
@@ -1088,6 +1092,7 @@ void CGlueMgr::Initialize() {
 // VERIFY: 5e7db3b8 manual
 // OFFSET: 0x004DAB40
 int32_t CGlueMgr::Idle(const void* data, void* param) {
+    Esteria::LocalLogin::OnGlueIdle();
     if (g_theGxDevicePtr->StereoEnabled()) {
         CGlueMgr::SetUIDepth(g_theGxDevicePtr->StereoGetConvergence());
     }
@@ -1649,6 +1654,7 @@ void CGlueMgr::ChangeRealm(REALM_INFO* realm) {
 // VERIFY: 50af9eaf auto
 // OFFSET: 0x004D8930
 void CGlueMgr::Suspend() {
+    Esteria::LocalLogin::SetFramesLoaded(false);
     CGlueMgr::m_suspended = 1;
 
     if (CGlueMgr::m_ffxActive) {

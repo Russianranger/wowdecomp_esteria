@@ -151,6 +151,17 @@ class ManifestTests(unittest.TestCase):
         self.run_generator()
         self.assertEqual((self.directory / "client-build.json").read_bytes(), output)
 
+    def test_normal_local_account_handoff_capability_contract(self):
+        manifest = self.run_generator()
+        self.assertEqual(manifest["capabilities"], {"local_account_handoff": {
+            "version": 1, "flag": "--local-login", "requires": ["--local-offline"],
+            "filename": "Esteria-local-login.bin", "format": "ESTLOGN1", "bytes": 57,
+            "endpoint": "127.0.0.1:3724",
+        }})
+        self.assertEqual(manifest["protocol"], {
+            "build": 12340, "container_slots": 254, "quest_slots": 25, "max_class_id": 32,
+        })
+
     def test_missing_or_wrong_machine_codec_preserves_existing_manifest(self):
         output = self.directory / "client-build.json"
         output.write_bytes(b"previous-manifest")

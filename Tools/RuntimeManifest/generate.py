@@ -17,6 +17,11 @@ import tempfile
 
 MACHINES = {"x64": 0x8664, "ARM64": 0xAA64}
 PROTOCOL = {"build": 12340, "container_slots": 254, "quest_slots": 25, "max_class_id": 32}
+CAPABILITIES = {"local_account_handoff": {
+    "version": 1, "flag": "--local-login", "requires": ["--local-offline"],
+    "filename": "Esteria-local-login.bin", "format": "ESTLOGN1", "bytes": 57,
+    "endpoint": "127.0.0.1:3724",
+}}
 MAX_IMPORTS = 4096
 MAX_DESCRIPTOR_BYTES = 2 * 1024 * 1024
 HASH_CHUNK = 1024 * 1024
@@ -186,7 +191,8 @@ def generate(directory, architecture, revision, build_id, descriptor_manifest):
     manifest = {"schema_version": 1, "component": "esteria-reconstructed-client",
                 "evidence": "build-only", "architecture": architecture,
                 "source_revision": revision.lower(), "build_id": build_id,
-                "protocol": dict(PROTOCOL), "descriptor_manifest": descriptor, "files": files}
+                "protocol": dict(PROTOCOL), "capabilities": CAPABILITIES,
+                "descriptor_manifest": descriptor, "files": files}
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n",

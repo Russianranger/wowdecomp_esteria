@@ -5,6 +5,7 @@
 #include "Client.h"
 #include "Engine/Source/Base/Base.h"
 #include "Engine/Source/Base/CmdLine.h"
+#include "Engine/Source/Platform/LocalAccountHandoff.h"
 #include "Engine/Source/BlizzardCore/OggDecompress.h"
 #include "Engine/Source/BlizzardCore/SFile2-Core.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Manifests.h"
@@ -1697,6 +1698,11 @@ void ForEveryRunOnceWTF::Execute(int32_t (*callback)(const char*)) {
 bool InitializeGlobal() {
     SCmdRegisterArgList(s_wowArgList, sizeof(s_wowArgList) / sizeof(s_wowArgList[0]));
     CmdLineProcess();
+    if (!Esteria::LocalLogin::StartupValid()) {
+        std::fputs("ESTERIA_LOCAL_LOGIN refused: --local-offline is required\n", stderr);
+        OsGuiMessageBox(nullptr, 0, "Esteria local login requires --local-offline.", "Esteria local login");
+        return false;
+    }
     LoadMFIL("WoW.mfil");
 
     if (s_unk_B2FA10 != 2) {
@@ -1875,7 +1881,7 @@ int32_t CommonMain() {
         StartupReportSendTelemetry(false, false);
     }
 
-    return 0;
+    return Esteria::LocalLogin::StartupValid() ? 0 : 64;
 }
 
 // VERIFY: 8f0a8d05 manual

@@ -2,6 +2,7 @@
 #include "Engine/Source/Base/CmdLine.h"
 #include "Engine/Source/Storm/H/storm.h"
 #include "Engine/Source/Platform/LocalOffline.h"
+#include "Engine/Source/Platform/LocalAccountHandoff.h"
 
 // STATIC: 0x009E9CB0
 static const _ARGLIST s_argList[] = {
@@ -26,6 +27,8 @@ static const _ARGLIST s_argList[] = {
     { SCMD_TYPE_BOOL, CMD_LOCAL_OFFLINE, "local-offline", nullptr },
     // SCmd strips one leading '-' itself. Explicitly support the long spelling.
     { SCMD_TYPE_BOOL, CMD_LOCAL_OFFLINE_LONG, "-local-offline", nullptr },
+    { SCMD_TYPE_BOOL, CMD_LOCAL_LOGIN, "local-login", nullptr },
+    { SCMD_TYPE_BOOL, CMD_LOCAL_LOGIN_LONG, "-local-login", nullptr },
 };
 
 // VERIFY: 51748a1e auto
@@ -50,5 +53,7 @@ int32_t CmdLineProcess() {
     SCmdRegisterArgList(s_argList, sizeof(s_argList) / sizeof(s_argList[0]));
     const int32_t result = SCmdProcessCommandLine(nullptr, nullptr);
     Esteria::LocalOffline::ConfigureAtStartup(SCmdGetBool(CMD_LOCAL_OFFLINE) != 0 || SCmdGetBool(CMD_LOCAL_OFFLINE_LONG) != 0);
+    Esteria::LocalLogin::ConfigureAtStartup(SCmdGetBool(CMD_LOCAL_LOGIN) != 0 || SCmdGetBool(CMD_LOCAL_LOGIN_LONG) != 0,
+        Esteria::LocalOffline::Enabled());
     return result;
 }

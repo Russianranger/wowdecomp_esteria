@@ -1,4 +1,5 @@
 #include "GruntLogin.h"
+#include "Engine/Source/Platform/LocalAccountHandoff.h"
 #include "Engine/Source/Os/OsSecureRandom.h"
 #include "WoW/Source/Net/NetClient/NetClient.h"
 #include <cstring>
@@ -88,7 +89,7 @@ void GruntLogin::GetLogonMethod() {
         logon.m_accountName = this->m_username;
         this->m_clientLink->LogonNewSession(logon);
 
-        memset(this->m_password, 0, SStrLen(this->m_password));
+        Esteria::LocalAccount::SecureClear(this->m_password, SStrLen(this->m_password));
         SMemFree(this->m_password, __FILE__, __LINE__, 0);
         this->m_password = nullptr;
     }

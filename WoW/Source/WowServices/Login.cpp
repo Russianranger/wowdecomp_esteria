@@ -1,4 +1,5 @@
 #include "Login.h"
+#include "Engine/Source/Platform/LocalAccountHandoff.h"
 #include <cstring>
 #include "Engine/Source/Base/CDataStore.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -120,7 +121,7 @@ void Login::SetLogonCreds(const char* accountName, const char* password) {
     SStrCopy(this->m_username, accountName, sizeof(this->m_username));
 
     if (this->m_password) {
-        memset(this->m_password, 0, SStrLen(this->m_password));
+        Esteria::LocalAccount::SecureClear(this->m_password, SStrLen(this->m_password));
         SMemFree(this->m_password, __FILE__, __LINE__, 0);
     }
 
@@ -137,7 +138,7 @@ void Login::SetRawAccountName(const char* accountName) {
 // OFFSET: [0x004656B0, 0x00465750]
 Login::~Login() {
     if (this->m_password) {
-        memset(this->m_password, 0, SStrLen(this->m_password));
+        Esteria::LocalAccount::SecureClear(this->m_password, SStrLen(this->m_password));
         SMemFree(this->m_password, __FILE__, __LINE__, 0);
     }
 

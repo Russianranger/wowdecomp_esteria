@@ -110,6 +110,7 @@ jobs:
             build/platform/CMakeFiles/CMakeConfigureLog.yaml
             build/platform/Testing/Temporary/LastTest.log
             build/platform/Release/test_xvid_adapter.exe
+            build/platform/Release/test_local_account.exe
             build/vulkan/Release/texture_device.exe
             build/vulkan/Release/presentation_device.exe
             build/vulkan/CMakeCache.txt

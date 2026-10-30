@@ -1,4 +1,5 @@
 #include "Grunt.h"
+#include "Engine/Source/Platform/LocalAccountHandoff.h"
 #include <cstdio>
 #include <cstring>
 #include <malloc.h>
@@ -218,7 +219,12 @@ void Grunt::ClientLink::LogonNewSession(const Grunt::ClientLink::Logon& logon) {
     SStrCopy(this->m_accountName, logon.m_accountName, sizeof(this->m_accountName));
     SStrUpper(this->m_accountName);
 
-    char* password = static_cast<char*>(alloca(SStrLen(logon.m_password) + 1));
+    const std::size_t passwordBytes = SStrLen(logon.m_password) + 1;
+    char* password = static_cast<char*>(alloca(passwordBytes));
+    struct PasswordClear {
+        char* value; std::size_t size;
+        ~PasswordClear() { Esteria::LocalAccount::SecureClear(value, size); }
+    } clearPassword{password, passwordBytes};
     SStrCopy(password, logon.m_password, STORM_MAX_STR);
     SStrUpper(password);
 
@@ -239,7 +245,6 @@ void Grunt::ClientLink::LogonNewSession(const Grunt::ClientLink::Logon& logon) {
     msg.Finalize();
     this->Send(msg);
 
-    memset(password, 0, SStrLen(password));
 }
 
 // VERIFY: 902b90a7 manual

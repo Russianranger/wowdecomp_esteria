@@ -30,6 +30,9 @@ enum CMDOPT {
     CMD_D3D11 = 41,
     CMD_LOCAL_OFFLINE = 42,
     CMD_LOCAL_OFFLINE_LONG = 43,
+    // 44-46 are reserved for isolated executable diagnostics.
+    CMD_LOCAL_LOGIN = 47,
+    CMD_LOCAL_LOGIN_LONG = 48,
 };
 
 enum PROPERTY {

@@ -10,6 +10,7 @@
 #include <string>
 #include "Engine/Source/Base/CmdLine.h"
 #include "Engine/Source/Platform/LocalOffline.h"
+#include "Engine/Source/Platform/LocalAccountHandoff.h"
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Storm/H/storm.h"
@@ -112,8 +113,8 @@ bool Absent(const std::wstring& path) {
     if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES) return false;
     return GetLastError() == ERROR_FILE_NOT_FOUND;
 }
-struct Credentials {
-    char username[18] = {}, password[17] = {}, fixture[33] = {};
+struct Credentials : Esteria::LocalAccount::Credentials {
+    char fixture[33] = {};
     Credentials() {
         const auto path = Sibling(L"Esteria-auth-input.bin");
         HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
@@ -123,19 +124,16 @@ struct Credentials {
             !(info.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) &&
             info.nNumberOfLinks == 1 && !info.nFileSizeHigh && info.nFileSizeLow == 57,
             "private credential fixture shape differs");
-        unsigned char raw[57] = {};DWORD read = 0;
-        Require(ReadFile(file, raw, sizeof(raw), &read, nullptr) && read == sizeof(raw), "complete private fixture read");
-        const bool magic = std::memcmp(raw, "ESTAUTH1", 8) == 0;
-        for (unsigned i = 0; i < 16; ++i) std::snprintf(fixture + 2 * i, 3, "%02x", raw[8 + i]);
-        std::memcpy(username, raw + 24, 17);std::memcpy(password, raw + 41, 16);
-        SecureZeroMemory(raw, sizeof(raw));
-        bool valid = magic && std::memcmp(username, "EST", 3) == 0;
-        for (unsigned i = 3; i < 17; ++i) valid &= std::strchr("0123456789ABCDEF", username[i]) != nullptr && username[i] != 0;
-        for (unsigned i = 0; i < 16; ++i) valid &= std::strchr("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", password[i]) != nullptr && password[i] != 0;
-        if (!valid) { SecureZeroMemory(password, sizeof(password));SecureZeroMemory(username, sizeof(username)); }
-        Require(valid, "private fixture must contain an ordinary generated local account");
+        struct Input {
+            unsigned char bytes[Esteria::LocalAccount::InputBytes] = {};
+            ~Input() { Esteria::LocalAccount::SecureClear(bytes, sizeof(bytes)); }
+        } raw;
+        DWORD read = 0;
+        Require(ReadFile(file, raw.bytes, sizeof(raw.bytes), &read, nullptr) && read == sizeof(raw.bytes), "complete private fixture read");
+        Require(Esteria::LocalAccount::Parse(raw.bytes, sizeof(raw.bytes), Esteria::LocalAccount::InputKind::Diagnostic, *this),
+            "private fixture must contain an ordinary generated local account");
+        for (unsigned i = 0; i < 16; ++i) std::snprintf(fixture + 2 * i, 3, "%02x", nonce[i]);
     }
-    ~Credentials() { SecureZeroMemory(password, sizeof(password));SecureZeroMemory(username, sizeof(username)); }
 };
 constexpr uint8_t versionChallenge[16] = {0xba,0xa3,0x1e,0x99,0xa0,0x0b,0x21,0x57,0xfc,0x37,0x3f,0xb3,0x69,0xcd,0xd2,0xf1};
 struct Response final : Grunt::ClientResponse {

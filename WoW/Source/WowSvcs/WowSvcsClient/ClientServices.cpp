@@ -1,4 +1,5 @@
 #include "Engine/Source/Platform/LocalOffline.h"
+#include "Engine/Source/Platform/LocalAccountHandoff.h"
 #include "WoW/Common/ComponentCore/EsteriaAppearance.h"
 #include "WoW/Common/ComponentCore/RetailRace.h"
 #include <cstdint>
@@ -889,6 +890,7 @@ void ClientServices::Logon(const char* username, const char* password) {
     }
 
     ClientServices::s_loginObj->SetLogonCreds(accountName, password);
+    Esteria::LocalAccount::SecureClear(accountName, sizeof(accountName));
 
     const char* portal = ClientServices::s_loginObj->GetLoginServerType() == 1 ? ClientServices::s_portalVar->m_stringValue.m_str : "";
     const char* realmList = ClientServices::s_loginObj->GetLoginServerType() == 1 ? ClientServices::s_realmListBNVar->m_stringValue.m_str : ClientServices::s_realmListVar->m_stringValue.m_str;
@@ -1516,6 +1518,7 @@ void ClientConnection::HandleLogoutAbortAck() {
 // VERIFY: 52ab6642 manual
 // OFFSET: 0x006B0F00
 const char* ClientServices::GetLoginServer() {
+    if (Esteria::LocalOffline::Enabled()) return "127.0.0.1:3724";
     if (ClientServices::s_loginObj->GetLoginServerType() == 1) {
         return ClientServices::s_realmListBNVar->m_stringValue.m_str;
     }

@@ -181,6 +181,46 @@ contains receipt SHA-256
 This still used llvmpipe LLVM 15.0.6, with no validation layer, Android surface,
 Adreno hardware, compositor-pixel readback or full game rendering qualification.
 
+## Normal local-account handoff
+
+Normal game startup accepts the explicit `--local-login --local-offline` options.
+`--local-login` without the offline policy is visibly refused before loading
+assets and exits 64 after teardown. Ordinary desktop invocation retains its
+existing behavior. A freshly built `client-build.json` advertises
+`capabilities.local_account_handoff` version 1;
+launchers must validate that capability and the matched executable's provenance
+before selecting the new option. An older packaged executable does not gain this
+capability by updating launcher code.
+
+The launcher writes a private executable-sibling `Esteria-local-login.bin` using
+exactly 57 bytes: ASCII `ESTLOGN1` (8), an opaque nonce (16), account name (17,
+`EST` followed by 14 uppercase hexadecimal characters), then password (16, from
+`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`). Fields have no terminators or trailing bytes.
+The nonce supplies no authentication or cryptographic proof. Credentials never
+travel through process arguments or environment variables. The launcher owns the
+private directory and must remove unused temporary handoffs after client exit;
+the persistent local-account journal is a separate file.
+
+The actual Glue idle path waits for successful GlueXML frame loading, the login
+screen, initialized client services, idle/non-suspended/non-reloading Glue, the
+existing scan gate, and accepted TOS/EULA. It does not accept agreements or bypass
+scanning. It reads at most one handoff per process, including after a failed read
+or a Glue reload. The reader rejects non-disk files, reparse points, multiple
+links, sharing conflicts and any wrong length or field shape. It deletes a valid
+handoff through its exclusive open handle before passing credentials to the
+existing `CGlueMgr::LoginServerLogin` / `ClientServices::Logon` path. A read,
+validation or deletion failure shows a fixed message without account data, and
+all temporary credential buffers are securely cleared. Initial login and
+reconnect callbacks use the fixed `127.0.0.1:3724` endpoint under the offline
+policy. Real Grunt/SRP, executable-version checks and subsequent normal Glue
+state transitions remain in use.
+
+Portable tests exercise strict parsing, all readiness gates and once-only
+behavior. Native Windows tests also exercise the actual private-file consumer.
+Compilation or those isolated tests do not establish normal `CommonMain` startup,
+asset loading, Android/Wine file deletion, successful normal login, or world entry;
+those require the complete game assets and the matched runtime.
+
 ## Actual executable entry diagnostic
 
 The explicit single argument `--esteria-entry-check` runs a bounded diagnostic
