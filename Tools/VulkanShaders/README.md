@@ -17,15 +17,33 @@ python Tools/VulkanShaders/translate_shaders.py --client "C:\Games\World of Warc
 | Option | |
 | --- | --- |
 | `--client <folder>` | the 3.3.5a (12340) client folder, or its `Data` folder (required) |
+| `--locale <locale>` | active locale; otherwise use `WTF/Config.wtf`, or the single locale directory. Multiple unconfigured locales are rejected |
 | `--glslang <path>` | `glslang.exe` / `glslangValidator.exe`; otherwise `$GLSLANG`, `$VULKAN_SDK`, then `PATH` |
 | `--out <folder>` | the output tree (default: `translated/` in this folder) |
 | `--deploy` | also copy `manifest.txt`, `index.txt` and every `.spv` into `<client>\VulkanShaders\`, removing stale modules |
 | `--names A:0,B --print` | look at the GLSL of a few records, write nothing |
 
-The archives are read in the client's own order: `common.MPQ`, `common-2.MPQ`, `expansion.MPQ`,
-`lichking.MPQ`, `patch.MPQ`, then `patch-2.MPQ` .. `patch-9.MPQ` and `patch-A.MPQ` .. `patch-Z.MPQ`; a
-later archive wins, so a custom patch that replaces a shader is translated too. A folder patch (loose
-files) is not read.
+The translator mirrors the normal whole-MPQ installation's priorities in `Client.cpp::OpenArchives`
+and `PatchFiles.cpp`, including `common-3.MPQ`, locale providers, case-insensitive names, arbitrary
+`patch-<name>.MPQ` suffixes and folder MPQs. The engine assigns descending priority to its base table;
+this is not chronological expansion/patch order. Plain locale/root patches follow the bases, then
+named root/locale patches sort by their complete relative path, case-insensitively, with the larger
+path winning. `Patch-ZzzzzCatalogs.MPQ` and `patch-ZzzzzzzzzzzMountStudio-001.MPQ` are not omitted.
+MPQ hash lookup uses the selected locale with neutral fallback.
+
+Unreadable providers, case collisions, symlinks, missing `(listfile)` inventories, unsupported MPQ
+formats and unsupported compression fail before output removal. A folder provider inventories its
+actual shader subtree. Classic MPQ formats 0/1 with 32-bit offsets are supported; `alternate.MPQ`
+archive views, streaming/split developer layouts, PKWARE/Huffman compression and offset extensions
+above 32 bits are not supported by this small reader. These are explicit setup errors rather than
+silently translating an older provider. Header/table/sector bounds and decompressed sizes are checked;
+the shader/listfile extraction limit is 64 MiB per file.
+
+Run `python -m unittest discover -s Tools/VulkanShaders/tests -v` for generated MPQ precedence,
+locale, folder-provider and malformed-input tests. These fixtures contain no game assets. A successful
+fixture test is not validation of the user's data or the generated SPIR-V; generation still needs the
+actual imported client and glslang. Run generation only during setup/update, into a staged output tree;
+activate that tree together with the exact data generation it was built from.
 
 ## Where the device looks
 

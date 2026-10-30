@@ -70,7 +70,12 @@ voice rounding/overflow checks, real MPEG-4 encode/decode roundtrip). LZNT1 also
 passed ASan/UBSan including 20,000 random inputs. Windows adds differential
 comparison against system LZNT1 compression. `.github/workflows/arm64-client.yml`
 builds/tests Linux x64/ARM64 and Windows x64/ARM64, then compiles the full client.
-At initial checkpoint, Windows builds and actual ARM64 execution are pending.
+CI run `40980276079` passed Linux x64 and **native Linux ARM64** component
+builds/tests. This validates NEON compilation/execution, the portable catalog
+decoder and source-built MPEG-4 codec on ARM64, not Android/Wine gameplay.
+Initial Windows failures exposed the Xvid generic MSVC inline-assembly guard
+(fixed) and the hosted ARM64 image's migration to Visual Studio 2026 (workflow
+now selects that generator). Windows full-client builds remain pending.
 
 ## Remaining qualification
 

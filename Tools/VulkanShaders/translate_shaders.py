@@ -28,7 +28,7 @@ DEFAULT_OUT = os.path.join(HERE, 'translated')
 def find_data(client):
     """The client's Data folder, from the client folder or the Data folder itself."""
     for cand in (os.path.join(client, 'Data'), client):
-        if os.path.isfile(os.path.join(cand, 'common.MPQ')):
+        if os.path.isdir(cand) and any(name.lower() == 'common.mpq' for name in os.listdir(cand)):
             return os.path.normpath(cand)
     return None
 
@@ -77,6 +77,7 @@ def deploy(out, client):
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--client', required=True, help='the 3.3.5a (12340) client folder (or its Data folder)')
+    ap.add_argument('--locale', help='active client locale; inferred from Config.wtf or a single locale folder')
     ap.add_argument('--glslang', default=None, help='glslang.exe / glslangValidator.exe (also $GLSLANG)')
     ap.add_argument('--out', default=DEFAULT_OUT, help='the output tree (default: translated/ here)')
     ap.add_argument('--deploy', action='store_true', help='copy the result into <client>/VulkanShaders/')
@@ -101,6 +102,8 @@ def main(argv):
     sys.path.insert(0, HERE)
     from bls import translate
     argv2 = ['--data', data, '--glslang', glslang]
+    if args.locale:
+        argv2 += ['--locale', args.locale]
     if args.extra_pixel:
         argv2 += ['--extra-pixel', args.extra_pixel]
     if args.names:

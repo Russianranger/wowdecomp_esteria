@@ -1702,10 +1702,10 @@ void ComSatClient_Init() {
     s_cvarPushToTalkButton = CVar::Lookup("PushToTalkButton");
     s_cvarComSatSleepTime = nullptr;
 
-    if (!(OsGetProcessorFeatures() & 4)) {
+    if (!(OsSupportsClientMath())) {
         s_comsatDisabledByClient = 1;
         SE2::Log_Write(" -###########################################################################################");
-        SE2::Log_Write(" -# ERROR! SSE support is required for voice chat!");
+        SE2::Log_Write(" -# ERROR! Supported client CPU math is required for voice chat!");
         SE2::Log_Write(" -# Voice Chat DISABLED.");
         SE2::Log_Write(" -###########################################################################################");
         return;

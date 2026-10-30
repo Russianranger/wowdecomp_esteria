@@ -14,6 +14,17 @@ file(READ "${_xvid_source}/portab.h" _portab)
 # Upstream writes two pointer-sized affinity masks into DWORDs on Win64.
 string(REPLACE "DWORD p_aff, s_aff, r = 0;" "DWORD_PTR p_aff = 0, s_aff = 0; DWORD r = 0;" _portab "${_portab}")
 file(WRITE "${_xvid_source}/portab.h" "${_portab}")
+# Upstream's GMC log2 helper assumes every MSVC target except x64 accepts
+# x86 inline assembly. The generic build must use the existing C loop on
+# MSVC ARM64 too (and on x64 when testing these same generic kernels).
+file(READ "${_xvid_source}/motion/gmc.c" _gmc)
+set(_gmc_old "#if !defined(_MSC_VER) || defined(ARCH_IS_X86_64)")
+string(FIND "${_gmc}" "${_gmc_old}" _gmc_guard)
+if (_gmc_guard EQUAL -1)
+    message(FATAL_ERROR "Xvid source does not match the pinned 1.3.7 GMC portability patch")
+endif ()
+string(REPLACE "${_gmc_old}" "${_gmc_old} || defined(ARCH_IS_GENERIC)" _gmc "${_gmc}")
+file(WRITE "${_xvid_source}/motion/gmc.c" "${_gmc}")
 set(_xvid_sources
     decoder.c
     encoder.c
@@ -74,4 +85,7 @@ endif ()
 configure_file("${xvid137_SOURCE_DIR}/LICENSE" "${CMAKE_CURRENT_BINARY_DIR}/Xvid-1.3.7-LICENSE.txt" COPYONLY)
 unset(_xvid_sources)
 unset(_portab)
+unset(_gmc)
+unset(_gmc_old)
+unset(_gmc_guard)
 unset(_xvid_source)

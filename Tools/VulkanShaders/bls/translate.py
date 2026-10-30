@@ -65,6 +65,7 @@ MANIFEST_HEAD = [
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     ap.add_argument('--data', required=True, help="the client's Data folder (the one holding common.MPQ)")
+    ap.add_argument('--locale', help='active client locale; inferred from Config.wtf or a single locale folder')
     ap.add_argument('--out', default=None, help='output tree')
     ap.add_argument('--names', default=None, help='only these Name:perm (comma-separated)')
     ap.add_argument('--print', action='store_true', help='print the GLSL of each emitted record')
@@ -88,7 +89,11 @@ def main(argv):
         out = scratch
     write_tree = scratch is None
 
-    recs = archive.enumerate_records(args.data)
+    try:
+        recs = archive.enumerate_records(args.data, args.locale)
+    except (OSError, ValueError, RuntimeError) as error:
+        print('shader input validation failed: %s' % error, file=sys.stderr)
+        return 2
     if args.extra_pixel:
         recs += archive.extra_pixel_records(args.extra_pixel)
     if args.extra_vertex:

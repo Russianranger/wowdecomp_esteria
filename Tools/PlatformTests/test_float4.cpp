@@ -1,4 +1,5 @@
 #include "Engine/Source/Platform/Float4.h"
+#include "Engine/Source/Platform/CpuCapabilities.h"
 #include "Engine/Source/Platform/ScalarMath.h"
 #include <array>
 #include <cfenv>
@@ -9,6 +10,11 @@
 #include <random>
 
 int main() {
+    using WowPlatform::CpuArchitecture;
+    if (!WowPlatform::HasClientMath(CpuArchitecture::Arm64, 0) ||
+        WowPlatform::HasClientMath(CpuArchitecture::X86, 0) ||
+        !WowPlatform::HasClientMath(CpuArchitecture::X86, 4) ||
+        WowPlatform::HasClientMath(CpuArchitecture::Unsupported, 0xffffffff)) return 7;
     // Misaligned source/destination buffers match the packed model stream case.
     std::mt19937 random(12340);
     std::uniform_real_distribution<float> values(-100.0f, 100.0f);

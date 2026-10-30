@@ -3639,13 +3639,13 @@ void SE2::InitCapture(int32_t* outputDriverIndex, const char* outputDriverName, 
         return;
     }
 
-    if (!(OsGetProcessorFeatures() & 4)) {
+    if (!(OsSupportsClientMath())) {
         SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -###########################################################################################");
-        SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# ERROR! SSE support is required for voice chat!");
+        SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# ERROR! Supported client CPU math is required for voice chat!");
         SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -# Voice Chat DISABLED.");
         SE2::Log_Write(__LINE__, __FILE__, FMOD_OK, " -###########################################################################################");
         SE_LOG_CHAT_INIT_FAILED();
-        s_chatSystem->setOutput(FMOD_OUTPUTTYPE_NOSOUND);
+        if (s_chatSystem) s_chatSystem->setOutput(FMOD_OUTPUTTYPE_NOSOUND);
         goto failed;
     }
 

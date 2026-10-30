@@ -9,6 +9,7 @@
 #include "Engine/Source/Model2/M2Model.h"
 #include "Engine/Source/Model2/M2Scene.h"
 #include "Engine/Source/Os/Processor.h"
+#include "Engine/Source/Platform/Float4.h"
 #include "Engine/Source/Os/System.h"
 #include "Engine/Source/Os/TimeManager.h"
 #include "Engine/Source/Services/GfxSingletonManager.h"
@@ -135,7 +136,7 @@ int32_t CM2Cache::Initialize(uint32_t flags) {
         }
     }
 
-    if (!(this->m_flags & 8) && !(CM2Cache::s_processorFeatures & 4)) {
+    if (!(this->m_flags & 8) && !(WowSimd::Supported(CM2Cache::s_processorFeatures))) {
         this->m_flags |= 0x40;
     }
 

@@ -29,21 +29,23 @@ jobs:
         include:
           - arch: x64
             runner: windows-2022
+            generator: Visual Studio 17 2022
           - arch: ARM64
             runner: windows-11-arm
+            generator: Visual Studio 18 2026
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - name: Configure platform behavior tests
-        run: cmake -S Tools/PlatformTests -B build/platform -G "Visual Studio 17 2022" -A ${{ matrix.arch }}
+        run: cmake -S Tools/PlatformTests -B build/platform -G "${{ matrix.generator }}" -A ${{ matrix.arch }}
       - name: Build platform behavior tests
         run: cmake --build build/platform --config Release --parallel 4
       - name: Run native architecture and Windows differential tests
         run: ctest --test-dir build/platform -C Release --output-on-failure
       - name: Configure matched reconstructed client
         run: >-
-          cmake -S . -B build/client -G "Visual Studio 17 2022" -A ${{ matrix.arch }}
+          cmake -S . -B build/client -G "${{ matrix.generator }}" -A ${{ matrix.arch }}
           -DWOWDECOMP_EXTENDED_LIMITS=ON
           -DWOWDECOMP_CONTAINER_SLOTS=254
           -DWOWDECOMP_QUEST_LOG_SLOTS=25
@@ -62,6 +64,8 @@ jobs:
             build/client/client-build.log
             build/client/CMakeCache.txt
             build/client/CMakeFiles/CMakeConfigureLog.yaml
+            build/platform/CMakeCache.txt
+            build/platform/CMakeFiles/CMakeConfigureLog.yaml
             build/platform/Testing/Temporary/LastTest.log
             build/client/generated/limits/**
             build/client/Tools/XvidDecoder/Xvid-1.3.7-LICENSE.txt
