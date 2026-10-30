@@ -27,8 +27,16 @@ teardown errors. It reports whether the validation layer and callback were actua
 enabled; absence is not called a validation-layer pass. No game data or shader compilation is needed; a render-pass
 clear supplies the image contents.
 
-This fixture establishes clear/submit/present and resize behavior. It does not
-read back compositor pixels, run game shaders or measure performance. Software
+It then initializes the engine memory/texture/frame/present modules, clears the
+real scene target red and blue with a green rectangle inside each render pass,
+and checks every BGRA channel in two 4x4 CPU readbacks. Two additional frames go
+through the engine's actual embedded presentation shaders. The fixture checks
+submitted/presented counters, readback completion and complete texture cleanup.
+This phase emits its own exact marker for separate harness qualification.
+
+The fixture establishes clear/submit/present, resize and engine scene readback
+behavior. Readbacks precede the presentation shader; they do not read compositor
+pixels, run data-derived game shaders or measure performance. Software
 Lavapipe execution under Linux ARM64 Wine is separate from Windows GPU execution
 and Android/Adreno qualification. `texture_device` only initializes a swapchain
 and checks resource allocation; it submits no frames and cannot establish

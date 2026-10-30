@@ -1,5 +1,9 @@
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Context.hpp"
+#include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Frame.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Log.hpp"
+#include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Memory.hpp"
+#include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Present.hpp"
+#include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Texture.hpp"
 #include <atomic>
 #include <cstdarg>
 #include <cstdio>
@@ -205,6 +209,60 @@ void ClearAndPresent(unsigned frames) {
     }
     d.DestroyRenderPass(h->device, pass, nullptr);
 }
+
+// In addition to the dispatch/swapchain fixture above, exercise the actual
+// engine frame, scene framebuffer, synchronous CPU readback and embedded
+// full-screen present shader. Scene readback verifies pixels before the present
+// shader, not the compositor's displayed pixels or data-derived game shaders.
+void EngineFrameRoundtrip() {
+    Check(memory::Init() && texture::Init(), "initialize engine memory and texture modules");
+    Check(present::Init(), "initialize actual embedded engine present shaders");
+    frame::SetTarget(nullptr, 0);
+    frame::Stats before;
+    frame::GetStats(before);
+    const VkRect2D region = {{0, 0}, {4, 4}};
+    const VkRect2D middle = {{1, 1}, {2, 2}};
+    const float green[4] = {0, 1, 0, 1};
+    for (unsigned pass = 0; pass < 2; ++pass) {
+        float base[4] = {0, 0, 0, 1};
+        base[pass ? 2 : 0] = 1.0f;
+        frame::Clear(3, base, nullptr);
+        Check(frame::Pass() != VK_NULL_HANDLE && !frame::Failed(), "open real engine scene render pass");
+        Check(present::Ready(), "real engine present pipeline/framebuffers are ready");
+        frame::Clear(1, green, &middle);
+        unsigned char pixels[4 * 4 * 4] = {};
+        Check(frame::ReadScene(region, pixels), "read real engine scene pixels back to CPU");
+        for (unsigned y = 0; y < 4; ++y) {
+            for (unsigned x = 0; x < 4; ++x) {
+                const bool inner = x >= 1 && x < 3 && y >= 1 && y < 3;
+                const unsigned char blue = !inner && pass ? 255 : 0;
+                const unsigned char red = !inner && !pass ? 255 : 0;
+                const unsigned char* pixel = pixels + (y * 4 + x) * 4;
+                Check(pixel[0] == blue && pixel[1] == (inner ? 255 : 0)
+                    && pixel[2] == red && pixel[3] == 255,
+                    "exact BGRA channels, whole-target and partial-clear pixels");
+            }
+        }
+        PumpMessages();
+        Check(!frame::Present(true) && !frame::Failed(), "present real engine scene through embedded shaders");
+        Check(frame::WaitSerial(frame::Submitted()), "wait for actual engine submitted frame");
+        frame::Stats now;
+        frame::GetStats(now);
+        Check(now.presented == before.presented + pass + 1, "engine actually submitted one presentation");
+    }
+    frame::Stats after;
+    frame::GetStats(after);
+    Check(after.sceneReads == before.sceneReads + 2 && after.clearsInPass >= before.clearsInPass + 2,
+          "both CPU readbacks and in-pass rectangle clears occurred");
+    frame::Destroy();
+    present::Shutdown();
+    texture::Stats textures;
+    texture::GetStats(textures);
+    Check(textures.live == 0, "engine scene/frame cleanup releases texture images");
+    texture::Shutdown();
+    memory::Shutdown();
+    std::puts("PASS: Engine Vulkan frame BGRA readback, partial clears and embedded-shader presentation");
+}
 }
 
 int main() {
@@ -232,6 +290,7 @@ int main() {
     Check(context::Get()->extent.width != before.width || context::Get()->extent.height != before.height,
           "resized swapchain extent changed");
     ClearAndPresent(8);
+    EngineFrameRoundtrip();
     context::LogValidationSummary();
     context::Teardown();
     Check(errorMessages.load(std::memory_order_relaxed) == 0, "no renderer or validation callback errors");

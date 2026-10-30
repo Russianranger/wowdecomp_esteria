@@ -155,11 +155,16 @@ contains receipt SHA-256
 `26e27a5437dd2785ed6b8db05b7281b7a45306696c1f58360709052f515cefc0`.
 No game shaders, Adreno hardware, Android presentation or game data were exercised.
 
-`Tools/VulkanTests` now also builds a shader-free clear/present fixture using the
+`Tools/VulkanTests` builds a clear/present fixture using the
 engine's Win32 surface/device/swapchain and checked acquire/submit/present calls,
-including resize. The older texture fixture checks 30,000 resource allocations
-without presenting. Neither fixture verifies game shaders, pixel readback or
-world rendering; Lavapipe software-driver results are not Adreno performance.
+including resize. A new phase also exercises actual engine scene clears, partial
+rectangles, exact 4x4 BGRA CPU readback and two presentations through its embedded
+SPIR-V shaders. That phase has a separate success marker and harness scope;
+compilation/runtime qualification is pending its paired CI run. Readback precedes
+the presentation shader and does not verify compositor pixels or data-derived
+game shaders. The older texture fixture checks 30,000 resource allocations without
+presenting. These fixtures do not establish world rendering; Lavapipe
+software-driver results are not Adreno performance.
 
 ## Actual executable entry diagnostic
 
@@ -189,9 +194,27 @@ The Windows matrix verifies native architecture and binary hashes, copies the
 matched EXE/DLL to a private test directory, checks rejected arguments, valid entry
 and repeat-receipt preservation, and retains bounded diagnostics. Its helper tests
 run on Linux without pretending to execute the client. The optional Wine harness
-can exercise the same entry mode separately from codec or graphics tests. Read the
-completed CI results before claiming entry qualification; implementation alone is
-not runtime evidence and does not establish normal game startup.
+exercises the same entry mode separately from codec or graphics tests.
+
+The native Windows ARM64/x64 entry checks and native Linux ARM64 Wine entry check
+passed at client `f75c2c71d9bb76a6707bfb68b2bf615db544e5bf`, integration harness
+`9ee80cd31b079e6dab8b41de2429030447665cf5`, CI
+[`40989834370`](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40989834370).
+All five jobs passed, including codec and existing software Vulkan fixtures.
+[Wine evidence artifact 12949535366](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40989834370/artifacts/12949535366)
+contains qualification receipt SHA-256
+`a7686069cd8e62eb8cb2075380e5cbb7390b2e42718c318413261cffc54141a6`
+and entry receipt SHA-256
+`0ed74a49d5f65c792391394fda20187fe07e9d99d3f6de582db17a07e25d356b`.
+All seven checks are true, the worker/namespace exit is zero, and
+`commonMainStarted`/`assetsLoaded` remain false. This is executable-entry
+qualification, not normal game startup.
+
+The real crash logger starts under Wine and captures the current program counter,
+but its DbgHelp ARM64 walk stops after one frame with an unavailable-metadata/end
+of stack diagnostic. Complete Wine stack unwinding remains unqualified. The
+successful C++ exception/destructor test is separate evidence and does not resolve
+that diagnostic limitation.
 
 ## Optional Retail/Forever path
 

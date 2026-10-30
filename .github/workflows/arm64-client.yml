@@ -132,7 +132,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Russianranger/esteria_android
-          ref: 9ee80cd31b079e6dab8b41de2429030447665cf5
+          ref: 32329e64f05d9c9734b7c55c3270fb1800c7aff6
           path: integration
       - name: Download this run's matching native ARM64 binaries
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -153,7 +153,7 @@ jobs:
           python3 integration/tools/prepare_runtime.py --download
           --cache "$RUNNER_TEMP/wine-cache"
           --stage "$RUNNER_TEMP/wine-codec-runtime"
-      - name: Execute movie decoding and software Vulkan fixtures without external networking
+      - name: Execute client entry, decoding and software Vulkan readback without external networking
         run: >-
           sudo -n python3 integration/tools/qualify_wine_arm64.py
           --runtime "$RUNNER_TEMP/wine-codec-runtime"
@@ -162,6 +162,7 @@ jobs:
           --presentation-driver "$GITHUB_WORKSPACE/client-artifact/build/vulkan/Release/presentation_device.exe"
           --texture-driver "$GITHUB_WORKSPACE/client-artifact/build/vulkan/Release/texture_device.exe"
           --client-entry-check
+          --require-engine-frame-readback
           --output "$RUNNER_TEMP/wine-codec-evidence"
       - name: Preserve execution evidence, including failed startup
         if: always()
