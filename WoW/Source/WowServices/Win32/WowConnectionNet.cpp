@@ -95,7 +95,10 @@ void WowConnectionNet::PlatformRun() {
 
         DWORD result = WaitForMultipleObjects(count, handles, FALSE, timeout);
 
-        if (result < count) {
+        // Timer-driven delayed packets and disconnects still need service when
+        // no new Winsock edge arrives. A worker-ready wake can have been consumed
+        // while that connection was excluded from the preceding wait snapshot.
+        if (result < count || result == WAIT_TIMEOUT) {
             if (result == WAIT_OBJECT_0) {
                 ResetEvent(this->m_event);
             }
@@ -103,7 +106,7 @@ void WowConnectionNet::PlatformRun() {
             for (DWORD i = 1; i < count; i++) {
                 WowConnection* connection = connections[i];
 
-                WSANETWORKEVENTS networkEvents;
+                WSANETWORKEVENTS networkEvents{};
                 WSAEnumNetworkEvents(connection->m_sock, handles[i], &networkEvents);
 
                 uint32_t flags = 0;

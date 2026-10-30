@@ -310,8 +310,9 @@ The first full x64 execution in run `41002378940` compiled successfully, then
 caught a missing diagnostic startup dependency: `WowConnection::Init` reads the
 real `OsTimeManager`, which normal startup creates before networking. The
 pre-`CommonMain` diagnostic now creates and destroys that real timer around its
-connection checks. The corrected Windows/Wine execution is still pending;
-this failure does not establish offline qualification.
+connection checks. The corrected run `41003225299` at client
+`e2718f647a7f1efb9219106c7501f88a0bf06e4f` passed all five jobs, including actual
+Windows ARM64/x64 and native Linux ARM64 Wine execution.
 
 `--offline-check --local-offline` is a separate no-content diagnostic path for the
 actual executable. The shorter diagnostic spelling fits SCmd's 15-character name
@@ -321,8 +322,16 @@ three actual game-connection refusals with failure callbacks/ref release. The
 exclusive receipt states no CommonMain, assets or loopback-gameplay qualification.
 Malformed diagnostic arguments and existing receipt preservation are checked.
 The optional Wine harness executes both spellings with its own exact receipt gate.
-These actual Windows/Wine runs are pending for this change; portable policy tests,
-receipt rejection guards and host Retail files/local tests have passed.
+Both actual Wine command receipts have SHA-256
+`a0a8ea79b80b80bf73766539cc4d6f64c38c4f599e760b7cf267a7f0f1a027c2`.
+Combined receipt SHA-256 is
+`8b39094c1550c7af17fd665c81188c33b6ee5c70501755324a1f3673f8a336b2`
+from artifact `12954553048` (ZIP SHA-256
+`cfcb872a9fc6ddc849f65f4c7a41cea590602cd493539951dac502c37787f061`).
+The harness was pinned to `ce45a79fb3786ab0e16ea8055a2c2bd0fbb7d444`; all prior
+codec, entry, software graphics and captured FMOD transport scopes also passed.
+Portable policy tests, receipt rejection guards and host Retail files/local tests
+passed separately. These results still exclude positive loopback/auth/gameplay.
 
 ## Remaining qualification
 

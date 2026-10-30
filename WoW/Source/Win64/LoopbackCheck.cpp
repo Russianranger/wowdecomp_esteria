@@ -21,6 +21,11 @@
 namespace esteria::loopbackcheck {
 namespace {
 constexpr DWORD timeout = 6000;
+const char* phase = "startup";
+void Phase(const char* value) {
+    phase = value;
+    std::fprintf(stderr, "LOOPBACK_PHASE %s\n", phase);std::fflush(stderr);
+}
 std::atomic<unsigned> workerStarts{0};
 HANDLE blockedWorkerEvent = nullptr;
 std::atomic<bool> blockedWorkerEntered{false};
@@ -81,8 +86,12 @@ std::vector<uint8_t> Frame(const std::vector<uint8_t>& payload) {
 void Ready(SOCKET socket, bool write) {
     fd_set descriptors;FD_ZERO(&descriptors);FD_SET(socket, &descriptors);
     timeval limit{static_cast<long>(timeout / 1000), 0};
-    Require(select(0, write ? nullptr : &descriptors, write ? &descriptors : nullptr, nullptr, &limit) == 1,
-        "bounded loopback socket readiness");
+    const int result = select(0, write ? nullptr : &descriptors, write ? &descriptors : nullptr, nullptr, &limit);
+    if (result != 1) {
+        std::fprintf(stderr, "LOOPBACK_READY phase=%s operation=%s result=%d error=%d\n",
+            phase, write ? "write" : "read", result, result == SOCKET_ERROR ? WSAGetLastError() : 0);
+        throw std::runtime_error("bounded loopback socket readiness");
+    }
 }
 void SendAll(SOCKET socket, const uint8_t* bytes, size_t count) {
     const ULONGLONG end = GetTickCount64() + timeout;
@@ -190,6 +199,7 @@ struct Connection {
     ~Connection() { try { Finish(); } catch (...) { TerminateProcess(GetCurrentProcess(), 70); } }
 };
 void Case(bool streamMode) {
+    Phase(streamMode ? "stream-connect" : "message-connect");
     Response response;response.expected = {Payload(17, 13), Payload(32768, 79)};response.stream = Payload(1027, 163);
     Connection connection(response);auto* client = connection.value.get();
     if (streamMode) client->SetType(WOWC_TYPE_STREAM);
@@ -215,16 +225,19 @@ void Case(bool streamMode) {
     Until([&] { return response.connected.load() == 1 || response.failed.load() || response.invalid.load(); }, "actual connected callback");
     Require(response.connected == 1 && response.failed == 0 && !response.invalid, "one worker-thread loopback connect");
     if (streamMode) {
+        Phase("stream-receive-partial");
         SendAll(peer.value, response.stream.data(), 19);
         Until([&] { return response.streamBytes.load() == 19 || response.invalid.load(); }, "partial stream callback");
+        Phase("stream-receive-rest");
         SendAll(peer.value, response.stream.data() + 19, response.stream.size() - 19);
         Until([&] { return response.streamBytes.load() == response.stream.size() || response.invalid.load(); }, "complete raw stream callbacks");
-        auto reply = Payload(1031, 211);
+        Phase("stream-send");auto reply = Payload(1031, 211);
         Require(client->Send(reply.data(), static_cast<int32_t>(reply.size()), true) != WC_SEND_ERROR, "actual stream send");
         ReceiveExact(peer.value, reply);
         Require(response.packets == 0, "stream path must not manufacture framed callbacks");
     } else {
         for (unsigned i = 0; i < response.expected.size(); ++i) {
+            Phase(i ? "message-receive-extended" : "message-receive-short");
             const auto wire = Frame(response.expected[i]);const size_t prefix = i + 1;
             SendAll(peer.value, wire.data(), prefix);
             Until([&] {
@@ -239,6 +252,7 @@ void Case(bool streamMode) {
         // latency setting; the network worker must drain the WDataStore nodes.
         WowConnection::s_lagTestDelayMin = 1;WowConnection::s_lagTestDelayMax = 1;
         for (const auto& incoming : response.expected) {
+            Phase(incoming.size() > 0x7fff ? "message-queued-send-extended" : "message-queued-send-short");
             auto reply = Payload(incoming.size(), 233);CDataStore packet(reply.data(), static_cast<uint32_t>(reply.size()));
             Require(client->SendPacket(&packet, 0) == WC_SEND_QUEUED, "actual queued SendPacket path");
             ReceiveExact(peer.value, Frame(reply));
@@ -247,11 +261,13 @@ void Case(bool streamMode) {
         Require(response.streamBytes == 0, "message path must not manufacture stream callbacks");
     }
     Require(!response.invalid && response.failed == 0 && response.offMainThread, "exact worker-thread payload callbacks");
+    Phase(streamMode ? "stream-disconnect" : "message-disconnect");
     client->Disconnect();Until([&] { return response.disconnected.load() == 1; }, "actual controlled disconnect callback");
     Require(response.connected == 1 && response.disconnected == 1, "one connect/disconnect lifecycle");
     connection.Finish();
 }
 void StopRetention() {
+    Phase("stop-timeout-retention-and-retry");
     Require(WowConnection::s_network == nullptr, "retention case starts without a network");
     Handle barrier, worker, main;barrier.value = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     Require(barrier.value != nullptr, "owned blocked-worker barrier");blockedWorkerEvent = barrier.value;
@@ -324,7 +340,7 @@ int Run() {
         StopRetention();
         return Receipt();
     } catch (const std::exception& error) {
-        std::fprintf(stderr, "FAIL: Esteria loopback transport check: %s\n", error.what());return 65;
+        std::fprintf(stderr, "FAIL: Esteria loopback transport check: %s (phase=%s)\n", error.what(), phase);return 65;
     }
 }
 }
