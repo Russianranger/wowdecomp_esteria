@@ -13,6 +13,7 @@ namespace {
 constexpr wchar_t kFlag[] = L"--esteria-entry-check";
 constexpr wchar_t kOfflineFlag[] = L"--offline-check";
 constexpr wchar_t kLoopbackFlag[] = L"--loopback-check";
+constexpr wchar_t kAuthFlag[] = L"--auth-check";
 constexpr wchar_t kReceipt[] = L"Esteria-entry-check.json";
 bool mainFiberPassed = false;
 
@@ -73,6 +74,13 @@ Mode ParseCommandLine() {
     if (!arguments) return Mode::Invalid;
     Mode mode = Mode::None;
     for (int i = 1; i < count; ++i) {
+        if (_wcsnicmp(arguments[i], kAuthFlag, (sizeof(kAuthFlag) / sizeof(*kAuthFlag)) - 1) == 0) {
+            const int other = i == 1 ? 2 : 1;
+            mode = count == 3 && std::wcscmp(arguments[i], kAuthFlag) == 0 &&
+                (!std::wcscmp(arguments[other], L"--local-offline") || !std::wcscmp(arguments[other], L"-local-offline"))
+                ? Mode::AuthRequested : Mode::Invalid;
+            break;
+        }
         if (_wcsnicmp(arguments[i], kLoopbackFlag, (sizeof(kLoopbackFlag) / sizeof(*kLoopbackFlag)) - 1) == 0) {
             const int other = i == 1 ? 2 : 1;
             mode = count == 3 && std::wcscmp(arguments[i], kLoopbackFlag) == 0 &&

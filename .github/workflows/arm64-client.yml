@@ -83,10 +83,10 @@ jobs:
           cmake -S Tools/VulkanTests -B build/vulkan -G "${{ matrix.generator }}" -A ${{ matrix.arch }} -DVULKAN_TEXTURE_DEVICE_TEST=ON -DVULKAN_PRESENT_DEVICE_TEST=ON
           cmake --build build/vulkan --config Release --parallel 4
           ctest --test-dir build/vulkan -C Release --output-on-failure -R '^texture_registry$'
-      - name: Exercise actual client entry, offline policy and loopback network workers
+      - name: Exercise actual client entry, offline policy, transport and Grunt SRP
         if: ${{ !cancelled() && steps.runtime_manifest.outcome == 'success' }}
         run: >-
-          python Tools/PlatformTests/verify_client_loopback.py
+          python Tools/PlatformTests/verify_client_auth.py
           --directory "${{ matrix.runtime_dir }}"
           --architecture "${{ matrix.arch }}"
           --output build/client-entry

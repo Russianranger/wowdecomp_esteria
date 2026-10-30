@@ -368,5 +368,45 @@ excluded from that wait snapshot. Real x64 execution in run `41006100154` at
 short/extended receives, both queued sends and stream I/O after this correction.
 It then reached the deliberate worker-timeout case and exposed a diagnostic
 error: the pooled `WDataStore` was read before `Finalize()` switched it to reading.
-That call is now present. The first complete loopback receipt and actual Wine
-transport qualification remain pending; successful I/O is not a teardown pass.
+That diagnostic call was corrected in
+`97b347ee034551ea78dc905c3e209667534e6283`. Run `41007244092` passed all five
+jobs: native Windows x64 and ARM64 full builds and transport checks, both portable
+test runners, and native Linux ARM64 Wine qualification. Both Windows runs and
+Wine passed every transport and retained-worker shutdown check. The Wine
+qualification receipt SHA256 is
+`b78be4acf007d57671e16bdba5a48b6b4251129c043a6f2e0aeccf37fd7ad515`;
+its namespace exited normally with the eight separate codec, entry, offline,
+transport, graphics and captured-audio scopes true. This is still Windows ARM64
+execution under Wine; Android, compiled-server authentication and world entry
+remain unqualified.
+
+## Actual Grunt authentication fixture
+
+`--auth-check --local-offline` is an explicit pre-`CommonMain` diagnostic using
+the real `Grunt::ClientLink`, timer, SRP exchange, stream parser, callbacks and
+network workers. Native Windows CI runs it against an owned synthetic
+`127.0.0.1:3724` peer, verifies the client's proof and matching private session
+key, and supplies fragmented challenge/proof/realm responses. Wrong server
+proofs and a nonlocal advertised world address must fail. Successful completion
+requires one local realm, controlled disconnect, drained connection references
+and joined Grunt/network threads. This source checkpoint awaits its first actual
+native execution; the synthetic peer is not the compiled Esteria authserver.
+
+Credentials enter only through an exclusive private sibling file
+`Esteria-auth-input.bin`: 57 bytes containing `ESTAUTH1`, a 16-byte nonce, a
+17-byte generated `EST[0-9A-F]{14}` account and a 16-byte password from
+`ABCDEFGHJKLMNPQRSTUVWXYZ23456789`. No credentials appear in arguments or public
+logs. The executable writes a new raw 40-byte `Esteria-auth-session.key` and an
+exclusive bounded `Esteria-auth-check.json` public receipt. The wrapper compares
+the private key, exports only fixed diagnostic lines/public receipts and removes
+private input/key files. Existing outputs are refused; malformed inputs are
+tested before any peer is started. Build artifacts exclude the private working
+directory.
+
+The version challenge follows the pinned server's explicit source-default
+`StrictVersionCheck=0`; the receipt marks game-data version-checksum validation
+false. `CommonMain`, assets, compiled-server compatibility, character selection
+and world entry are also false. A later paired server gate must use the same
+57-byte input contract with its owned generated account, verify the 40-byte key
+against the actual database and retain server revision/readiness/cleanup proof.
+The ordinary desktop launch path is unchanged.
