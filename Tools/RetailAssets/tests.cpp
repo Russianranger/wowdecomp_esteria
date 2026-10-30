@@ -1603,6 +1603,49 @@ int main(int argc, char** argv) {
         "local offline policy also blocks opening previously configured online storage");
     Check(source.Stats().acquired == 0 && !std::filesystem::exists(temp / "cache"),
         "offline refusal does not acquire assets or create an online cache");
+    for (const char* field : {"path", "aliases", "listfile", "equipment", "keys", "tables", "cache"}) {
+        const auto config = temp / "network-path.ini";
+        std::ofstream out(config);
+        out << "mode=files\nbuild=0123456789abcdef0123456789abcdef\n";
+        if (std::string(field) != "path") out << "path=.\n";
+        out << field << "=\\\\example.invalid\\share\\asset\n";
+        out.close();
+        Retail::CascSource blocked;
+        Check(!blocked.Configure(config.string().c_str(), error)
+            && error.find("plain local asset and auxiliary paths") != std::string::npos,
+            "offline files and auxiliary paths refuse UNC input before filesystem/network access");
+        Check(blocked.Stats().storageOpenAttempts == 0, "network-path refusal precedes CASC backend");
+        std::filesystem::remove(config);
+    }
+    {
+        Retail::CascSource blocked;
+        Check(!blocked.Configure("\\\\example.invalid\\share\\RetailCasc.ini", error)
+            && error.find("plain bounded local filename") != std::string::npos,
+            "offline source refuses a UNC config filename before opening it");
+    }
+    // bOnlineStorage=false does not keep CascLib offline when it discovers a
+    // cached versions marker. Assert the production source refuses before even
+    // invoking CascOpenStorageEx, for both independent namespaces.
+    {
+        const auto cached = temp / "cached-local";
+        std::filesystem::create_directories(cached);
+        std::ofstream(cached / "versions") << "synthetic cached-online metadata; must not reach CascLib\n";
+        auto nested = cached;
+        for (unsigned i = 0; i < 10; ++i) nested /= "d";
+        for (const auto kind : {Retail::SourceKind::Retail, Retail::SourceKind::Forever}) {
+            const auto config = temp / (kind == Retail::SourceKind::Retail ? "local-retail.ini" : "local-forever.ini");
+            std::ofstream(config) << "mode=local\npath=" << nested.string() << "\n";
+            Retail::CascSource local(kind);
+            Check(local.Configure(config.string().c_str(), error), "configure explicit local CASC fixture");
+            Check(!local.Inspect(kind == Retail::SourceKind::Retail ? "retail/999.m2" : "forever/999.m2", prepared, error)
+                && error.find("cached-online versions") != std::string::npos,
+                "offline Retail and Forever refuse ancestor cached-online metadata");
+            Check(local.Stats().storageOpenAttempts == 0 && local.Stats().acquired == 0,
+                "cached-local refusal precedes actual CascOpenStorageEx and every download backend");
+            std::filesystem::remove(config);
+        }
+        std::filesystem::remove_all(cached);
+    }
     Esteria::LocalOffline::ConfigureAtStartup(false);
     Retail::HandItemAppearance appearance;
     Check(source.HandItem(123, appearance) && appearance.modelId == 916541 && appearance.textureId == 916543, "equipment uses Wrath display ID and Retail file IDs");
@@ -1628,6 +1671,7 @@ int main(int argc, char** argv) {
     Retail::CascSource offline;
     Check(offline.Configure((temp / "offline.ini").string().c_str(), error), "configure offline originals without network");
     Check(offline.Inspect("retail/42.m2", prepared, error) && prepared == valid, "offline source preserves original bytes");
+    Check(offline.Stats().storageOpenAttempts == 0, "prepared files require no CASC/network backend");
     Check(!offline.Inspect("retail/43.m2", prepared, error), "offline source fails on missing dependency");
     {
         // A test reader stands in for SFile's mounted MPQ callback; the CASC/loose file remains absent.

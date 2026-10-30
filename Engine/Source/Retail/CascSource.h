@@ -44,7 +44,7 @@ public:
     bool HasClientTable(const char* name);
     bool MergeTable(const char* name, const std::vector<uint8_t>& base,
         std::vector<uint8_t>& merged, std::string& error);
-    struct Statistics { uint64_t reused = 0, acquired = 0; };
+    struct Statistics { uint64_t reused = 0, acquired = 0, storageOpenAttempts = 0; };
     Statistics Stats();
     bool MatchesBuild(const std::string& product, const std::string& build, uint32_t locale);
 

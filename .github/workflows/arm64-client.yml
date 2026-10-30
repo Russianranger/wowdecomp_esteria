@@ -22,6 +22,23 @@ jobs:
       - run: cmake -S Tools/PlatformTests -B build/portable -DCMAKE_BUILD_TYPE=Release
       - run: cmake --build build/portable --parallel 4
       - run: ctest --test-dir build/portable --output-on-failure
+      - name: Compile actual optional Retail/Forever source and pinned CascLib
+        run: |
+          cmake -S Tools/RetailAssets -B build/retail -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/retail --target RetailAssetTests --parallel 2
+          ctest --test-dir build/retail --output-on-failure -R '^retail-assets'
+      - name: Preserve portable offline storage evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: portable-retail-${{ matrix.runner }}-${{ github.sha }}
+          path: |
+            build/portable/Testing/Temporary/LastTest.log
+            build/retail/Testing/Temporary/LastTest.log
+            build/retail/CMakeCache.txt
+            build/retail/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: warn
+          retention-days: 14
       - run: python3 -m unittest discover -s Tools/RuntimeManifest -v
       - run: python3 -m unittest discover -s Tools/VulkanShaders/tests -v
       - run: python3 -m unittest discover -s Tools/PlatformTests -p 'test_*.py' -v
@@ -48,6 +65,11 @@ jobs:
         run: cmake --build build/platform --config Release --parallel 4
       - name: Run native architecture and Windows differential tests
         run: ctest --test-dir build/platform -C Release --output-on-failure
+      - name: Compile and exercise actual optional Retail/Forever source and pinned CascLib
+        run: |
+          cmake -S Tools/RetailAssets -B build/retail -G "${{ matrix.generator }}" -A ${{ matrix.arch }}
+          cmake --build build/retail --config Release --target RetailAssetTests --parallel 2
+          ctest --test-dir build/retail -C Release --output-on-failure -R '^retail-assets'
       - name: Configure matched reconstructed client
         id: configure_client
         if: ${{ !cancelled() }}
@@ -109,6 +131,9 @@ jobs:
             build/platform/CMakeCache.txt
             build/platform/CMakeFiles/CMakeConfigureLog.yaml
             build/platform/Testing/Temporary/LastTest.log
+            build/retail/Testing/Temporary/LastTest.log
+            build/retail/CMakeCache.txt
+            build/retail/CMakeFiles/CMakeConfigureLog.yaml
             build/platform/Release/test_xvid_adapter.exe
             build/platform/Release/test_local_account.exe
             build/vulkan/Release/texture_device.exe

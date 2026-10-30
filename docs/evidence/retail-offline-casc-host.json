@@ -1,0 +1,123 @@
+{
+  "androidRuntimeQualified": false,
+  "applicationSourcePinChanged": false,
+  "formatVersion": 1,
+  "fullClientBuiltHere": false,
+  "gameplayQualified": false,
+  "hostArchitecture": "x86_64",
+  "hostSystem": "Linux",
+  "implementationInputs": {
+    ".github/workflows/arm64-client.yml": {
+      "bytes": 12169,
+      "sha256": "96939a07a90b83fcfe46e824cacde8ec4f3e4ce7b255e95e113bc548abf9d028"
+    },
+    "Engine/Source/Retail/CascSource.cpp": {
+      "bytes": 42248,
+      "sha256": "c915dd4970c35692cc6c25bc8c8fed3500e9bec7cb541a0169270668ef7cc44c"
+    },
+    "Engine/Source/Retail/CascSource.h": {
+      "bytes": 3011,
+      "sha256": "afa6877a884c0ab6c1aa698903e05af4e73eaf98eeeaddb3d8b86c47b65dd76d"
+    },
+    "Engine/Source/Retail/OfflineStorage.h": {
+      "bytes": 5254,
+      "sha256": "3a6c6c4d7a24a4bdfa5cd896db03659604e4a97c77d67eeda902d10902a105b7"
+    },
+    "Tools/PlatformTests/CMakeLists.txt": {
+      "bytes": 2472,
+      "sha256": "af6aff657822cb5119691045b0fb30c0032fe381e3d454c362f56002a254c957"
+    },
+    "Tools/PlatformTests/test_offline_casc.cpp": {
+      "bytes": 4607,
+      "sha256": "c20a5acb00bc0c95923d2a8f55ab683d2f50ff6a625824faf85de034cdf204bb"
+    },
+    "Tools/RetailAssets/CMakeLists.txt": {
+      "bytes": 668,
+      "sha256": "57aac47e818c769b0bdbc304600f8868d39a804b75772796da1dd4746fd9de36"
+    },
+    "Tools/RetailAssets/test_no_network.c": {
+      "bytes": 919,
+      "sha256": "d319db0c4ac7e8b48ad3d7c43daa5ea6f670ed5bbfcdcc1ea4f5cb746e97da98"
+    },
+    "Tools/RetailAssets/tests.cpp": {
+      "bytes": 130503,
+      "sha256": "68a613c525a5369324c547a1397a2035be814df3cce07b6a58e60d635e98e608"
+    },
+    "cmake/RetailAssets.cmake": {
+      "bytes": 5705,
+      "sha256": "ad932c56fa02a13ce806d355a1258a7e897087ef37520977dd4599f84f3b96e6"
+    }
+  },
+  "nativeArm64ExecutionQualified": false,
+  "nativeWindowsExecutionQualified": false,
+  "optionalClientFeatureCoverageQualified": false,
+  "pinnedCascLib": {
+    "adaptation": "Exactly one LPDWORD parser declaration becomes the equivalent DWORD* in the build-tree copy; upstream source is unchanged.",
+    "allOriginalSourceFilesUnchanged": true,
+    "archive": {
+      "bytes": 23532702,
+      "sha256": "1b59deebc82a4eb75c6e9ef463a7644b22231a4b3b0657ad9afe0dd5205fee3f"
+    },
+    "buildTreePortableParser": {
+      "bytes": 66056,
+      "sha256": "9fb3c89fe4059b217dddd31d41dd9d040b0825f9fb1c31705a3db5e2f33b9c62"
+    },
+    "originalParser": {
+      "bytes": 66047,
+      "sha256": "4464da5d9b7325e1ab7c3957f5a32cd5fa74c1d539ac4f02a498032c4f46658b"
+    },
+    "revision": "38a34665624b8775bb875274b36191b21c38d97b",
+    "sourceFileBytes": 97054521,
+    "sourceFilesIndependentlyReadBack": 125
+  },
+  "platform": {
+    "ctestsPassed": 7,
+    "ctestsRun": 7,
+    "failed": 0,
+    "testBinary": {
+      "bytes": 52312,
+      "sha256": "a320fbff34478b9c17f16d8aa1bd6d08609bcb2230633187601c4c1b473b8aa2"
+    },
+    "testLog": {
+      "bytes": 908,
+      "sha256": "b16197aac3c6e34fdd7bf3af863c65bd3999391db364ab922ae1119e15f1328f"
+    },
+    "xvidBuildDisabledForFocusedCheck": true
+  },
+  "primaryRetailAssetsDefaultChanged": false,
+  "retail": {
+    "completeUserAssetsUsed": false,
+    "ctestsPassed": 2,
+    "ctestsRun": 2,
+    "failed": 0,
+    "foreverCachedOnlineActualStorageOpenAttempts": 0,
+    "preparedFilesReadSucceededWithActualStorageOpenAttempts": 0,
+    "realCascSourceAndPinnedCascLibCompiled": true,
+    "retailCachedOnlineActualStorageOpenAttempts": 0,
+    "socketTripwirePositiveControlExit": 97,
+    "testBinary": {
+      "bytes": 1441368,
+      "sha256": "8013632ff83b9e46f55eebf435af7072fa26fa5917de6063fe9cd6bcba2ea197"
+    },
+    "testLog": {
+      "bytes": 405,
+      "sha256": "28707ef047fdfe705388dd0efae24a7b689ea3443f7ab504698472cfc9e4732b"
+    },
+    "tripwireLibrary": {
+      "bytes": 15752,
+      "sha256": "8b3f6ab2aeff70c32782bdca8953fc5c1b41829462ad2fffe0b18db18fd8f241"
+    },
+    "uncConfigurationAndAuxiliaryPathsRefused": true
+  },
+  "scope": "host-optional-retail-forever-offline-storage-admission-and-files-fixtures",
+  "sourceReachability": {
+    "cachedVersionsCanEnableOnlineWithFalseOpenArgument": true,
+    "fallbackRaceCallbackCancelsBeforeRibbitHttp": true,
+    "metadataOpenRequiresReadWrite": true,
+    "ordinaryDesktopPolicyUnchanged": true,
+    "preflightRefusesBeforeStorageBackend": true,
+    "upstreamAncestorDepthCounterNotIncremented": true
+  },
+  "startingClientRevision": "471ee42faadf4a97a1d0a86989cf1452621f2dc5",
+  "worldQualified": false
+}

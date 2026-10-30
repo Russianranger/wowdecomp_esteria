@@ -1,3 +1,4 @@
+get_filename_component(RETAIL_CLIENT_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 # Keep upstream storage code out of default builds. A source checkout can be supplied for
 # offline builds; otherwise download an immutable revision, never an upstream branch.
 set(WOWDECOMP_CASCLIB_SOURCE_DIR "" CACHE PATH "Existing CascLib source checkout")
@@ -27,38 +28,75 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
 endif ()
 add_subdirectory("${WOWDECOMP_CASCLIB_SOURCE_DIR}" "${CMAKE_BINARY_DIR}/casclib" EXCLUDE_FROM_ALL)
 
+# The pinned source uses the Windows-only LPDWORD spelling once in its otherwise
+# portable parser. Compile a checked build-tree copy using the actual DWORD*
+# signature; retain the original upstream source and all other target inputs.
+if (NOT WIN32)
+    set(casc_parser "${WOWDECOMP_CASCLIB_SOURCE_DIR}/src/CascFiles.cpp")
+    file(READ "${casc_parser}" casc_parser_text)
+    set(casc_parser_old "LPDWORD PtrBuildNumber = (LPDWORD)(pvParam);")
+    string(REGEX MATCHALL "LPDWORD PtrBuildNumber = [(]LPDWORD[)][(]pvParam[)]" casc_parser_matches "${casc_parser_text}")
+    list(LENGTH casc_parser_matches casc_parser_match_count)
+    if (NOT casc_parser_match_count EQUAL 1)
+        message(FATAL_ERROR "Pinned CascLib portable DWORD parser adaptation no longer matches exactly once")
+    endif ()
+    string(REPLACE "${casc_parser_old}" "DWORD* PtrBuildNumber = static_cast<DWORD*>(pvParam);" casc_parser_text "${casc_parser_text}")
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/casclib-portable")
+    set(casc_parser_copy "${CMAKE_BINARY_DIR}/casclib-portable/CascFiles.cpp")
+    file(WRITE "${casc_parser_copy}" "${casc_parser_text}")
+    get_target_property(casc_target_sources casc_static SOURCES)
+    get_target_property(casc_target_source_dir casc_static SOURCE_DIR)
+    set(casc_portable_sources)
+    set(casc_parser_replaced 0)
+    foreach (source IN LISTS casc_target_sources)
+        if (NOT IS_ABSOLUTE "${source}")
+            set(source "${casc_target_source_dir}/${source}")
+        endif ()
+        if (source STREQUAL casc_parser)
+            list(APPEND casc_portable_sources "${casc_parser_copy}")
+            math(EXPR casc_parser_replaced "${casc_parser_replaced} + 1")
+        else ()
+            list(APPEND casc_portable_sources "${source}")
+        endif ()
+    endforeach ()
+    if (NOT casc_parser_replaced EQUAL 1)
+        message(FATAL_ERROR "Pinned CascLib parser target input differs")
+    endif ()
+    set_property(TARGET casc_static PROPERTY SOURCES ${casc_portable_sources})
+endif ()
+
 add_library(RetailAssets STATIC
-    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/CascSource.cpp"
-    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/DecodedCache.cpp"
-    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/RetailModel.cpp"
-    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/RetailShader.cpp"
-    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/ClientTables.cpp"
-    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/Db2.cpp"
-    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/Appearance.cpp"
-    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/Compose.cpp"
-    "${CMAKE_SOURCE_DIR}/Engine/Source/Retail/BusyNotice.cpp"
+    "${RETAIL_CLIENT_ROOT}/Engine/Source/Retail/CascSource.cpp"
+    "${RETAIL_CLIENT_ROOT}/Engine/Source/Retail/DecodedCache.cpp"
+    "${RETAIL_CLIENT_ROOT}/Engine/Source/Retail/RetailModel.cpp"
+    "${RETAIL_CLIENT_ROOT}/Engine/Source/Retail/RetailShader.cpp"
+    "${RETAIL_CLIENT_ROOT}/Engine/Source/Retail/ClientTables.cpp"
+    "${RETAIL_CLIENT_ROOT}/Engine/Source/Retail/Db2.cpp"
+    "${RETAIL_CLIENT_ROOT}/Engine/Source/Retail/Appearance.cpp"
+    "${RETAIL_CLIENT_ROOT}/Engine/Source/Retail/Compose.cpp"
+    "${RETAIL_CLIENT_ROOT}/Engine/Source/Retail/BusyNotice.cpp"
 )
-target_include_directories(RetailAssets PUBLIC "${CMAKE_SOURCE_DIR}")
+target_include_directories(RetailAssets PUBLIC "${RETAIL_CLIENT_ROOT}")
 target_compile_definitions(RetailAssets PUBLIC WOWDECOMP_RETAIL_ASSETS=1)
 target_link_libraries(RetailAssets PRIVATE casc_static)
 
-add_executable(RetailAssetProbe "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/probe.cpp")
+add_executable(RetailAssetProbe "${RETAIL_CLIENT_ROOT}/Tools/RetailAssets/probe.cpp")
 target_link_libraries(RetailAssetProbe PRIVATE RetailAssets)
-add_executable(RetailRaceProbe "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/races.cpp")
+add_executable(RetailRaceProbe "${RETAIL_CLIENT_ROOT}/Tools/RetailAssets/races.cpp")
 target_link_libraries(RetailRaceProbe PRIVATE RetailAssets)
-add_executable(RetailComposeProbe "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/compose.cpp")
+add_executable(RetailComposeProbe "${RETAIL_CLIENT_ROOT}/Tools/RetailAssets/compose.cpp")
 target_link_libraries(RetailComposeProbe PRIVATE RetailAssets)
-add_executable(RetailAssetTests "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/tests.cpp")
+add_executable(RetailAssetTests "${RETAIL_CLIENT_ROOT}/Tools/RetailAssets/tests.cpp")
 target_link_libraries(RetailAssetTests PRIVATE RetailAssets)
-add_executable(RetailAssetAcquire "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/acquire.cpp")
+add_executable(RetailAssetAcquire "${RETAIL_CLIENT_ROOT}/Tools/RetailAssets/acquire.cpp")
 target_link_libraries(RetailAssetAcquire PRIVATE RetailAssets)
-add_executable(CdnAssetDownload "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/download.cpp")
+add_executable(CdnAssetDownload "${RETAIL_CLIENT_ROOT}/Tools/RetailAssets/download.cpp")
 target_link_libraries(CdnAssetDownload PRIVATE RetailAssets)
-add_executable(CdnSourceSmoke "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/source_smoke.cpp")
+add_executable(CdnSourceSmoke "${RETAIL_CLIENT_ROOT}/Tools/RetailAssets/source_smoke.cpp")
 target_link_libraries(CdnSourceSmoke PRIVATE RetailAssets)
 if (WIN32)
-    add_executable(RetailShaderProbe "${CMAKE_SOURCE_DIR}/Tools/RetailAssets/shader_probe.cpp"
-        "${CMAKE_SOURCE_DIR}/Engine/Source/Gx/CGxDeviceD3d11/ShaderTranslator.cpp")
+    add_executable(RetailShaderProbe "${RETAIL_CLIENT_ROOT}/Tools/RetailAssets/shader_probe.cpp"
+        "${RETAIL_CLIENT_ROOT}/Engine/Source/Gx/CGxDeviceD3d11/ShaderTranslator.cpp")
     target_link_libraries(RetailShaderProbe PRIVATE RetailAssets d3dcompiler)
 endif ()
 enable_testing()

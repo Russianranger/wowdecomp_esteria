@@ -499,3 +499,59 @@ The combined `wine-codec-evidence/qualification.json` SHA-256 is
 `841d1d989c4e1402a9bf13a5150d1101259b332ed41b2b14a0f371dc0a60b33d`;
 it records all nine scoped flags true, namespace exit 0, and Android/game/server
 flags false. Private credential/session-key files are excluded from public evidence.
+
+## Retail/Forever local-storage download refusal
+
+The optional Retail/Forever path now rejects cached-online CASC metadata before
+calling `CascOpenStorageEx` when `--local-offline` is active. Passing CascLib's
+`bOnlineStorage=false` alone was insufficient: the pinned library recognizes an
+existing `versions` file and unconditionally marks that storage online. It also
+walks every ancestor because its declared depth counter is never incremented.
+
+The source-owned admission helper follows the actual direct-file suffix and
+metadata priority rules, including prefixed/case-varied names, normalized slash
+styles, read/write metadata probes and ancestor discovery. Cached `versions`,
+stream-provider/master-stream syntax and absent local metadata produce a clear
+setup error before the storage backend is invoked. Plain local configuration,
+asset and auxiliary paths are checked before file access; imported UNC paths do
+not become network filesystem reads. Normal desktop storage behavior stays
+unchanged. Prepared `mode=files` reads still use their real local/packed assets,
+and genuine local CASC installations remain supported.
+
+An explicit selected local metadata filename and immutable managed inputs reduce
+fallback ambiguity. During the actual CascLib open, a real progress callback also
+cancels download operations before its Ribbit/HTTP call if a metadata open race
+causes ancestor-cache fallback. A storage opened before the offline startup policy
+cannot be reused under that policy. This is a source behavior boundary, not an OS
+network sandbox or proof of complete asset coverage. CascLib metadata probing
+requires read/write access; read-only imported packs should be prepared using
+`mode=files`, rather than depending on a local-CASC probe that the pinned library
+cannot open. Configured decoded-cache locations still need an app-owned mutable
+namespace during setup.
+
+A clean standalone build compiles the real optional implementation and the exact
+pinned CascLib without enabling it in the main client:
+
+```sh
+cmake -S Tools/RetailAssets -B build/retail -DCMAKE_BUILD_TYPE=Release
+cmake --build build/retail --target RetailAssetTests --parallel 2
+ctest --test-dir build/retail --output-on-failure -R '^retail-assets'
+```
+
+An offline builder may set `WOWDECOMP_CASCLIB_SOURCE_DIR` to an absolute path of
+the exact pinned checkout. On POSIX, its single Windows-only `LPDWORD` parser
+spelling is replaced with the equivalent `DWORD*` in a checked build-tree copy;
+all original upstream source bytes and notices stay unchanged. No asset decoder
+or storage backend is replaced. The Linux extra CTest aborts on socket/DNS calls;
+its tripwire is a test-only preload and is never linked into the client.
+
+Local Linux x64 evidence is recorded in
+`docs/evidence/retail-offline-casc-host.json`: seven focused platform CTests and
+two real Retail/CascLib CTests pass, including zero actual storage-open attempts
+for both cached-online namespace fixtures and a real prepared-files positive.
+A socket attempt separately confirms the tripwire exits97. The workflow now
+compiles/tests this optional implementation on native Linux x64/ARM64 and Windows
+x64/ARM64. Those new CI executions, complete optional-client compilation, actual
+user assets, Android and world gameplay remain separate gates. The primary
+client's existing `WOWDECOMP_RETAIL_ASSETS=OFF` default is unchanged; no application
+source pin or packaged executable is advanced by this source checkpoint alone.

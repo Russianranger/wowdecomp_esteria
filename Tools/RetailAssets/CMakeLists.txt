@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.24)
+project(EsteriaRetailAssetTests LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/RetailAssets.cmake")
+if (WIN32)
+    target_compile_definitions(RetailAssets PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+elseif (UNIX AND NOT APPLE)
+    add_library(retail_test_no_network SHARED test_no_network.c)
+    add_dependencies(RetailAssetTests retail_test_no_network)
+    add_test(NAME retail-assets-no-network COMMAND "${CMAKE_COMMAND}" -E env
+        "LD_PRELOAD=$<TARGET_FILE:retail_test_no_network>" $<TARGET_FILE:RetailAssetTests>)
+endif ()

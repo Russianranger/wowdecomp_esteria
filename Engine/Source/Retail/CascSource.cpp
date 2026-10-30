@@ -8,6 +8,7 @@
 #include "Engine/Source/Retail/Ethereal.h"
 #include "Engine/Source/Retail/EtherealModel.h"
 #include "Engine/Source/Platform/LocalOffline.h"
+#include "Engine/Source/Retail/OfflineStorage.h"
 #include <CascLib.h>
 #include <algorithm>
 #include <atomic>
@@ -24,6 +25,12 @@
 
 namespace Retail {
 namespace {
+bool WINAPI RefuseOfflineStorageDownload(void* context, CASC_PROGRESS_MSG message, const char*, DWORD, DWORD) {
+    if (message != CascProgressDownloadingFile && message != CascProgressDownloadingArchiveIndexes) return false;
+    *static_cast<bool*>(context) = true;
+    Esteria::LocalOffline::Reject("Retail/Forever CASC download after local metadata changed");
+    return true;
+}
 std::atomic<PackedAssetReader> packedAssetReader{nullptr};
 std::string Normalize(std::string name) {
     for (auto& c : name) {
@@ -107,7 +114,7 @@ struct CascSource::Impl {
     Statistics stats;
     std::string Prefix() const { return kind == SourceKind::Forever ? "forever/" : "retail/"; }
     uint32_t locale = CASC_LOCALE_ENUS;
-    bool online = true, configured = false, files = false;
+    bool online = true, configured = false, files = false, storageOpenedOffline = false;
     std::string configurationError = "RetailCasc.ini has not been configured";
     std::map<std::string, uint32_t> names;
     std::map<std::string, Reference> dependencies;
@@ -127,15 +134,35 @@ struct CascSource::Impl {
         if (!configured) { error = configurationError; return false; }
         if (online && Esteria::LocalOffline::Reject("Retail/Forever online CASC storage"))
             return Failure(error, "Local offline mode requires prepared Retail/Forever assets using mode=files or mode=local; online CASC access is disabled");
-        if (storage) return true;
-        CASC_OPEN_STORAGE_ARGS args = {};
-        args.Size = sizeof(args);
-        args.szLocalPath = path.c_str();
-        args.szCodeName = product.c_str();
-        args.szRegion = region.c_str();
-        args.szBuildKey = build.empty() ? nullptr : build.c_str();
-        args.dwLocaleMask = locale;
-        if (!CascOpenStorageEx(nullptr, &args, online, &storage)) return CascFailure(error, "Cannot open CASC storage");
+        const bool offline = Esteria::LocalOffline::Enabled();
+        if (storage) return !offline || storageOpenedOffline || Failure(error,
+            "Local offline CASC cannot reuse storage opened before the offline policy; restart with prepared assets");
+        const bool opened = OfflineStorage::OpenWithPolicy(offline, path, [&](const std::string& selected) {
+            CASC_OPEN_STORAGE_ARGS args = {};
+            args.Size = sizeof(args);
+            args.szLocalPath = selected.c_str();
+            args.szCodeName = product.c_str();
+            args.szRegion = region.c_str();
+            args.szBuildKey = build.empty() ? nullptr : build.c_str();
+            args.dwLocaleMask = locale;
+            bool downloadBlocked = false;
+            if (offline) {
+                // A removed/locked marker could make CascLib fall back to an
+                // ancestor versions cache after preflight. LoadCsvFile invokes
+                // this callback before Ribbit/HTTP. No post-open network test.
+                args.PtrProgressParam = &downloadBlocked;
+                args.PfnProgressCallback = RefuseOfflineStorageDownload;
+            }
+            ++stats.storageOpenAttempts;
+            if (!CascOpenStorageEx(nullptr, &args, online, &storage)) {
+                if (downloadBlocked) return Failure(error,
+                    "Local offline CASC refused a download after local metadata changed; prepare local assets and restart");
+                return CascFailure(error, "Cannot open CASC storage");
+            }
+            storageOpenedOffline = offline;
+            return true;
+        }, error);
+        if (!opened) return false;
         if (!keys.empty() && !CascImportKeysFromFile(storage, keys.c_str())) {
             CascFailure(error, "Cannot import encryption keys");
             CascCloseStorage(storage);
@@ -293,6 +320,8 @@ bool CascSource::Configure(const char* configPath, std::string& error) {
     try {
     // Failed configuration is retained for the client's diagnostic log.
     struct Remember { Impl& state; std::string& error; ~Remember() { state.configurationError = error; } } remember{s, error};
+    if (Esteria::LocalOffline::Enabled() && (!configPath || !OfflineStorage::PlainLocalPath(configPath)))
+        return Failure(error, "Local offline Retail/Forever configuration requires a plain bounded local filename");
     std::ifstream input(configPath);
     if (!input) return Failure(error, s.kind == SourceKind::Forever
         ? "Cannot read ForeverCasc.ini; set WOW_FOREVER_CONFIG"
@@ -330,6 +359,13 @@ bool CascSource::Configure(const char* configPath, std::string& error) {
     if (!values["locale"].empty() && !Number(values["locale"], s.locale, 16)) return Failure(error, "locale must be a nonzero hexadecimal locale mask");
     const auto base = std::filesystem::absolute(configPath).parent_path();
     auto absolute = [&](const std::string& text) { return (base / std::filesystem::path(text)).lexically_normal(); };
+    if (Esteria::LocalOffline::Enabled()) {
+        for (const char* key : {"path", "tables", "keys", "aliases", "listfile", "equipment", "cache"}) {
+            if (!values[key].empty() && (!OfflineStorage::PlainLocalPath(values[key]) ||
+                    !OfflineStorage::PlainLocalPath(absolute(values[key]).string())))
+                return Failure(error, "Local offline Retail/Forever requires plain local asset and auxiliary paths; network paths are disabled");
+        }
+    }
     if (values["path"].empty()) return Failure(error, "CASC storage/cache path is required");
     auto path = absolute(values["path"]);
     if (s.online) {
