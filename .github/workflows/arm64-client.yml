@@ -90,6 +90,11 @@ jobs:
           --directory "${{ matrix.runtime_dir }}"
           --architecture "${{ matrix.arch }}"
           --output build/client-entry
+      - name: Build actual reconstructed FMOD output fixture
+        if: ${{ !cancelled() && steps.runtime_manifest.outcome == 'success' }}
+        run: |
+          cmake -S Tools/AudioTests -B build/audio -G "${{ matrix.generator }}" -A ${{ matrix.arch }}
+          cmake --build build/audio --config Release --parallel 4
       - name: Preserve diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -111,6 +116,9 @@ jobs:
             build/vulkan/CMakeFiles/CMakeConfigureLog.yaml
             build/vulkan/Testing/Temporary/LastTest.log
             build/client-entry/evidence/**
+            build/audio/Release/fmod_output_device.exe
+            build/audio/CMakeCache.txt
+            build/audio/CMakeFiles/CMakeConfigureLog.yaml
             build/client/generated/limits/**
             build/client/Tools/XvidDecoder/Xvid-1.3.7-LICENSE.txt
             ThirdParty/xvidcore/licenses/xvid.txt

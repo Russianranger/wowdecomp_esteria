@@ -160,11 +160,26 @@ engine's Win32 surface/device/swapchain and checked acquire/submit/present calls
 including resize. A new phase also exercises actual engine scene clears, partial
 rectangles, exact 4x4 BGRA CPU readback and two presentations through its embedded
 SPIR-V shaders. That phase has a separate success marker and harness scope;
-compilation/runtime qualification is pending its paired CI run. Readback precedes
+readback precedes
 the presentation shader and does not verify compositor pixels or data-derived
 game shaders. The older texture fixture checks 30,000 resource allocations without
 presenting. These fixtures do not establish world rendering; Lavapipe
 software-driver results are not Adreno performance.
+
+The engine-frame phase passed with both Windows builds at client
+`69ccfaa6a0dd01607d0a99be9b27b7b25dafc5aa`, integration harness
+`32329e64f05d9c9734b7c55c3270fb1800c7aff6`, CI
+[`40992315512`](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40992315512).
+The actual native Linux ARM64 Wine run observed the new exact marker and
+`linuxArm64VulkanEngineFrameReadbackQualified=true`, checked the scene's red/blue
+BGRA borders and green rectangles, and submitted both engine presentations.
+Codec, executable entry and existing resource/resize tests also passed. Namespace
+exit and expected worker exit were zero; bounded logs drained successfully.
+[Evidence artifact 12949797521](https://github.com/Russianranger/wowdecomp_esteria/actions/runs/40992315512/artifacts/12949797521)
+contains receipt SHA-256
+`69bfe354c777abf78e54ed033849235928edf742efdfce3371bca4c1e01379c4`.
+This still used llvmpipe LLVM 15.0.6, with no validation layer, Android surface,
+Adreno hardware, compositor-pixel readback or full game rendering qualification.
 
 ## Actual executable entry diagnostic
 
