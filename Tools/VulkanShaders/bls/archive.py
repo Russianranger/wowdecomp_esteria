@@ -175,17 +175,23 @@ def grab(arch, path):
     return n, data
 
 
-def split(data):
+def split(data, strict=False):
     """The records of one .bls container."""
     magic, ver, nperm = struct.unpack_from('<III', data, 0)
+    if strict and (magic != 0x47585348 or ver != 0x10003 or not 0 < nperm <= (len(data) - 12) // 16):
+        raise ValueError('invalid or empty shader container header')
     recs, off = [], 12
     for i in range(nperm):
         a, b, c, d, size = struct.unpack_from('<IIHHI', data, off)
         off += 16
+        if strict and (size < 8 or size % 4 or size > len(data) - off):
+            raise ValueError('invalid shader record size')
         code = data[off:off + size]
         off += size
         off = (off + 3) & ~3
         recs.append(dict(i=i, a=a, b=b, c=c, d=d, size=size, code=code))
+    if strict and off != len(data):
+        raise ValueError('shader container has unaccounted bytes')
     return magic, ver, nperm, recs, off
 
 
@@ -237,19 +243,19 @@ class Record(object):
         return '%s:%d' % (self.name, self.perm)
 
 
-def enumerate_records(datadir, locale=None):
+def enumerate_records(datadir, locale=None, strict=False):
     """Every record the engine loads, resolved through its fallback chain (an empty or missing
     container falls back one profile, as the engine does). Byte-identical records are separate
     entries with the same md5; the caller folds them."""
     arch = archives(datadir, locale)
     try:
-        return _enumerate_records(arch)
+        return _enumerate_records(arch, strict)
     finally:
         for _, provider in arch:
             provider.close()
 
 
-def _enumerate_records(arch):
+def _enumerate_records(arch, strict=False):
     inv = inventory(arch)
     out = []
     for kind, prof, name in resolve(inv):
@@ -262,13 +268,17 @@ def _enumerate_records(arch):
             path = BS.join(['Shaders', kind.capitalize(), prof2, inv[(kind, prof2)][low] + '.bls'])
             src, data = grab(arch, path)
             if data is None or len(data) < 12:
+                if strict:
+                    raise ValueError('selected shader container is missing or truncated: %s' % path)
                 data = None
                 continue
             prof = prof2
             break
         if data is None:
+            if strict:
+                raise ValueError('no usable shader container for %s:%s' % (kind, name))
             continue
-        magic, ver, nperm, records, consumed = split(data)
+        magic, ver, nperm, records, consumed = split(data, strict)
         for rec in records:
             r = Record()
             r.kind, r.profile, r.name, r.perm = kind, prof, name, rec['i']
@@ -276,14 +286,14 @@ def _enumerate_records(arch):
             r.md5 = hashlib.md5(r.code).hexdigest()
             r.hdr = (rec['a'], rec['b'], rec['c'], rec['d'])
             try:
-                r.sh = ir.decode(r.code)
+                r.sh = ir.decode_strict(r.code) if strict else ir.decode(r.code)
             except ValueError:
                 r.sh = None       # an SM1 stream: not translated
             out.append(r)
     return out
 
 
-def extra_vertex_records(folder):
+def extra_vertex_records(folder, strict=False):
     """Vertex records read from raw vs_3_0 token streams (<folder>/*.bin), named after the file."""
     out = []
     for fn in sorted(os.listdir(folder)):
@@ -292,18 +302,20 @@ def extra_vertex_records(folder):
         r = Record()
         r.kind, r.profile, r.name, r.perm = 'vertex', 'vs_3_0', os.path.splitext(fn)[0], 0
         with open(os.path.join(folder, fn), 'rb') as f:
-            r.code = f.read()
+            r.code = f.read(mq.MAX_FILE_SIZE + 1) if strict else f.read()
+        if strict and len(r.code) > mq.MAX_FILE_SIZE:
+            raise ValueError('extra vertex shader exceeds file bound')
         r.md5 = hashlib.md5(r.code).hexdigest()
         r.hdr = (0, 0, 0, 0)
         try:
-            r.sh = ir.decode(r.code)
+            r.sh = ir.decode_strict(r.code) if strict else ir.decode(r.code)
         except ValueError:
             r.sh = None
         out.append(r)
     return out
 
 
-def extra_pixel_records(folder):
+def extra_pixel_records(folder, strict=False):
     """Pixel records read from raw ps_3_0 token streams (<folder>/*.bin), named after the file."""
     out = []
     for fn in sorted(os.listdir(folder)):
@@ -312,11 +324,13 @@ def extra_pixel_records(folder):
         r = Record()
         r.kind, r.profile, r.name, r.perm = 'pixel', 'ps_3_0', os.path.splitext(fn)[0], 0
         with open(os.path.join(folder, fn), 'rb') as f:
-            r.code = f.read()
+            r.code = f.read(mq.MAX_FILE_SIZE + 1) if strict else f.read()
+        if strict and len(r.code) > mq.MAX_FILE_SIZE:
+            raise ValueError('extra pixel shader exceeds file bound')
         r.md5 = hashlib.md5(r.code).hexdigest()
         r.hdr = (0, 0, 0, 0)
         try:
-            r.sh = ir.decode(r.code)
+            r.sh = ir.decode_strict(r.code) if strict else ir.decode(r.code)
         except ValueError:
             r.sh = None
         out.append(r)

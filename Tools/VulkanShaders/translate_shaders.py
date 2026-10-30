@@ -84,6 +84,7 @@ def main(argv):
     ap.add_argument('--names', default=None, help='only these Name:perm (comma-separated), for a look')
     ap.add_argument('--extra-pixel', default=None, help='folder of raw ps_3_0 token streams (*.bin) translated as extra pixel records')
     ap.add_argument('--print', action='store_true', help='print the GLSL of each emitted record')
+    ap.add_argument('--strict', action='store_true', help='require every record and both stages to compile; refuse partial setup output')
     args = ap.parse_args(argv)
 
     data = find_data(args.client)
@@ -102,6 +103,8 @@ def main(argv):
     sys.path.insert(0, HERE)
     from bls import translate
     argv2 = ['--data', data, '--glslang', glslang]
+    if args.strict:
+        argv2.append('--strict')
     if args.locale:
         argv2 += ['--locale', args.locale]
     if args.extra_pixel:

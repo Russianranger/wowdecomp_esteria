@@ -14,27 +14,122 @@ import collections
 import hashlib
 import os
 import shutil
+import signal
+import struct
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 
 from . import archive
 from .emitter import (Emitter, Refused, companion_module, companion_block, manifest_block, FOG_ROW,
                       PCONST, VCONST_SMALL)
 
 
-def compile_glsl(glslang, glsl_path, spv_path, stage):
-    """glslang -V --target-env vulkan1.0 --spirv-val --spirv-dis; returns (ok, spvasm, log)."""
+COMPILER_TIMEOUT = 30.0
+COMPILER_OUTPUT_LIMIT = 4 * 1024 * 1024
+SPIRV_SIZE_LIMIT = 16 * 1024 * 1024
+
+
+def compile_glsl(glslang, glsl_path, spv_path, stage, *, timeout=COMPILER_TIMEOUT,
+                 output_limit=COMPILER_OUTPUT_LIMIT):
+    """Bounded real compiler/validator/disassembler; returns (ok, spvasm, log).
+
+    Both output streams share one cap and are drained while the child runs. A
+    runaway compiler fails instead of blocking setup or retaining unlimited text.
+    The caller owns the staged output path; a stale module cannot satisfy success.
+    """
+    if not 0 < timeout <= 120 or not 0 < output_limit <= 16 * 1024 * 1024:
+        raise ValueError('compiler execution bounds are invalid')
+    if os.path.lexists(spv_path):
+        os.remove(spv_path)
     cmd = [glslang, '-V', '--target-env', 'vulkan1.0', '--spirv-val', '--spirv-dis', '-S', stage,
            '-o', spv_path, glsl_path]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    out = res.stdout.replace('\r\n', '\n')
+    captured = bytearray()
+    done, overflow, stop = threading.Event(), threading.Event(), threading.Event()
+    errors = []
+    try:
+        child = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0,
+                                 start_new_session=os.name != 'nt')
+    except OSError as error:
+        return False, '', 'compiler could not start: %s' % error
+
+    def drain():
+        try:
+            while not stop.is_set():
+                chunk = os.read(child.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                keep = chunk[:max(0, output_limit - len(captured))]
+                captured.extend(keep)
+                if len(keep) != len(chunk):
+                    overflow.set()
+        except OSError:
+            errors.append('compiler diagnostic pipe failed')
+        finally:
+            done.set()
+
+    reader = threading.Thread(target=drain, daemon=True)
+    reader.start()
+    deadline = time.monotonic() + timeout
+    failure = None
+    code = None
+    try:
+        # Do not reap the leader until its output is drained, so a timed-out
+        # POSIX process group retains the identity we created for this compiler.
+        while not done.wait(min(0.05, max(0, deadline - time.monotonic()))):
+            if overflow.is_set():
+                failure = 'compiler output limit exceeded';break
+            if time.monotonic() >= deadline:
+                failure = 'compiler execution timed out';break
+        if not failure:
+            if overflow.is_set():
+                failure = 'compiler output limit exceeded'
+            elif errors:
+                failure = errors[0]
+            else:
+                if os.name != 'nt':
+                    # Retain the exited leader until group cleanup, including
+                    # children which closed both diagnostic pipes before it.
+                    while not os.waitid(os.P_PID, child.pid, os.WEXITED | os.WNOWAIT | os.WNOHANG):
+                        if time.monotonic() >= deadline:
+                            failure = 'compiler execution timed out';break
+                        time.sleep(min(0.01, max(0, deadline - time.monotonic())))
+                else:
+                    try:
+                        code = child.wait(timeout=max(0.001, deadline - time.monotonic()))
+                    except subprocess.TimeoutExpired:
+                        failure = 'compiler execution timed out'
+    finally:
+        if os.name != 'nt' or child.returncode is None:
+            try:
+                if os.name != 'nt':
+                    os.killpg(child.pid, signal.SIGKILL)
+                else:
+                    child.kill()
+            except ProcessLookupError:
+                pass
+            code = child.wait(timeout=5)
+        stop.set()
+        reader.join(timeout=1)
+        if reader.is_alive():
+            failure = failure or 'compiler diagnostic pipe did not close'
+        child.stdout.close()
+    out = captured.decode('utf-8', errors='replace').replace('\r\n', '\n')
     lines = out.split('\n')
     if lines and lines[0].strip() == os.path.basename(glsl_path):
         lines = lines[1:]
     dis = '\n'.join(lines)
-    ok = res.returncode == 0 and os.path.exists(spv_path) and '; SPIR-V' in dis
-    return ok, dis, (res.stderr + out).strip()
+    module_valid = False
+    if not failure and code == 0 and not os.path.islink(spv_path) and os.path.isfile(spv_path):
+        with open(spv_path, 'rb') as module:
+            size = os.fstat(module.fileno()).st_size
+            module_valid = 20 <= size <= SPIRV_SIZE_LIMIT and size % 4 == 0 and module.read(4) == b'\x03\x02\x23\x07'
+    ok = not failure and code == 0 and module_valid and '; SPIR-V' in dis
+    if not ok and os.path.lexists(spv_path):
+        os.remove(spv_path)
+    return ok, dis, ((failure + '\n') if failure else '') + out.strip()
 
 
 MANIFEST_HEAD = [
@@ -73,7 +168,12 @@ def main(argv):
     ap.add_argument('--extra-pixel', default=None, help='folder of raw ps_3_0 token streams (*.bin) to translate as extra pixel records, e.g. the native Retail glow permutations')
     ap.add_argument('--extra-vertex', default=None, help='folder of raw vs_3_0 token streams (*.bin) to translate as extra vertex records')
     ap.add_argument('--no-compile', action='store_true', help='emit GLSL only')
+    ap.add_argument('--strict', action='store_true', help='require every record and both stages to compile; never publish a partial manifest')
     args = ap.parse_args(argv)
+
+    if args.strict and (args.no_compile or args.names):
+        print('--strict requires the complete compiled shader set; omit --names/--no-compile', file=sys.stderr)
+        return 2
 
     glslang = None if args.no_compile else (args.glslang or os.environ.get('GLSLANG') or shutil.which('glslang')
                                              or shutil.which('glslangValidator'))
@@ -90,14 +190,23 @@ def main(argv):
     write_tree = scratch is None
 
     try:
-        recs = archive.enumerate_records(args.data, args.locale)
-    except (OSError, ValueError, RuntimeError) as error:
+        recs = archive.enumerate_records(args.data, args.locale, strict=args.strict)
+        if args.extra_pixel:
+            recs += archive.extra_pixel_records(args.extra_pixel, strict=args.strict)
+        if args.extra_vertex:
+            recs += archive.extra_vertex_records(args.extra_vertex, strict=args.strict)
+        if args.strict:
+            if not recs or {r.kind for r in recs} != {'vertex', 'pixel'}:
+                raise ValueError('strict setup requires nonempty vertex and pixel record sets')
+            invalid = [r for r in recs if r.sh is None or r.sh.kind != {'vertex': 'vs', 'pixel': 'ps'}[r.kind]]
+            if invalid:
+                raise ValueError('strict setup refuses %d undecodable or mismatched-stage record(s): %s' %
+                                 (len(invalid), ', '.join(r.key for r in invalid[:8])))
+    except (OSError, ValueError, RuntimeError, struct.error, IndexError) as error:
         print('shader input validation failed: %s' % error, file=sys.stderr)
+        if scratch:
+            shutil.rmtree(scratch, ignore_errors=True)
         return 2
-    if args.extra_pixel:
-        recs += archive.extra_pixel_records(args.extra_pixel)
-    if args.extra_vertex:
-        recs += archive.extra_vertex_records(args.extra_vertex)
     # Fold byte-identical records: one module per md5, every Name:perm that has it listed.
     by_md5 = collections.OrderedDict()
     names = collections.defaultdict(list)
@@ -118,6 +227,11 @@ def main(argv):
         selected.setdefault(r.md5, r)
 
     if write_tree:
+        if args.strict:
+            for name in ('manifest.txt', 'index.txt'):
+                path = os.path.join(out, name)
+                if os.path.lexists(path):
+                    os.remove(path)
         for kind in ('vertex', 'pixel'):
             d = os.path.join(out, kind)
             if os.path.isdir(d):
@@ -208,7 +322,9 @@ def main(argv):
         for r, why in refused:
             head.append('#   %s %s: %s' % (r.kind, ' = '.join(r.names), why))
         head.append('')
-    if write_tree:
+    failed = any(st == 'failed' or (args.strict and st == 'refused') for _, st, _, _ in results) or \
+             any(c[2] == 'failed' for c in companions.values())
+    if write_tree and not (args.strict and failed):
         with open(os.path.join(out, 'manifest.txt'), 'w', encoding='utf-8', newline='\n') as f:
             f.write('\n'.join(head) + '\n\n'.join(blocks) + '\n')
         with open(os.path.join(out, 'index.txt'), 'w', encoding='utf-8', newline='\n') as f:
@@ -237,10 +353,9 @@ def main(argv):
               (len(companions), ', '.join('%s %d' % kv for kv in sorted(
                   collections.Counter(c[2] for c in companions.values()).items()))))
     if write_tree:
-        print('wrote %s' % out)
+        print(('partial diagnostics only; no manifest published: %s' if args.strict and failed else 'wrote %s') % out)
     elif scratch:
         shutil.rmtree(scratch, ignore_errors=True)
-    failed = any(st == 'failed' for _, st, _, _ in results) or any(c[2] == 'failed' for c in companions.values())
     return 1 if failed else 0
 
 

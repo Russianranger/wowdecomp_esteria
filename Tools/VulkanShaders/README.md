@@ -22,6 +22,7 @@ python Tools/VulkanShaders/translate_shaders.py --client "C:\Games\World of Warc
 | `--out <folder>` | the output tree (default: `translated/` in this folder) |
 | `--deploy` | also copy `manifest.txt`, `index.txt` and every `.spv` into `<client>\VulkanShaders\`, removing stale modules |
 | `--names A:0,B --print` | look at the GLSL of a few records, write nothing |
+| `--strict` | setup mode: require complete, decodable vertex and pixel sets and every required module; incompatible with `--names` or the inner tool's `--no-compile` |
 
 The translator mirrors the normal whole-MPQ installation's priorities in `Client.cpp::OpenArchives`
 and `PatchFiles.cpp`, including `common-3.MPQ`, locale providers, case-insensitive names, arbitrary
@@ -44,6 +45,30 @@ locale, folder-provider and malformed-input tests. These fixtures contain no gam
 fixture test is not validation of the user's data or the generated SPIR-V; generation still needs the
 actual imported client and glslang. Run generation only during setup/update, into a staged output tree;
 activate that tree together with the exact data generation it was built from.
+
+Android setup uses `--strict` in a fresh staging directory. It rejects malformed
+selected BLS headers, truncated or unterminated token streams, undecodable records,
+stage mismatches, missing vertex/pixel inventories, emitter refusals, and failed
+fixed-function companions. Input rejection precedes output removal. A later
+translation failure keeps partial diagnostic files but writes no new manifest or
+index, and the outer command never deploys a failed run. Existing desktop runs
+without `--strict` retain their permissive refusal behavior.
+
+Each compiler invocation retains `--spirv-val --spirv-dis`, has a 30-second limit,
+and drains combined stdout/stderr with a 4-MiB retained-byte cap. Exceeding either
+bound fails the module and removes its partial output. A successful module must
+be newly written, word-aligned SPIR-V with a valid header and at most 16 MiB.
+On POSIX, cleanup kills the owned compiler process group before reaping its
+leader, including descendants that closed their output pipes. Windows supervises
+the directly launched compiler. Use the pinned compiler executable, not a script
+that launches unrelated background processes.
+
+The tests include actual process failure/timeout/output-limit/descendant cases
+and synthetic DX9 records that exercise the real emitter. Set
+`ESTERIA_TEST_GLSLANG` to an actual compiler for the additional complete
+emission/compilation/validation/disassembly test with a fixed-function companion;
+that test explicitly skips when no compiler is available. These synthetic
+fixtures do not qualify imported game shaders.
 
 ## Where the device looks
 

@@ -186,6 +186,31 @@ def _param(toks, i, is_dest, major):
     return o, n
 
 
+def decode_strict(code):
+    """Require a complete bounded SM2/SM3 token stream before normal decoding."""
+    if len(code) < 8 or len(code) % 4:
+        raise ValueError('truncated or unaligned shader token stream')
+    tokens = struct.unpack('<%dI' % (len(code) // 4), code)
+    if ((tokens[0] >> 8) & 0xff) not in (2, 3):
+        raise ValueError('unsupported shader model')
+    position = 1
+    while position < len(tokens):
+        token = tokens[position]
+        opcode = token & 0xffff
+        if opcode == OP_END:
+            if token != OP_END or position != len(tokens) - 1:
+                raise ValueError('shader END is not the final token')
+            try:
+                return decode(code)
+            except (IndexError, struct.error) as error:
+                raise ValueError('incomplete shader instruction operands') from error
+        count = ((token >> 16) & 0x7fff) if opcode == OP_COMMENT else ((token >> 24) & 0xf)
+        if count > len(tokens) - position - 1:
+            raise ValueError('truncated shader instruction or comment')
+        position += count + 1
+    raise ValueError('shader END token is missing')
+
+
 def decode(code):
     toks = struct.unpack('<%dI' % (len(code) // 4), code)
     v = toks[0]
