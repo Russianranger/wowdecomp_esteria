@@ -389,8 +389,24 @@ network workers. Native Windows CI runs it against an owned synthetic
 key, and supplies fragmented challenge/proof/realm responses. Wrong server
 proofs and a nonlocal advertised world address must fail. Successful completion
 requires one local realm, controlled disconnect, drained connection references
-and joined Grunt/network threads. This source checkpoint awaits its first actual
-native execution; the synthetic peer is not the compiled Esteria authserver.
+and joined Grunt/network threads. The synthetic peer is not the compiled Esteria
+authserver.
+
+Client `3f9389ccfdb0431d281e281c49193c8064c70b62`, run `41010223296`, passed
+all five jobs. Both native Windows architectures passed authentication (exit0),
+bad server proof rejection (exit65), nonlocal realm rejection (exit65), private
+key equality, peer-observed disconnect, existing-output preservation and
+malformed private-input rejection. The ARM64 public auth qualification receipt
+SHA256 is `2121284ea6447a6237d323927e90b7767e2f4d336e4da97bb62c41e6b7a052e2`;
+the x64 receipt is
+`fcf3ab4b86124c1d54cd350c05601efa5ed602f40ea8d10fd6a54b265fde33a0`.
+The measured ARM64 ZIP is artifact `12957975742`, 45,766,822 bytes, SHA256
+`226904a27efc8ed4831f78ea5708a70a68ded69eded2bba6ea31307c4dc8273b`.
+Both ZIP inventories exclude the private working directory and credential/key
+files. That run also passed the eight previous Linux ARM64 Wine component
+scopes; it did not run Grunt under Wine. The next optional Wine gate stages this
+same commit's hash-verified peer source and runs those real Grunt cases inside
+the owned namespace. Its execution remains pending.
 
 Credentials enter only through an exclusive private sibling file
 `Esteria-auth-input.bin`: 57 bytes containing `ESTAUTH1`, a 16-byte nonce, a
