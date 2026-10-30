@@ -102,7 +102,11 @@ EXE/DLL machine types, checks generated descriptor limits, and records exact
 source revision, build ID, hashes and direct imports as `client-build.json`.
 Its evidence is explicitly build-only. Seventeen bounded parser/atomic-write
 tests pass locally; the x64 artifact's 36 client and eight codec direct imports
-also agree with independent `objdump` inspection.
+also agree with independent `objdump` inspection. The movie adapter test also
+accepts an absolute Windows DLL path and runs its fixture through the packaged
+DLL's four exports. CI performs that check after binary architecture validation;
+the test driver is included for later Wine qualification. Passing on Windows
+still does not establish Wine/Android runtime behavior.
 
 ## Remaining qualification
 

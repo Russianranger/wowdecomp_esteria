@@ -3,6 +3,10 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#if defined(_WIN32)
+#include <filesystem>
+#include <windows.h>
+#endif
 
 namespace {
 constexpr int Width = 16;
@@ -23,15 +27,75 @@ struct EncoderGuard {
     }
 };
 
+struct DecoderAPI {
+    decltype(&InitializeDivxDecoder) initialize = &InitializeDivxDecoder;
+    decltype(&SetOutputFormat) setOutput = &SetOutputFormat;
+    decltype(&DivxDecode) decode = &DivxDecode;
+    decltype(&UnInitializeDivxDecoder) shutdown = &UnInitializeDivxDecoder;
+};
+
+#if defined(_WIN32)
+struct LibraryGuard {
+    HMODULE handle = nullptr;
+    ~LibraryGuard() {
+        if (handle) FreeLibrary(handle);
+    }
+};
+
+template <typename Function>
+bool ResolveExport(HMODULE library, const char* name, Function& function) {
+    const auto address = GetProcAddress(library, name);
+    if (!address) {
+        std::fprintf(stderr, "Movie adapter: missing DLL export %s (Windows error %lu)\n",
+                     name, static_cast<unsigned long>(GetLastError()));
+        return false;
+    }
+    // The pointer type comes directly from the shared DivxDecoder.h ABI.
+    function = reinterpret_cast<Function>(address);
+    return true;
+}
+#endif
+
 struct DecoderGuard {
+    const DecoderAPI& api;
     bool active = false;
     ~DecoderGuard() {
-        if (active) UnInitializeDivxDecoder(DecoderSlot);
+        if (active) api.shutdown(DecoderSlot);
     }
 };
 }
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc != 1 && argc != 2)
+        return Fail("usage: test_xvid_adapter [absolute-path-to-XvidDecoder.dll]");
+
+    DecoderAPI api;
+#if defined(_WIN32)
+    // Declared before every decoder guard so all exported cleanup calls finish
+    // before the DLL is unloaded, including failures inside the shared suite.
+    LibraryGuard library;
+    if (argc == 2) {
+        const std::filesystem::path dllPath(argv[1]);
+        if (!dllPath.is_absolute())
+            return Fail("DLL mode requires an absolute DLL path");
+        library.handle = LoadLibraryW(dllPath.c_str());
+        if (!library.handle) {
+            std::fprintf(stderr, "Movie adapter: cannot load DLL %s (Windows error %lu)\n",
+                         argv[1], static_cast<unsigned long>(GetLastError()));
+            return 1;
+        }
+        if (!ResolveExport(library.handle, "InitializeDivxDecoder", api.initialize) ||
+            !ResolveExport(library.handle, "SetOutputFormat", api.setOutput) ||
+            !ResolveExport(library.handle, "DivxDecode", api.decode) ||
+            !ResolveExport(library.handle, "UnInitializeDivxDecoder", api.shutdown))
+            return 1;
+    }
+#else
+    (void)argv;
+    if (argc == 2)
+        return Fail("DLL mode is available only on Windows");
+#endif
+
     xvid_gbl_init_t init{};
     init.version = XVID_VERSION;
     if (xvid_global(nullptr, XVID_GBL_INIT, &init, nullptr) < 0)
@@ -70,21 +134,21 @@ int main() {
     if (bytes <= 0 || bytes > static_cast<int>(packet.size()))
         return Fail("encoder did not produce a bounded frame");
 
-    if (!InitializeDivxDecoder(-1, Width, Height) ||
-        !InitializeDivxDecoder(16, Width, Height) ||
-        !SetOutputFormat(-1, 1, Width, Height) ||
-        !UnInitializeDivxDecoder(16))
+    if (!api.initialize(-1, Width, Height) ||
+        !api.initialize(16, Width, Height) ||
+        !api.setOutput(-1, 1, Width, Height) ||
+        !api.shutdown(16))
         return Fail("out-of-range slot was accepted");
 
     DivxDecodeFrame frame{};
-    if (!DivxDecode(DecoderSlot, &frame, 0))
+    if (!api.decode(DecoderSlot, &frame, 0))
         return Fail("decode before initialization was accepted");
-    if (InitializeDivxDecoder(DecoderSlot, Width, Height))
+    if (api.initialize(DecoderSlot, Width, Height))
         return Fail("adapter initialization failed");
-    DecoderGuard decoderGuard{true};
-    if (SetOutputFormat(DecoderSlot, 1, Width, Height))
+    DecoderGuard decoderGuard{api, true};
+    if (api.setOutput(DecoderSlot, 1, Width, Height))
         return Fail("BGRA output setup failed");
-    if (!DivxDecode(DecoderSlot, nullptr, 0))
+    if (!api.decode(DecoderSlot, nullptr, 0))
         return Fail("null frame was accepted");
 
     std::array<unsigned char, Width * Height * 4 + GuardSize * 2> pixels{};
@@ -95,17 +159,17 @@ int main() {
 
     // Skipped frames still update decoder state, but must not write pixels.
     frame.m_render = 0;
-    if (DivxDecode(DecoderSlot, &frame, 0))
+    if (api.decode(DecoderSlot, &frame, 0))
         return Fail("skipped frame decode failed");
     if (!std::all_of(pixels.begin(), pixels.end(), [](unsigned char value) { return value == Sentinel; }))
         return Fail("skipped frame modified output");
 
     // Reopening a slot must release its previous state and accept a fresh GOP.
-    if (InitializeDivxDecoder(DecoderSlot, Width, Height) ||
-        SetOutputFormat(DecoderSlot, 1, Width, Height))
+    if (api.initialize(DecoderSlot, Width, Height) ||
+        api.setOutput(DecoderSlot, 1, Width, Height))
         return Fail("slot reinitialization failed");
     frame.m_render = 1;
-    if (DivxDecode(DecoderSlot, &frame, 0))
+    if (api.decode(DecoderSlot, &frame, 0))
         return Fail("rendered frame decode failed");
     if (!std::all_of(pixels.begin(), pixels.begin() + GuardSize, [](unsigned char value) { return value == Sentinel; }) ||
         !std::all_of(pixels.end() - GuardSize, pixels.end(), [](unsigned char value) { return value == Sentinel; }))
@@ -124,14 +188,15 @@ int main() {
         }
     }
 
-    if (UnInitializeDivxDecoder(DecoderSlot))
+    if (api.shutdown(DecoderSlot))
         return Fail("adapter shutdown failed");
     decoderGuard.active = false;
-    if (!DivxDecode(DecoderSlot, &frame, 0) ||
-        !SetOutputFormat(DecoderSlot, 1, Width, Height) ||
-        !UnInitializeDivxDecoder(DecoderSlot))
+    if (!api.decode(DecoderSlot, &frame, 0) ||
+        !api.setOutput(DecoderSlot, 1, Width, Height) ||
+        !api.shutdown(DecoderSlot))
         return Fail("closed slot remained usable");
 
-    std::puts("Movie adapter: BGRA/VFLIP, output bounds, skipped frames and slot lifecycle passed");
+    std::printf("Movie adapter (%s): BGRA/VFLIP, output bounds, skipped frames and slot lifecycle passed\n",
+                argc == 2 ? "DLL" : "direct");
     return 0;
 }
