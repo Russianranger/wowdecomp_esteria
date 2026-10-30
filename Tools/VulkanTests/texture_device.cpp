@@ -32,6 +32,9 @@ int main() {
                                   0, 0, 128, 128, nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
     Check(window != nullptr, "create hidden window");
     Check(context::Bring(window) == context::Attempt::Done, "initialize Vulkan device");
+    char adapter[256] = {}, driver[128] = {};
+    context::AdapterText(adapter, sizeof(adapter), driver, sizeof(driver));
+    std::printf("Vulkan adapter: %s; %s\n", adapter, driver);
     Check(memory::Init() && texture::Init(), "initialize memory and textures");
     std::vector<texture::Image> images(20000);
     for (auto& image : images)

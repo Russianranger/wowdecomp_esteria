@@ -120,9 +120,12 @@ matrix plus the actual packaged DLL fixture on both native Windows architectures
 The subsequent `wine-arm64` job uses a fixed integration-repository commit and
 this run's exact ARM64 artifact. It stages a hash-verified Wine candidate, executes
 the real DLL fixture within an isolated native Linux ARM64 namespace and retains
-logs/qualification JSON. Its success must be read from the completed job; adding
-the workflow is not execution evidence. Android runtime, full game startup and
-audio remain unqualified by that codec fixture.
+logs/qualification JSON. The extended harness also runs the presentation and
+texture lifecycle drivers against the candidate's pinned Lavapipe components,
+requiring the actual reported software adapter and each success marker. Its
+success must be read from the completed job; adding the workflow is not execution
+evidence. Android runtime, full game startup and audio remain unqualified by these
+component fixtures.
 
 `Tools/VulkanTests` now also builds a shader-free clear/present fixture using the
 engine's Win32 surface/device/swapchain and checked acquire/submit/present calls,
