@@ -23,4 +23,13 @@ amplitude and duration. The integration repository's bounded PCM receiver will
 exercise the real Wine/ALSA transport against a simulated monotonic playback
 clock. Such a run cannot establish Android AudioTrack, physical output latency,
 audible speaker output, music decoding or complete game audio. Both Windows
-compilation and the paired Wine transport run are currently pending.
+compilation and the paired Wine transport run must pass before qualification.
+
+The client Wine job checks out integration harness
+`61bf8a134845276cb78430884d557e477ff286aa`, rebuilds its guest helpers from pinned
+Debian ARM64 inputs, and verifies the resulting source/ELF receipt before use.
+The harness explicitly selects Wine ALSA and the private source-built plugin,
+runs both output backends, and exports the raw bounded PCM captures with hashes.
+It requires both exact lifecycle markers, correct captured stereo content and
+clean owned shutdown for `linuxArm64FmodPcmTransportQualified`. This new execution
+path is pending its first actual CI result; adding it does not establish audio.

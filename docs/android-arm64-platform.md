@@ -231,6 +231,20 @@ of stack diagnostic. Complete Wine stack unwinding remains unqualified. The
 successful C++ exception/destructor test is separate evidence and does not resolve
 that diagnostic limitation.
 
+## Captured FMOD output qualification
+
+`Tools/AudioTests` links the same reconstructed `fmodex` source target as the full
+client. Its explicit WinMM and DirectSound cases require an output device,
+reject a no-sound fallback, and check progression/completion of a known two-second
+stereo signal. The paired native Linux ARM64 Wine job builds the exact integration
+checkout's pinned guest ALSA plugin and captures its actual accepted PCM through
+a bounded receiver. Both channel frequencies, amplitude/duration, lifecycle
+markers and owned cleanup must pass. The receiver supplies a simulated monotonic
+clock; this cannot qualify Android AudioTrack, audible hardware output, physical
+latency, music decoding or complete game audio. The first complete captured-FMOD
+execution is pending; the existing codec, entry and graphics evidence remains
+scoped separately.
+
 ## Optional Retail/Forever path
 
 The primary artifact explicitly uses `WOWDECOMP_RETAIL_ASSETS=OFF`. Enabling it

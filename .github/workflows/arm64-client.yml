@@ -140,7 +140,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Russianranger/esteria_android
-          ref: 32329e64f05d9c9734b7c55c3270fb1800c7aff6
+          ref: 61bf8a134845276cb78430884d557e477ff286aa
           path: integration
       - name: Download this run's matching native ARM64 binaries
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -151,17 +151,29 @@ jobs:
         run: |
           test "$(uname -m)" = aarch64
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y iproute2 util-linux
+          sudo apt-get install --no-install-recommends -y iproute2 util-linux binutils
           mkdir -p "$RUNNER_TEMP/wine-host-evidence"
           uname -a > "$RUNNER_TEMP/wine-host-evidence/uname.txt"
-          dpkg-query -W iproute2 util-linux python3 > "$RUNNER_TEMP/wine-host-evidence/packages.txt"
+          dpkg-query -W iproute2 util-linux python3 binutils > "$RUNNER_TEMP/wine-host-evidence/packages.txt"
           git -C integration rev-parse HEAD > "$RUNNER_TEMP/wine-host-evidence/integration-revision.txt"
       - name: Prepare the exact verified ARM64 Wine candidate
         run: >-
           python3 integration/tools/prepare_runtime.py --download
           --cache "$RUNNER_TEMP/wine-cache"
           --stage "$RUNNER_TEMP/wine-codec-runtime"
-      - name: Execute client entry, decoding and software Vulkan readback without external networking
+      - name: Build source-pinned native guest helpers for captured audio
+        run: |
+          mkdir -p "$RUNNER_TEMP/guest-bridges"
+          docker build --platform linux/arm64 --target guest-export \
+            --build-context bridge-src=./integration/native \
+            --secret id=build_ca,src=/etc/ssl/certs/ca-certificates.crt \
+            --build-arg INTEGRATION_REVISION="$(git -C integration rev-parse HEAD)" \
+            --output type=local,dest="$RUNNER_TEMP/guest-bridges/payload" integration/runtime/bridges \
+            > "$RUNNER_TEMP/guest-bridges/build.log" 2>&1
+          sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/guest-bridges"
+          cp integration/LICENSE "$RUNNER_TEMP/guest-bridges/payload/notices/ESTERIA-GPL-3.0"
+          cp integration/runtime/bridge-reference.json "$RUNNER_TEMP/guest-bridges/payload/corresponding-source/"
+      - name: Execute entry, codec, graphics and captured FMOD audio without external networking
         run: >-
           sudo -n python3 integration/tools/qualify_wine_arm64.py
           --runtime "$RUNNER_TEMP/wine-codec-runtime"
@@ -171,7 +183,16 @@ jobs:
           --texture-driver "$GITHUB_WORKSPACE/client-artifact/build/vulkan/Release/texture_device.exe"
           --client-entry-check
           --require-engine-frame-readback
+          --audio-driver "$GITHUB_WORKSPACE/client-artifact/build/audio/Release/fmod_output_device.exe"
+          --bridge-dir "$RUNNER_TEMP/guest-bridges/payload"
+          --bridge-revision "$(git -C integration rev-parse HEAD)"
           --output "$RUNNER_TEMP/wine-codec-evidence"
+      - name: Preserve guest build evidence permissions after success or failure
+        if: always()
+        run: |
+          if [ -d "$RUNNER_TEMP/guest-bridges" ]; then
+            sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/guest-bridges"
+          fi
       - name: Preserve execution evidence, including failed startup
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -182,4 +203,5 @@ jobs:
             ${{ runner.temp }}/wine-host-evidence/
             ${{ runner.temp }}/wine-codec-evidence/
             ${{ runner.temp }}/wine-codec-runtime/package-receipt.json
+            ${{ runner.temp }}/guest-bridges/
           retention-days: 14
