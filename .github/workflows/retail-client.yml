@@ -104,7 +104,7 @@ jobs:
               assert kind=='blob' and mode in ('100644','100755')
               name=name.decode('utf-8');safe(name);assert name not in expected;expected[name]=blob
           seen={};total=0
-          with tarfile.open(archive,'r|') as bundle:
+          with tarfile.open(archive,'r:') as bundle:
               for member in bundle:
                   if member.isdir():bundle.members.clear();continue
                   safe(member.name);assert member.isfile() and member.name in expected and member.name not in seen
@@ -114,7 +114,15 @@ jobs:
                       while block:=incoming.read(131072):count+=len(block);sha1.update(block);sha256.update(block)
                   assert count==member.size and sha1.hexdigest()==expected[member.name], ('noncanonical-source-archive-member',member.name)
                   row=dict(bytes=count,sha256=sha256.hexdigest(),gitBlob=expected[member.name]);seen[member.name]=row
-                  assert identity(root/member.name)=={key:row[key] for key in ('bytes','sha256')}
+                  pin={key:row[key] for key in ('bytes','sha256')}
+                  # checkout-index may retain Windows index-stat-cache hits even
+                  # with command-local LF settings. This is the fresh clean CI
+                  # checkout checked above; restore only a fully verified Git
+                  # blob, retaining bounded streaming and the original file mode.
+                  if identity(root/member.name)!=pin:
+                      with bundle.extractfile(member) as incoming,(root/member.name).open('wb') as canonical:
+                          while block:=incoming.read(131072):canonical.write(block)
+                  assert identity(root/member.name)==pin, ('noncanonical-source-checkout-member',member.name)
                   bundle.members.clear()
           assert set(seen)==set(expected)
           proof=dict(formatVersion=1,scope='complete-retail-enabled-client-source-inputs-only',sourceRevision=revision,

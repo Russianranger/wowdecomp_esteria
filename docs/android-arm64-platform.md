@@ -598,3 +598,10 @@ selects core.autocrlf=false/core.eol=lf for the archive command itself and still
 checks every blob. An actual streaming negative control at5722f018 converts4669
 of4768 files; the fixed command matches all4768 canonical blobs/117,478,262 bytes.
 This fixes source preservation only; the next Windows builds qualify compilation.
+
+Run41126058134 then confirmed canonical archive bytes but found a retained
+Windows checkout conversion. The clean CI producer now restores a mismatching
+working file only from its already hash-verified canonical archive member, using
+bounded binary streaming, then checks its bytes again. A real temporary Git
+fixture verifies a Git-clean CRLF checkout becomes the exact committed LF blob.
+No game assets or engine behavior are changed by this preservation step.
