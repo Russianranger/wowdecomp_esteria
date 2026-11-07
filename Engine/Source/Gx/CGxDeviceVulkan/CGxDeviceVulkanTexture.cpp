@@ -466,10 +466,13 @@ void CGxDeviceVulkan::ITexCreate(CGxTex* texId) {
     static const float kTargetBorn[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     VkCommandBuffer pre = frame::PrePass();
 
-    if (pre && texture::RecordClear(pre, r->image, r->renderTarget ? kTargetBorn : nullptr)) {
-        r->prePass = frame::Serial();
+    if (!pre || !texture::RecordClear(pre, r->image, r->renderTarget ? kTargetBorn : nullptr)) {
+        // A sampleable image must have defined contents, including never-uploaded mips.
+        frame::RetireImage(r->image, pre ? frame::Serial() : 0);
+        g_stats.noImage++;
+        return;
     }
-
+    r->prePass = frame::Serial();
     g_stats.images++;
 }
 

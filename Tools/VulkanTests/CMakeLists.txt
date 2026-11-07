@@ -9,6 +9,14 @@ target_include_directories(texture_registry PRIVATE "${REPO}" "${REPO}/ThirdPart
 target_compile_definitions(texture_registry PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 add_test(NAME texture_registry COMMAND texture_registry)
 
+add_executable(compressed_clear compressed_clear.cpp
+    "${REPO}/Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Texture.cpp"
+    "${REPO}/Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Texture/Registry.cpp")
+target_compile_features(compressed_clear PRIVATE cxx_std_20)
+target_include_directories(compressed_clear PRIVATE "${REPO}" "${REPO}/ThirdParty/vulkan-headers")
+target_compile_definitions(compressed_clear PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+add_test(NAME compressed_clear COMMAND compressed_clear)
+
 option(VULKAN_TEXTURE_DEVICE_TEST "Exercise image growth on the local Vulkan device" OFF)
 option(VULKAN_PRESENT_DEVICE_TEST "Clear and present through the real Win32 Vulkan surface" OFF)
 if(VULKAN_TEXTURE_DEVICE_TEST OR VULKAN_PRESENT_DEVICE_TEST)

@@ -1,7 +1,7 @@
 name: Reconstructed client ARM64
 on:
   push:
-    branches: [android/arm64-port]
+    branches: [android/arm64-port, non-custom]
   pull_request:
     branches: [Esteria]
   workflow_dispatch:
@@ -62,9 +62,13 @@ jobs:
         id: build_client
         if: ${{ !cancelled() && steps.configure_client.outcome == 'success' }}
         run: cmake --build build/client --config RelWithDebInfo --target WowClient --parallel 4 -- /fl /flp:logfile=client-build.log
+      - name: Select unchanged stock ARM64 movie codec
+        id: codec
+        if: ${{ !cancelled() && steps.build_client.outcome == 'success' && matrix.arch == 'ARM64' && github.ref == 'refs/heads/non-custom' }}
+        run: python Tools/RuntimeManifest/reuse_stock_xvid.py "${{ matrix.runtime_dir }}"
       - name: Validate binary architecture and record runtime provenance
         id: runtime_manifest
-        if: ${{ !cancelled() && steps.build_client.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.build_client.outcome == 'success' && steps.codec.outcome != 'failure' }}
         run: >-
           python Tools/RuntimeManifest/generate.py
           --directory "${{ matrix.runtime_dir }}"
@@ -82,7 +86,7 @@ jobs:
         run: |
           cmake -S Tools/VulkanTests -B build/vulkan -G "${{ matrix.generator }}" -A ${{ matrix.arch }} -DVULKAN_TEXTURE_DEVICE_TEST=ON -DVULKAN_PRESENT_DEVICE_TEST=ON
           cmake --build build/vulkan --config Release --parallel 4
-          ctest --test-dir build/vulkan -C Release --output-on-failure -R '^texture_registry$'
+          ctest --test-dir build/vulkan -C Release --output-on-failure -R '^(texture_registry|compressed_clear)$'
       - name: Exercise actual client entry, offline policy, transport and Grunt SRP
         if: ${{ !cancelled() && steps.runtime_manifest.outcome == 'success' }}
         run: >-

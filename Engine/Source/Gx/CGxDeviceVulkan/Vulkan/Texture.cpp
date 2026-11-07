@@ -1,6 +1,9 @@
 // Images: the module's life, the recorded fills (region batches, clears, generated mip chains) and
 // the destroy.
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Texture/Internal.hpp"
+#include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Frame.hpp"
+
+#include <algorithm>
 
 using namespace gxvk::vk::texture::detail;
 
@@ -213,9 +216,81 @@ namespace gxvk::vk::texture
         return recorded;
     }
 
+    static unsigned Quantize(float value, unsigned maximum)
+    {
+        if (!(value > 0.0f)) return 0;
+        if (value >= 1.0f) return maximum;
+        return static_cast<unsigned>(value * maximum + 0.5f);
+    }
+
+    // A single-colour BC block. All selectors use endpoint zero, except BC1's
+    // transparent colour (selector three, equal endpoints). BC2 stores explicit
+    // 4-bit alphas and BC3 has an independent 8-bit alpha endpoint.
+    static void SolidBlock(VkFormat format, const float* rgba, uint8_t (&block)[16])
+    {
+        const bool bc1 = format == VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
+        uint8_t* rgb = block + (bc1 ? 0 : 8);
+        unsigned color = (Quantize(rgba[0], 31) << 11) | (Quantize(rgba[1], 63) << 5) | Quantize(rgba[2], 31);
+        rgb[0] = rgb[2] = static_cast<uint8_t>(color);
+        rgb[1] = rgb[3] = static_cast<uint8_t>(color >> 8);
+        if (bc1 && !Quantize(rgba[3], 1)) std::memset(rgb + 4, 0xff, 4);
+        if (format == VK_FORMAT_BC2_UNORM_BLOCK) std::memset(block, Quantize(rgba[3], 15) * 0x11, 8);
+        if (format == VK_FORMAT_BC3_UNORM_BLOCK) block[0] = block[1] = static_cast<uint8_t>(Quantize(rgba[3], 255));
+    }
+
+    static bool RecordCompressedClear(VkCommandBuffer cmd, Image& img, const FormatInfo& fmt, const float* rgba)
+    {
+        // Reuse the same staged bytes across all faces, mips and strips. A frame
+        // owns and flushes this slice until the submission fence completes.
+        const uint64_t baseRow = RowBytes(fmt, img.extent.width);
+        const uint64_t bytes = std::min(baseRow * RowCount(fmt, img.extent.height),
+                                        std::max<uint64_t>(baseRow, 64 * 1024));
+        VkBuffer buffer;
+        VkDeviceSize offset;
+        void* mapped;
+        if (!frame::Stage(bytes, buffer, offset, mapped)) return false;
+
+        uint8_t block[16] = {};
+        SolidBlock(img.format, rgba, block);
+        auto* dst = static_cast<uint8_t*>(mapped);
+        std::memcpy(dst, block, fmt.unitBytes);
+        for (uint64_t filled = fmt.unitBytes; filled < bytes; filled *= 2)
+            std::memcpy(dst + filled, dst, static_cast<size_t>(std::min(filled, bytes - filled)));
+
+        RegionCopy regions[64];
+        unsigned count = 0;
+        for (uint32_t level = 0; level < img.levels; ++level)
+        {
+            const uint32_t width = LevelSide(img.extent.width, level);
+            const uint32_t height = LevelSide(img.extent.height, level);
+            const uint32_t strip = static_cast<uint32_t>(std::min<uint64_t>(height, bytes / RowBytes(fmt, width) * kBlock));
+            for (uint32_t layer = 0; layer < img.layers; ++layer)
+            {
+                for (uint32_t y = 0; y < height; y += strip)
+                {
+                    regions[count++] = {level, 0, y, width, std::min(height - y, strip), layer, offset};
+                    if (count == 64)
+                    {
+                        if (RecordRegions(cmd, img, buffer, regions, count) != count) return false;
+                        count = 0;
+                    }
+                }
+            }
+        }
+        return !count || RecordRegions(cmd, img, buffer, regions, count) == count;
+    }
+
     bool RecordClear(VkCommandBuffer cmd, Image& img, const float* rgba)
     {
         if (!s.ready || !cmd || img.handle == VK_NULL_HANDLE) return false;
+        const FormatInfo fmt = Describe(img.format);
+        if (fmt.compressed)
+        {
+            static const float grey[4] = { 0.5f, 0.5f, 0.5f, 1.0f };
+            if (!RecordCompressedClear(cmd, img, fmt, rgba ? rgba : grey)) return false;
+            ++s.stats.clears;
+            return true;
+        }
         // From UNDEFINED (the contents are discarded), after every earlier use of the image at any
         // stage: a recorded clear may follow anything in the buffer.
         Transition(cmd, img.handle, img.levels, img.layers, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
