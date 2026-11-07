@@ -277,17 +277,15 @@ namespace gxvk::vk::loader
     uint32_t InstanceVersion();
 
     /**
-     * Whether the entry points resolved so far still point into the loaded loader image.
+     * Whether the loader and the module implementing its global entry point are still mapped.
      *
      * The reason this exists is process exit. A Vulkan call from a static destructor may run after
      * the loader and the ICD -- DLLs too, with no defined detach order relative to the executable's
      * statics -- have been unmapped. Calling into an unmapped image would be a crash on exit, so a
      * destructor that reaches Vulkan asks first.
      *
-     * The check is cheap and real rather than a guess: it asks the OS for the module handle by name
-     * and confirms that the resolved vkGetInstanceProcAddr still lies inside that module's mapped
-     * image. It cannot prove the ICD's DllMain has not run, so it is a necessary condition and not a
-     * sufficient one.
+     * Checks both module handles without taking new references. Wine forwards vkGetInstanceProcAddr
+     * from vulkan-1.dll to winevulkan.dll. An ICD may already have run its DllMain during exit.
      *
      * @return bool mapped : false when the loader is gone, or was never loaded
      */

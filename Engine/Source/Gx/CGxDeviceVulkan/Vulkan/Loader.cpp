@@ -13,8 +13,20 @@ namespace
     constexpr const char* kLoaderDll = "vulkan-1.dll";
 
     HMODULE                  g_module = nullptr;
+    HMODULE                  g_entryModule = nullptr;
     gxvk::vk::loader::Global g_global;
     uint32_t                 g_instanceVersion = 0;
+
+    // PE exports may forward into another DLL. Query the module containing the function without
+    // taking a reference, including when this runs from a static destructor at process exit.
+    HMODULE EntryModule(PFN_vkGetInstanceProcAddr entry)
+    {
+        HMODULE module = nullptr;
+        if (entry)
+            ::GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                 reinterpret_cast<LPCSTR>(entry), &module);
+        return module;
+    }
 
     /**
      * One global-level entry point, by name.
@@ -54,11 +66,13 @@ namespace gxvk::vk::loader
         // GetProcAddress would silently bypass the layer chain.
         g_global.GetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
             ::GetProcAddress(g_module, "vkGetInstanceProcAddr"));
-        if (!g_global.GetInstanceProcAddr)
+        g_entryModule = EntryModule(g_global.GetInstanceProcAddr);
+        if (!g_entryModule)
         {
-            Write(Warn, "vulkan: %s has no vkGetInstanceProcAddr; it is not a Vulkan loader. Declining.", kLoaderDll);
+            Write(Warn, "vulkan: %s has no mapped vkGetInstanceProcAddr; it is not a Vulkan loader. Declining.", kLoaderDll);
             ::FreeLibrary(g_module);
             g_module = nullptr;
+            g_global = Global();
             return false;
         }
 
@@ -94,6 +108,7 @@ namespace gxvk::vk::loader
             Write(Warn, "vulkan: %s is too old; declining", kLoaderDll);
             ::FreeLibrary(g_module);
             g_module = nullptr;
+            g_entryModule = nullptr;
             g_global = Global();
             return false;
         }
@@ -120,26 +135,8 @@ namespace gxvk::vk::loader
 
     bool StillMapped()
     {
-        if (!g_module || !g_global.GetInstanceProcAddr) return false;
-
-        // GetModuleHandleA does not take a reference, which is what makes it the right call here:
-        // this runs on the exit path and must not change anybody's refcount.
-        const HMODULE live = ::GetModuleHandleA(kLoaderDll);
-        if (live != g_module) return false;
-
-        // And the handle alone is not enough: a module handle is its base address, so a stale handle
-        // could compare equal to a different mapping at the same base. Confirm the entry point we
-        // actually hold still lies inside the image the headers describe.
-        const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(g_module);
-        if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
-        const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(
-            reinterpret_cast<const char*>(g_module) + dos->e_lfanew);
-        if (nt->Signature != IMAGE_NT_SIGNATURE) return false;
-
-        const uintptr_t base = reinterpret_cast<uintptr_t>(g_module);
-        const uintptr_t end  = base + nt->OptionalHeader.SizeOfImage;
-        const uintptr_t proc = reinterpret_cast<uintptr_t>(reinterpret_cast<void*>(g_global.GetInstanceProcAddr));
-        return proc >= base && proc < end;
+        return g_module && g_entryModule && ::GetModuleHandleA(kLoaderDll) == g_module &&
+               EntryModule(g_global.GetInstanceProcAddr) == g_entryModule;
     }
 
     bool LoadInstance(VkInstance instance, bool debugUtils, Instance& out)

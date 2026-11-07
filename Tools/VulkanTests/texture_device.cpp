@@ -1,5 +1,6 @@
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Context.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Memory.hpp"
+#include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Loader.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Texture.hpp"
 #include "Engine/Source/Gx/CGxDeviceVulkan/Vulkan/Log.hpp"
 #include <cstdarg>
@@ -28,10 +29,12 @@ int main() {
     using namespace gxvk::vk;
     // Hidden window, no game data or server connection required. No draws are submitted, so
     // DestroyIdle is valid immediately and resource accounting can be checked exactly.
+    Check(!loader::StillMapped(), "uninitialized Vulkan dispatch cannot destroy resources");
     HWND window = CreateWindowExA(0, "STATIC", "Vulkan texture regression", WS_OVERLAPPEDWINDOW,
                                   0, 0, 128, 128, nullptr, nullptr, GetModuleHandleA(nullptr), nullptr);
     Check(window != nullptr, "create hidden window");
     Check(context::Bring(window) == context::Attempt::Done, "initialize Vulkan device");
+    Check(loader::StillMapped(), "live Vulkan dispatch permits GPU buffer destruction, including forwarded DLL exports");
     char adapter[256] = {}, driver[128] = {};
     context::AdapterText(adapter, sizeof(adapter), driver, sizeof(driver));
     std::printf("Vulkan adapter: %s; %s\n", adapter, driver);
