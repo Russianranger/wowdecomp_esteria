@@ -3,6 +3,7 @@
 #include <cstring>
 #include <new>
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOFileUnit.h"
+#include "Engine/Source/BlizzardCore/Source/Packages/iounit/ReadExactAt.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/iounit/IOUnitContainer.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Mopaq/SFile.h"
 #include "Engine/Source/BlizzardCore/Source/Packages/Streaming/Storage.h"
@@ -60,8 +61,10 @@ bool IOFileUnit::Read(void* buffer, int64_t offset, uint32_t count, uint32_t* by
         return *bytesRead != 0;
     }
 
-    int32_t amount = count;
-    return Blizzard::File::Read(this->m_stream, buffer, offset, &amount) && amount == static_cast<int32_t>(count);
+    return System_File::ReadExactAt(buffer, offset, count,
+        [this](void* destination, int64_t position, int32_t* amount) {
+            return Blizzard::File::Read(this->m_stream, destination, position, amount);
+        });
 }
 
 // VERIFY: 681090df auto
